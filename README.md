@@ -18,7 +18,9 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 ## Navigation
 
-Choose the 3D navigation preset from the **Nav** menu above the viewer. Navigation works in Navigate and Measure modes.
+The tools (Navigate, Pins, Measure, Fit) sit in the vertical toolbar on the left of the viewer. The viewer transform and the 3D navigation preset are in the top bar.
+
+Choose the 3D navigation preset from the **Nav** menu. Navigation works in Navigate and Measure modes.
 
 | Preset | Orbit | Pan | Zoom |
 |---|---|---|---|

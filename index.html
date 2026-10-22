@@ -48,6 +48,21 @@ body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-s
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #1b1307; box-shadow: none; }
 .seg button kbd { font: 10.5px var(--f-num); margin-left: 5px; opacity: .65; }
+.vmid { display: grid; grid-template-columns: 40px minmax(0, 1fr); min-height: 0; }
+.tools { display: flex; flex-direction: column; gap: 2px; padding: 6px 4px; border-right: 1px solid var(--line); background: var(--panel); }
+.tool { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--fg); cursor: pointer; position: relative; padding: 0; }
+.tool svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tool:hover { background: var(--panel-2); border-color: var(--line); }
+.tool[aria-pressed="true"] { background: var(--accent); color: #1b1307; border-color: var(--accent); }
+.tool kbd { position: absolute; right: 2px; bottom: 0; font: 9px var(--f-num); opacity: .6; }
+.tools .tsep { height: 1px; margin: 4px 2px; background: var(--line); box-shadow: 0 1px 0 var(--hi); }
+.vbar .vlut { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+details.more summary { cursor: pointer; font-size: 12px; color: var(--muted); padding-left: 120px; list-style: none; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::before { content: "▸ "; }
+details.more[open] summary::before { content: "▾ "; }
+details.more summary:hover { color: var(--fg); }
+details.more .more-body { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 main.vp { position: relative; overflow: hidden; background: #262626; min-height: 0; touch-action: none; user-select: none; }
 .ibar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 4px 8px; border-top: 1px solid var(--line); font: 11.5px var(--f-num); color: var(--muted); }
 .ibar b { color: var(--fg); font-weight: 500; }
@@ -161,6 +176,7 @@ select:disabled { color: var(--muted); opacity: .8; }
   .fld, .knobrow, .kv { grid-template-columns: 96px minmax(0, 1fr); }
   .dims { grid-template-columns: 96px repeat(3, minmax(0, 1fr)); }
   .row.k { padding-left: 104px; }
+  details.more summary { padding-left: 104px; }
   .ibar .hint { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -171,12 +187,6 @@ select:disabled { color: var(--muted); opacity: .8; }
 <div class="app">
   <div class="viewer">
     <div class="vbar">
-      <div class="seg" role="group" aria-label="Mode">
-        <button id="m-nav" aria-pressed="true">Navigate<kbd>N</kbd></button>
-        <button id="m-pins" aria-pressed="false">Pins<kbd>P</kbd></button>
-        <button id="m-measure" aria-pressed="false">Measure<kbd>M</kbd></button>
-      </div>
-      <span class="sep"></span>
       <div class="seg"><button id="scan-on" aria-pressed="true" title="Show / hide the scan (H)">Scan<kbd>H</kbd></button></div>
       <select id="disp" style="width:auto" aria-label="Scan display">
         <option value="wire">Wireframe</option>
@@ -198,11 +208,36 @@ select:disabled { color: var(--muted); opacity: .8; }
         </select>
       </label>
       <span class="sep"></span>
-      <button class="btn" id="fit" title="Fit the plate (F)">Fit</button>
+      <label class="vlut" for="view">Viewer
+        <select id="view" style="width:auto">
+          <option value="aces709">ACES 1.0 · Rec.709</option>
+          <option value="acessrgb">ACES 1.0 · sRGB</option>
+          <option value="r709">Rec.709 (no tone map)</option>
+          <option value="srgb">sRGB (no tone map)</option>
+          <option value="raw">Raw</option>
+        </select>
+      </label>
+      <span class="sep"></span>
       <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button>
       <span class="fmt" id="tag">SAMPLE</span>
     </div>
 
+    <div class="vmid">
+    <nav class="tools" aria-label="Tools">
+      <button class="tool" id="m-nav" aria-pressed="true" title="Navigate (N)" aria-label="Navigate">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M17.5 6.2 21 8.3l-1.2 3.6"/><circle cx="12" cy="12" r="1.6"/><path d="M12 3v3M12 18v3"/></svg><kbd>N</kbd>
+      </button>
+      <button class="tool" id="m-pins" aria-pressed="false" title="Pins (P)" aria-label="Pins">
+        <svg viewBox="0 0 24 24"><path d="M9 3h6l-1 5 3 3v2H7v-2l3-3z"/><path d="M12 13v8"/></svg><kbd>P</kbd>
+      </button>
+      <button class="tool" id="m-measure" aria-pressed="false" title="Measure (M)" aria-label="Measure">
+        <svg viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="1" transform="rotate(-30 12 12)"/><path d="m7.3 13.9-1-1.7M10.3 12.2l-1.5-2.6M13.3 10.4l-1-1.7M16.3 8.7l-1.5-2.6"/></svg><kbd>M</kbd>
+      </button>
+      <span class="tsep"></span>
+      <button class="tool" id="t-fit" title="Fit the plate (F)" aria-label="Fit the plate">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+      </button>
+    </nav>
     <main class="vp" id="vp">
       <div class="stage" id="stage">
         <img id="plate" alt="Plate">
@@ -220,6 +255,7 @@ select:disabled { color: var(--muted); opacity: .8; }
       <div class="drop" id="drop" hidden>Drop the scan (OBJ, PLY, GLB, FBX) or the plate (EXR, JPG, PNG)</div>
       <div class="busy" id="busy" hidden>Loading…</div>
     </main>
+    </div>
 
     <div class="ibar">
       <span>x <b id="cx">–</b> y <b id="cy">–</b></span>
@@ -245,15 +281,6 @@ select:disabled { color: var(--muted); opacity: .8; }
               <option value="rec2020">Rec.2020 (linear)</option>
               <option value="rec709">Rec.709 / sRGB (linear)</option>
               <option value="disp" hidden>sRGB display (JPG/PNG)</option>
-            </select>
-          </label>
-          <label class="fld" for="view">viewer
-            <select id="view">
-              <option value="aces709">ACES 1.0 · Rec.709</option>
-              <option value="acessrgb">ACES 1.0 · sRGB</option>
-              <option value="r709">Rec.709 (no tone map)</option>
-              <option value="srgb">sRGB (no tone map)</option>
-              <option value="raw">Raw</option>
             </select>
           </label>
           <div class="exr" id="exr-box" hidden>
@@ -298,13 +325,16 @@ select:disabled { color: var(--muted); opacity: .8; }
               <option value="-y">Y down (COLMAP)</option>
             </select>
           </label>
+          <div class="msg" id="unit-msg" hidden></div>
+          <details class="more" id="scan-more">
+          <summary id="scan-sum">Size, measure &amp; scale</summary>
+          <div class="more-body">
           <div class="dims" aria-label="Scan size in meters">
             <small>size</small>
             <div><small>X</small><span id="dx">–</span></div>
             <div><small>HEIGHT</small><span id="dy">–</span></div>
             <div><small>DEPTH</small><span id="dz">–</span></div>
           </div>
-          <div class="msg" id="unit-msg" hidden></div>
           <dl class="kv" id="scan-kv"></dl>
           <div class="knobrow"><span>measure</span>
             <div class="mrow">
@@ -317,6 +347,8 @@ select:disabled { color: var(--muted); opacity: .8; }
           <div class="knobrow"><span>scale</span>
             <div class="row"><span class="mono" id="scale-f">×1.0000</span><button class="btn ghost" id="reset-scale">Reset</button><button class="btn primary" id="scale-ok">Mark verified</button></div>
           </div>
+          </div>
+          </details>
         </div>
       </section>
 
@@ -787,6 +819,7 @@ function updateDims() {
   const s = b.getSize(new THREE.Vector3());
   $('dx').textContent = fmt(s.x, 2) + ' m'; $('dy').textContent = fmt(s.y, 2) + ' m'; $('dz').textContent = fmt(s.z, 2) + ' m';
   $('scale-f').textContent = '×' + fmt(st.userScale, 4);
+  $('scan-sum').textContent = `${fmt(s.x, 1)} × ${fmt(s.y, 1)} × ${fmt(s.z, 1)} m · scale ×${fmt(st.userScale, 3)}`;
   const msg = $('unit-msg');
   const big = Math.max(s.x, s.y, s.z);
   let txt = '', cls = 'msg';
@@ -1745,6 +1778,9 @@ function toggleScan() {
   render(); drawOverlay();
 }
 $('scan-on').onclick = toggleScan;
+$('t-fit').onclick = () => layoutStage(true);
+try { $('scan-more').open = !!lsGet('scanMore', false); } catch (e) {}
+$('scan-more').addEventListener('toggle', () => lsSet('scanMore', $('scan-more').open));
 navPreset = lsGet('nav', 'max'); if (!NAV[navPreset]) navPreset = 'max';
 $('navp').value = navPreset;
 $('navp').onchange = () => { navPreset = $('navp').value; lsSet('nav', navPreset); refreshAll(); };
@@ -1753,7 +1789,7 @@ $('m-pins').onclick = () => setMode('pins');
 $('m-measure').onclick = () => setMode('measure');
 $('disp').onchange = applyDisplay; $('opac').oninput = applyDisplay; $('ptsize').oninput = applyDisplay;
 $('grid').onchange = () => { grid.visible = $('grid').checked; render(); };
-$('fit').onclick = () => layoutStage(true);
+
 $('back').onclick = () => { if (st.solved) { cameraFromPose(st.solved); solveLive(false); refreshAll(); } };
 $('f-scan').onchange = e => { const f = e.target.files[0]; if (f) loadScanFile(f); e.target.value = ''; };
 $('f-plate').onchange = e => { const f = e.target.files[0]; if (f) loadPlateFile(f); e.target.value = ''; };

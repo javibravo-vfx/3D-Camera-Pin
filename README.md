@@ -1,67 +1,83 @@
 # 3D Camera Pin
 
-Herramienta de matchmove para un solo frame: resuelve la cámara de un plate usando pines sobre un scan del set (fotogrametría, LiDAR o gaussian splat), con la lente fija.
+Single-frame matchmove tool. It solves a plate's camera from pins placed on a scan of the set (photogrammetry, LiDAR or gaussian splat), with the lens fixed.
 
-Es un único archivo HTML. Corre en el navegador, sin instalar nada, y los archivos se leen en local: el scan y el plate no se suben a ningún lado.
+It is a single HTML file that runs in the browser with nothing to install. Files are read locally: the scan and the plate are never uploaded anywhere.
 
-## Uso
+**Live:** https://javibravo-vfx.github.io/3D-Camera-Pin/
 
-1. Abrí `index.html` en Chrome, Edge o Firefox. También se puede publicar con GitHub Pages.
-2. **Scan y escala**: cargá el scan (OBJ, PLY, GLB/GLTF, FBX) y revisá las unidades y el eje vertical. Para fijar la escala, en modo **Medir** trazá una línea entre dos puntos del scan sobre algo de medida conocida (una puerta, un cordón), escribí cuánto mide en metros y apretá Enter: el scan se escala para que esa medida sea real.
-3. **Plate y cámara**: cargá el plate (EXR, JPG, PNG), elegí el sensor y la lente. Si el EXR trae metadata de cámara y lente, se completan solos.
-4. **Pines**: en modo Pines, hacé click sobre el scan para crear un pin y arrastralo a su lugar en el plate. La pose se resuelve en vivo. Con 4 a 6 pines repartidos en profundidad alcanza.
-5. **Exportar**: copiá el script de la cámara para 3ds Max (Physical o Free Camera), Nuke (Camera2) o Blender (Python).
+## Workflow
 
-## Atajos
+1. **Plate & camera**: load the plate (EXR, JPG, PNG). For EXR, choose the input colorspace (ACES2065-1, ACEScg, ARRI Wide Gamut 3, Rec.2020, Rec.709) and the viewer transform (ACES 1.0 Rec.709 by default). Pick the sensor and the focal length. If the EXR carries camera and lens metadata, those fields fill in automatically.
+2. **Scan & scale**: load the scan (OBJ, PLY, GLB/GLTF, FBX) and check the units and up axis. To set the scale:
+   - In **Measure** mode, draw a line between two points of the scan on something of known size (a door, a curb).
+   - Type its real length in meters and press Enter. The scan is scaled so that line matches.
+   - Everything works in meters.
+3. **Pins**: in Pins mode, click the scan to drop a pin, then drag it to its spot on the plate. The pose solves live. 4 to 6 pins spread in depth are enough.
+4. **Export**: copy the camera script for 3ds Max (Physical or Free Camera), Nuke (Camera2) or Blender (Python).
 
-| Tecla / gesto | Acción |
+## Navigation
+
+Choose the 3D navigation preset from the **Nav** menu above the viewer. Navigation works in Navigate and Measure modes.
+
+| Preset | Orbit | Pan | Zoom |
+|---|---|---|---|
+| 3ds Max | Alt+MMB | MMB | Ctrl+Alt+MMB, wheel |
+| Maya | Alt+LMB | Alt+MMB | Alt+RMB, wheel |
+| Houdini | Space/Alt + LMB | Space/Alt + MMB | Space/Alt + RMB, wheel |
+| Blender | MMB | Shift+MMB | Ctrl+MMB, wheel |
+| Nuke | Alt+RMB, Ctrl+LMB | Alt+LMB | Alt+MMB, wheel |
+| Simple mouse | LMB | RMB | MMB, wheel |
+
+In Pins mode the camera is driven by the pins. The mouse works on the plate instead:
+- Wheel zooms.
+- Alt + drag, MMB or Space + drag pans.
+
+## Shortcuts
+
+| Key | Action |
 |---|---|
-| `N` / `P` / `M` | Modo Navegar / Pines / Medir |
-| `F` | Encuadrar el plate |
-| Rueda (modo Pines) | Zoom 2D sobre el plate |
-| `Alt` + arrastrar, botón medio o `Espacio` + arrastrar | Paneo del plate |
-| Botón derecho sobre un pin | Borrar pin |
-| `Esc` (modo Medir) | Borrar la medida |
-| `Supr` | Borrar el pin seleccionado |
+| `N` / `P` / `M` | Navigate / Pins / Measure mode |
+| `H` | Show / hide the scan |
+| `F` | Fit the plate |
+| `Esc` (Measure) | Clear the measurement |
+| `Delete` | Delete the selected pin |
+| RMB on a pin | Delete that pin |
 
-## Formatos
+## Formats
 
 **Scan**
-- OBJ, GLB/GLTF, FBX y PLY (malla o nube de puntos).
-- En los PLY de gaussian splat usa los centros, toma el color de `f_dc_*` y descarta los splats casi transparentes.
+- OBJ, GLB/GLTF, FBX and PLY (mesh or point cloud).
+- Gaussian-splat PLYs are read as their centers, with color from `f_dc_*`. Near-transparent splats are dropped.
 
 **Plate**
-- EXR scanline en half o float, con compresión NONE, RLE, ZIP, ZIPS, PIZ, PXR24, DWAA o DWAB, overscan incluido.
-- JPG y PNG.
+- EXR: scanline, half or float, with NONE, RLE, ZIP, ZIPS, PIZ, PXR24, DWAA or DWAB compression. Overscan (data window) is supported.
+- JPG and PNG.
 
-**Color del EXR**
-- Detecta el colorspace por los primarios del header: ACES2065-1, ACEScg, ARRI Wide Gamut 3, Rec.2020 o Rec.709.
-- La vista por defecto es ACES 1.0 a Rec.709, con una aproximación del RRT+ODT. También hay vista sRGB, sin tone map y sin transformar.
-- Tiene control de exposición.
+**EXR metadata**
+- Focal length from `nominalFocalLength`, `pinholeFocalLength` or `effectiveFocalLength`.
+- Film back from `sensorAcquisitionRectangle` × `sensorPhotositePitch`.
+- Camera and lens make/model.
+- Vendor keys containing `focal` or `sensor`.
 
-**Metadata del EXR**
-- Lee `nominalFocalLength`, `pinholeFocalLength` y `effectiveFocalLength`.
-- Calcula el film back con `sensorAcquisitionRectangle` × `sensorPhotositePitch`.
-- También lee cámara y óptica, y busca claves de otros fabricantes que contengan `focal` o `sensor`.
+## How it solves
 
-## Cómo resuelve
+Perspective-n-Point with known intrinsics (film back and focal):
+- With 1 or 2 pins it only adjusts rotation.
+- From 3 pins it solves rotation and position with Levenberg-Marquardt.
+- From 6 pins it adds a DLT initialization and can optionally estimate the focal length.
 
-Usa Perspective-n-Point con los intrínsecos conocidos (film back y focal):
-- Con 1 o 2 pines solo ajusta la rotación.
-- Desde 3 pines resuelve rotación y posición con Levenberg-Marquardt.
-- Desde 6 pines agrega una inicialización por DLT y, si querés, puede estimar la focal.
+Each pin shows its reprojection error in pixels.
 
-Muestra el error de reproyección de cada pin en píxeles.
+## Limitations
 
-## Limitaciones
+- No lens distortion correction: undistort wide-angle plates first.
+- Square pixels only, so no anamorphic plates.
+- EXR with B44/HTJ2K compression, tiled, multipart or layered channels is not supported.
+- The ACES view is a fitted approximation of the RRT+ODT: good for placing pins, but not a match for OCIO.
 
-- No corrige distorsión de lente: con angulares, desdistorsioná el plate antes.
-- Asume píxeles cuadrados, así que no sirve para anamórfico.
-- No lee EXR con compresión B44 o HTJ2K, ni tileados, multipart o con canales en capas.
-- El tone map de ACES es una aproximación: sirve para ubicar pines, pero no es la transformación exacta de OCIO.
+## Dependencies
 
-## Dependencias
-
-Las carga desde CDN, así que la primera vez necesita conexión:
-- [three.js](https://threejs.org) r147: visor y loaders.
-- Fuentes de Google Fonts.
+Loaded from CDNs, so the first load needs a connection:
+- [three.js](https://threejs.org) r147, for the viewer and the loaders.
+- Google Fonts.

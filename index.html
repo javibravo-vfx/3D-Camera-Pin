@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -141,6 +141,10 @@ details.meta dt { font-family: var(--f-num); font-size: 11px; }
 svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .tag { position: absolute; top: 8px; left: 8px; font: 500 11px var(--f-num); color: var(--muted); pointer-events: none; }
 .drop { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(29 29 29 / .8); border: 2px dashed var(--accent); font-size: 15px; font-weight: 600; text-align: center; padding: 16px; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.mrow .arrow { color: var(--muted); }
+.mono { font: 12.5px var(--f-num); font-variant-numeric: tabular-nums; }
+select:disabled { color: var(--muted); opacity: .8; }
 .mpop { position: absolute; transform: translate(-50%, calc(-100% - 14px)); display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 9px; background: rgb(40 40 40 / .96); border: 1px solid var(--pin); border-radius: 3px; box-shadow: 0 4px 14px rgb(0 0 0 / .5); white-space: nowrap; z-index: 2; }
 .mpop .d { font: 500 12.5px var(--f-num); color: var(--pin); }
 .mpop .arrow { color: var(--muted); }
@@ -167,26 +171,36 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
 <div class="app">
   <div class="viewer">
     <div class="vbar">
-      <div class="seg" role="group" aria-label="Modo">
-        <button id="m-nav" aria-pressed="true">Navegar<kbd>N</kbd></button>
-        <button id="m-pins" aria-pressed="false">Pines<kbd>P</kbd></button>
-        <button id="m-measure" aria-pressed="false">Medir<kbd>M</kbd></button>
+      <div class="seg" role="group" aria-label="Mode">
+        <button id="m-nav" aria-pressed="true">Navigate<kbd>N</kbd></button>
+        <button id="m-pins" aria-pressed="false">Pins<kbd>P</kbd></button>
+        <button id="m-measure" aria-pressed="false">Measure<kbd>M</kbd></button>
       </div>
       <span class="sep"></span>
-      <label for="disp">Scan
-        <select id="disp" style="width:auto">
-          <option value="wire">Wireframe</option>
-          <option value="solid">Sólido</option>
-          <option value="orig">Original</option>
+      <div class="seg"><button id="scan-on" aria-pressed="true" title="Show / hide the scan (H)">Scan<kbd>H</kbd></button></div>
+      <select id="disp" style="width:auto" aria-label="Scan display">
+        <option value="wire">Wireframe</option>
+        <option value="solid">Solid</option>
+        <option value="orig">Original</option>
+      </select>
+      <label for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
+      <label for="ptsize">Point <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2" style="width:70px"></label>
+      <label for="grid"><input id="grid" type="checkbox" checked> Grid 1 m</label>
+      <span class="sep"></span>
+      <label for="navp">Nav
+        <select id="navp" style="width:auto">
+          <option value="max">3ds Max</option>
+          <option value="maya">Maya</option>
+          <option value="houdini">Houdini</option>
+          <option value="blender">Blender</option>
+          <option value="nuke">Nuke</option>
+          <option value="simple">Simple mouse</option>
         </select>
       </label>
-      <label for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
-      <label for="ptsize">Punto <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2" style="width:70px"></label>
-      <label for="grid"><input id="grid" type="checkbox" checked> Grilla 1 m</label>
       <span class="sep"></span>
-      <button class="btn" id="fit" title="Encuadrar el plate (F)">Fit</button>
-      <button class="btn" id="back" title="Volver a la cámara resuelta" disabled>Cámara resuelta</button>
-      <span class="fmt" id="tag">EJEMPLO</span>
+      <button class="btn" id="fit" title="Fit the plate (F)">Fit</button>
+      <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button>
+      <span class="fmt" id="tag">SAMPLE</span>
     </div>
 
     <main class="vp" id="vp">
@@ -198,13 +212,13 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
       <svg class="ov" id="ov"></svg>
       <div class="mpop" id="mpop" hidden>
         <span class="d" id="mpop-d">0.000 m</span><span class="arrow">→</span>
-        <input id="mpop-real" type="number" step="0.001" min="0" placeholder="real" aria-label="Medida real en metros">
+        <input id="mpop-real" type="number" step="0.001" min="0" placeholder="real" aria-label="Real length in meters">
         <span class="u">m</span>
-        <button class="btn primary" id="mpop-ok">Escalar</button>
-        <button class="btn ghost" id="mpop-x" aria-label="Borrar medida" title="Borrar medida (Esc)">×</button>
+        <button class="btn primary" id="mpop-ok">Scale</button>
+        <button class="btn ghost" id="mpop-x" aria-label="Clear measurement" title="Clear measurement (Esc)">×</button>
       </div>
-      <div class="drop" id="drop" hidden>Soltá el scan (OBJ, PLY, GLB, FBX) o el plate (EXR, JPG, PNG)</div>
-      <div class="busy" id="busy" hidden>Cargando…</div>
+      <div class="drop" id="drop" hidden>Drop the scan (OBJ, PLY, GLB, FBX) or the plate (EXR, JPG, PNG)</div>
+      <div class="busy" id="busy" hidden>Loading…</div>
     </main>
 
     <div class="ibar">
@@ -214,80 +228,35 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
     </div>
   </div>
 
-  <aside class="props" aria-label="Propiedades">
-    <div class="node"><span class="chip"></span><b>CameraPin1</b><span>match de cámara sobre scan</span></div>
+  <aside class="props" aria-label="Properties">
+    <div class="node"><span class="chip"></span><b>CameraPin1</b><span>camera match on a scan</span></div>
     <div class="scroll">
-      <section class="step" id="s1" data-state="warn">
-        <h2 tabindex="0"><span class="n">1</span>Scan y escala<span class="st" id="s1st">sin verificar</span></h2>
-        <div class="body">
-          <div class="knobrow"><span>archivo</span>
-            <div class="row"><span class="file btn">Cargar scan<input id="f-scan" type="file" accept=".obj,.ply,.glb,.gltf,.fbx"></span><span class="note" id="scan-name">Ejemplo</span></div>
-          </div>
-          <label class="fld" for="unit">unidades
-            <select id="unit">
-              <option value="1">Metros</option>
-              <option value="0.01">Centímetros</option>
-              <option value="0.001">Milímetros</option>
-              <option value="0.0254">Pulgadas</option>
-              <option value="0.3048">Pies</option>
-            </select>
-          </label>
-          <label class="fld" for="up">eje vertical
-            <select id="up">
-              <option value="y">Y arriba</option>
-              <option value="z">Z arriba</option>
-              <option value="-y">Y abajo (COLMAP)</option>
-            </select>
-          </label>
-          <div class="dims" aria-label="Tamaño del scan en metros">
-            <small>tamaño</small>
-            <div><small>X</small><span id="dx">–</span></div>
-            <div><small>ALTO</small><span id="dy">–</span></div>
-            <div><small>PROF.</small><span id="dz">–</span></div>
-          </div>
-          <div class="msg" id="unit-msg" hidden></div>
-          <dl class="kv" id="scan-kv"></dl>
-          <p class="note">Usá <b>Medir</b> sobre algo conocido (una puerta, un cordón, una persona) y cargá la medida real.</p>
-          <label class="fld" for="meas">medida en scan
-            <input id="meas" type="text" readonly value="–">
-          </label>
-          <label class="fld" for="real">medida real (m)
-            <input id="real" type="number" step="0.001" min="0" placeholder="2.10">
-          </label>
-          <div class="row k">
-            <button class="btn" id="apply-scale" disabled>Escalar</button>
-            <button class="btn ghost" id="reset-scale">Quitar escala</button>
-            <span class="note" id="scale-f">Factor 1.000</span>
-          </div>
-          <div class="row k"><button class="btn primary" id="scale-ok">Escala verificada</button></div>
-        </div>
-      </section>
-
       <section class="step" id="s2" data-state="warn">
-        <h2 tabindex="0"><span class="n">2</span>Plate y cámara<span class="st" id="s2st">ejemplo</span></h2>
+        <h2 tabindex="0"><span class="n">1</span>Plate &amp; camera<span class="st" id="s2st">sample</span></h2>
         <div class="body">
           <div class="knobrow"><span>file</span>
-            <div class="row"><span class="file btn">Cargar plate<input id="f-plate" type="file" accept=".exr,image/*"></span><span class="note" id="plate-name">Ejemplo · 1920 × 1336</span></div>
+            <div class="row"><span class="file btn">Load plate<input id="f-plate" type="file" accept=".exr,image/*"></span><span class="note" id="plate-name">Sample · 1920 × 1336</span></div>
           </div>
+          <label class="fld" for="cs">input colorspace
+            <select id="cs">
+              <option value="ap0">ACES2065-1 (AP0)</option>
+              <option value="ap1">ACEScg (AP1)</option>
+              <option value="awg3">ARRI Wide Gamut 3 (linear)</option>
+              <option value="rec2020">Rec.2020 (linear)</option>
+              <option value="rec709">Rec.709 / sRGB (linear)</option>
+              <option value="disp" hidden>sRGB display (JPG/PNG)</option>
+            </select>
+          </label>
+          <label class="fld" for="view">viewer
+            <select id="view">
+              <option value="aces709">ACES 1.0 · Rec.709</option>
+              <option value="acessrgb">ACES 1.0 · sRGB</option>
+              <option value="r709">Rec.709 (no tone map)</option>
+              <option value="srgb">sRGB (no tone map)</option>
+              <option value="raw">Raw</option>
+            </select>
+          </label>
           <div class="exr" id="exr-box" hidden>
-            <label class="fld" for="cs">colorspace
-              <select id="cs">
-                <option value="ap0">ACES2065-1 (AP0)</option>
-                <option value="ap1">ACEScg (AP1)</option>
-                <option value="awg3">ARRI Wide Gamut 3 lineal</option>
-                <option value="rec2020">Rec.2020 lineal</option>
-                <option value="rec709">Rec.709 / sRGB lineal</option>
-              </select>
-            </label>
-            <label class="fld" for="view">viewer
-              <select id="view">
-                <option value="aces709">ACES 1.0 · Rec.709</option>
-                <option value="acessrgb">ACES 1.0 · sRGB</option>
-                <option value="r709">Rec.709 sin tone map</option>
-                <option value="srgb">sRGB sin tone map</option>
-                <option value="raw">Sin transformar</option>
-              </select>
-            </label>
             <label class="fld" for="ev">exposure
               <span class="evwrap"><input id="ev" type="range" min="-6" max="6" step="0.25" value="0"><span class="evrow"><span id="ev-v">+0.00 EV</span></span></span>
             </label>
@@ -295,34 +264,78 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
             <div class="msg ok" id="meta-msg" hidden></div>
             <details class="meta" id="meta"><summary id="meta-sum">Metadata</summary><dl class="kv" id="meta-kv"></dl></details>
           </div>
-          <label class="fld" for="preset">cámara
+          <label class="fld" for="preset">camera
             <select id="preset"></select>
           </label>
           <label class="fld" for="sw">haperture (mm)<input id="sw" type="number" step="0.01" min="1"></label>
           <label class="fld" for="sh">vaperture (mm)<input id="sh" type="number" step="0.01" min="1"></label>
           <label class="fld" for="focal">focal (mm)<input id="focal" type="number" step="0.1" min="1"></label>
-          <label class="fld" for="free"><span></span><span class="row"><input id="free" type="checkbox"> Estimar focal</span></label>
+          <label class="fld" for="free"><span></span><span class="row"><input id="free" type="checkbox"> Estimate focal</span></label>
           <div class="msg" id="aspect-msg" hidden></div>
           <dl class="kv" id="cam-kv"></dl>
         </div>
       </section>
 
-      <section class="step" id="s3" data-state="warn">
-        <h2 tabindex="0"><span class="n">3</span>Pines<span class="st" id="s3st">0 pines</span></h2>
+      <section class="step" id="s1" data-state="warn">
+        <h2 tabindex="0"><span class="n">2</span>Scan &amp; scale<span class="st" id="s1st">not verified</span></h2>
         <div class="body">
-          <p class="note">Modo <b>Pines</b>: click sobre el scan crea un pin; arrastralo hasta su lugar en el plate. Con la lente fija alcanzan <b>4 a 6 pines</b> repartidos en profundidad.</p>
+          <div class="knobrow"><span>file</span>
+            <div class="row"><span class="file btn">Load scan<input id="f-scan" type="file" accept=".obj,.ply,.glb,.gltf,.fbx"></span><span class="note" id="scan-name">Sample</span></div>
+          </div>
+          <label class="fld" for="unit">units
+            <select id="unit">
+              <option value="1">Meters</option>
+              <option value="0.01">Centimeters</option>
+              <option value="0.001">Millimeters</option>
+              <option value="0.0254">Inches</option>
+              <option value="0.3048">Feet</option>
+            </select>
+          </label>
+          <label class="fld" for="up">up axis
+            <select id="up">
+              <option value="y">Y up</option>
+              <option value="z">Z up</option>
+              <option value="-y">Y down (COLMAP)</option>
+            </select>
+          </label>
+          <div class="dims" aria-label="Scan size in meters">
+            <small>size</small>
+            <div><small>X</small><span id="dx">–</span></div>
+            <div><small>HEIGHT</small><span id="dy">–</span></div>
+            <div><small>DEPTH</small><span id="dz">–</span></div>
+          </div>
+          <div class="msg" id="unit-msg" hidden></div>
+          <dl class="kv" id="scan-kv"></dl>
+          <div class="knobrow"><span>measure</span>
+            <div class="mrow">
+              <input id="meas" type="text" readonly value="–" aria-label="Length on the scan" title="Draw a line in Measure mode (M)">
+              <span class="arrow">→</span>
+              <input id="real" type="number" step="0.001" min="0" placeholder="real m" aria-label="Real length in meters">
+              <button class="btn" id="apply-scale" disabled>Scale</button>
+            </div>
+          </div>
+          <div class="knobrow"><span>scale</span>
+            <div class="row"><span class="mono" id="scale-f">×1.0000</span><button class="btn ghost" id="reset-scale">Reset</button><button class="btn primary" id="scale-ok">Mark verified</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="step" id="s3" data-state="warn">
+        <h2 tabindex="0"><span class="n">3</span>Pins<span class="st" id="s3st">0 pins</span></h2>
+        <div class="body">
+          <p class="note">In <b>Pins</b> mode, click the scan to drop a pin, then drag it to its spot on the plate. With a fixed lens, <b>4 to 6 pins</b> spread in depth are enough.</p>
           <ul class="pins" id="pinlist"></ul>
           <div class="row">
-            <button class="btn" id="solve" title="Resolver la pose con todos los pines">Resolver desde cero</button>
-            <button class="btn ghost" id="clear-pins">Borrar pines</button>
+            <button class="btn" id="solve" title="Solve the pose from scratch with every pin">Solve from scratch</button>
+            <button class="btn ghost" id="clear-pins">Clear pins</button>
           </div>
         </div>
       </section>
 
       <section class="step" id="s4" data-state="warn">
-        <h2 tabindex="0"><span class="n">4</span>Exportar cámara</h2>
+        <h2 tabindex="0"><span class="n">4</span>Export camera</h2>
         <div class="body">
-          <label class="fld" for="target">destino
+          <label class="fld" for="target">target
             <select id="target">
               <option value="max-phys">3ds Max · Physical Camera</option>
               <option value="max-free">3ds Max · Free Camera</option>
@@ -330,10 +343,10 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
               <option value="blender">Blender · Python</option>
             </select>
           </label>
-          <label class="fld" for="camname">nombre<input id="camname" type="text" value="MatchCam"></label>
-          <textarea id="out" readonly spellcheck="false" aria-label="Script de cámara"></textarea>
+          <label class="fld" for="camname">name<input id="camname" type="text" value="MatchCam"></label>
+          <textarea id="out" readonly spellcheck="false" aria-label="Camera script"></textarea>
           <div class="row">
-            <button class="btn primary" id="copy">Copiar</button>
+            <button class="btn primary" id="copy">Copy</button>
             <span class="note" id="copy-msg"></span>
           </div>
           <p class="note" id="export-note"></p>
@@ -343,10 +356,8 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
   </aside>
 </div>
 
-
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/fflate.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/OBJLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/PLYLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -588,7 +599,7 @@ const $ = (id) => document.getElementById(id);
 const lsGet = (k, d) => { try { const v = localStorage.getItem('pinmatch.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem('pinmatch.' + k, JSON.stringify(v)); } catch (e) {} };
 
-// ---------- Sensor presets (film back in mm; verificá contra la planilla del rodaje) ----------
+// ---------- Sensor presets (film back in mm; check against the camera report) ----------
 const PRESETS = [
   ['alexa-lf-og', 'ARRI Alexa LF / Mini LF · Open Gate 4.5K', 36.70, 25.54],
   ['alexa-lf-169', 'ARRI Alexa LF / Mini LF · 16:9 UHD', 31.68, 17.82],
@@ -603,19 +614,19 @@ const PRESETS = [
   ['c70', 'Canon C70 / C300 III · 4K DCI S35', 26.20, 13.80],
   ['bmpcc6k', 'Blackmagic Pocket 6K · 6K 16:9', 23.10, 12.99],
   ['bmpcc4k', 'Blackmagic Pocket 4K · 4K DCI', 18.96, 10.00],
-  ['ff', 'Full Frame foto · 3:2', 36.00, 24.00],
-  ['s35', 'Super 35 genérico · 4-perf', 24.89, 18.66],
-  ['iph12', 'iPhone 12 Pro · gran angular (4.2 mm)', 5.76, 4.29],
-  ['custom', 'Personalizado', null, null],
+  ['ff', 'Full Frame stills · 3:2', 36.00, 24.00],
+  ['s35', 'Super 35 generic · 4-perf', 24.89, 18.66],
+  ['iph12', 'iPhone 12 Pro · wide (4.2 mm)', 5.76, 4.29],
+  ['custom', 'Custom', null, null],
 ];
 
 // ---------- State ----------
 const st = {
-  plate: { W: 1920, H: 1336, name: 'Ejemplo', sample: true },
+  plate: { W: 1920, H: 1336, name: 'Sample', sample: true },
   sw: 36.70, sh: 25.54, focal: 32, preset: 'alexa-lf-og',
   freeF: false, fScale: 1,
   unit: 1, up: 'y', userScale: 1, scaleOk: false,
-  scanName: 'Ejemplo', scanKind: 'mesh', rawBox: null, sample: true,
+  scanName: 'Sample', scanKind: 'mesh', rawBox: null, sample: true,
   pins: [], sel: -1, nextId: 1,
   mode: 'nav',
   view: { zoom: 1, x: 0, y: 0, baseW: 1, baseH: 1, left: 0, top: 0 },
@@ -644,9 +655,50 @@ measLine.renderOrder = 999; measLine.visible = false; scene.add(measLine);
 const measPts = new THREE.Points(measGeo, new THREE.PointsMaterial({ color: 0xffb238, size: 8, sizeAttenuation: false, depthTest: false, transparent: true }));
 measPts.renderOrder = 999; measPts.visible = false; scene.add(measPts);
 
-const controls = new THREE.OrbitControls(camera, canvas);
-controls.enableDamping = false;
-controls.addEventListener('change', () => { render(); drawOverlay(); });
+// ---------- 3D navigation with DCC presets ----------
+const nav = { target: new THREE.Vector3() };
+const controls = nav; // pivot shared with the rest of the code
+let spaceDown = false;
+const NAV = {
+  max: { hint: 'MMB: pan · Alt+MMB: orbit · Ctrl+Alt+MMB or wheel: zoom',
+    map: (b, e) => b !== 1 ? null : e.ctrlKey && e.altKey ? 'dolly' : e.altKey ? 'orbit' : 'pan' },
+  maya: { hint: 'Alt+LMB: tumble · Alt+MMB: track · Alt+RMB or wheel: dolly',
+    map: (b, e) => !e.altKey ? null : b === 0 ? 'orbit' : b === 1 ? 'pan' : b === 2 ? 'dolly' : null },
+  houdini: { hint: 'Space/Alt + LMB: tumble · + MMB: track · + RMB or wheel: dolly',
+    map: (b, e) => !(e.altKey || spaceDown) ? null : b === 0 ? 'orbit' : b === 1 ? 'pan' : b === 2 ? 'dolly' : null },
+  blender: { hint: 'MMB: orbit · Shift+MMB: pan · Ctrl+MMB or wheel: zoom',
+    map: (b, e) => b !== 1 ? null : e.shiftKey ? 'pan' : e.ctrlKey ? 'dolly' : 'orbit' },
+  nuke: { hint: 'Alt+LMB: pan · Alt+MMB: zoom · Alt+RMB or Ctrl+LMB: orbit',
+    map: (b, e) => (b === 0 && e.ctrlKey && !e.altKey) ? 'orbit' : !e.altKey ? null : b === 0 ? 'pan' : b === 1 ? 'dolly' : b === 2 ? 'orbit' : null },
+  simple: { hint: 'LMB: orbit · RMB: pan · MMB or wheel: zoom',
+    map: (b) => b === 0 ? 'orbit' : b === 2 ? 'pan' : b === 1 ? 'dolly' : null },
+};
+let navPreset = 'max';
+function navChanged() { camera.updateMatrixWorld(); render(); drawOverlay(); }
+function navOrbit(dx, dy) {
+  const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -dx * 0.005);
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+  const qPitch = new THREE.Quaternion().setFromAxisAngle(right, -dy * 0.005);
+  const q = qYaw.multiply(qPitch);
+  const off = camera.position.clone().sub(nav.target).applyQuaternion(q);
+  camera.position.copy(nav.target).add(off);
+  camera.quaternion.premultiply(q);
+  navChanged();
+}
+function navPan(dx, dy) {
+  const dist = camera.position.distanceTo(nav.target);
+  const k = 2 * dist * Math.tan(camera.fov * Math.PI / 360) / (st.view.baseH * st.view.zoom);
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+  const d = right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k));
+  camera.position.add(d); nav.target.add(d);
+  navChanged();
+}
+function navDolly(f) {
+  const off = camera.position.clone().sub(nav.target);
+  camera.position.copy(nav.target).add(off.setLength(Math.max(off.length() * f, 1e-3)));
+  navChanged();
+}
 
 const MAT = {
   wire: new THREE.MeshBasicMaterial({ color: 0x5ccfe0, wireframe: true, transparent: true, opacity: 0.9 }),
@@ -734,12 +786,12 @@ function updateDims() {
   if (b.isEmpty()) return;
   const s = b.getSize(new THREE.Vector3());
   $('dx').textContent = fmt(s.x, 2) + ' m'; $('dy').textContent = fmt(s.y, 2) + ' m'; $('dz').textContent = fmt(s.z, 2) + ' m';
-  $('scale-f').textContent = 'Factor ' + fmt(st.userScale, 4);
+  $('scale-f').textContent = '×' + fmt(st.userScale, 4);
   const msg = $('unit-msg');
   const big = Math.max(s.x, s.y, s.z);
   let txt = '', cls = 'msg';
-  if (big > 2000) { txt = `El lado mayor mide ${fmt(big, 0)} m: casi seguro las unidades están mal (¿mm o cm?).`; cls = 'msg bad'; }
-  else if (big < 0.05) { txt = `El scan mide ${fmt(big * 100, 1)} cm de lado mayor: ¿está en metros pero exportado chico?`; cls = 'msg bad'; }
+  if (big > 2000) { txt = `The longest side is ${fmt(big, 0)} m: the units are almost certainly wrong (mm or cm?).`; cls = 'msg bad'; }
+  else if (big < 0.05) { txt = `The scan is only ${fmt(big * 100, 1)} cm on its longest side: is it in meters but exported too small?`; cls = 'msg bad'; }
   else if (st.guessText && st.guess === String(st.unit)) { txt = st.guessText; }
   msg.hidden = !txt; msg.className = cls; msg.textContent = txt;
 }
@@ -770,7 +822,7 @@ function finishScan(obj, name, kind, fileType) {
   let unit = 1;
   if (fileType !== 'glb' && fileType !== 'gltf') unit = big > 2500 ? 0.001 : big > 250 ? 0.01 : 1;
   st.guess = String(unit);
-  st.guessText = unit === 1 ? '' : `Lado mayor: ${fmt(big, 1)} unidades. Parece estar en ${unit === 0.01 ? 'centímetros' : 'milímetros'}; lo puse así, revisalo.`;
+  st.guessText = unit === 1 ? '' : `Longest side: ${fmt(big, 1)} units. It looks like ${unit === 0.01 ? 'centimeters' : 'millimeters'}, so units were set to that. Check it.`;
   let up = fileType === 'ply' ? lsGet('upPly', 'y') : 'y';
   st.unit = unit; st.up = up; st.userScale = 1; st.scaleOk = false;
   $('unit').value = String(unit); $('up').value = up;
@@ -780,7 +832,7 @@ function finishScan(obj, name, kind, fileType) {
   applyDisplay();
   frameScan();
   $('scan-name').textContent = name;
-  $('tag').textContent = (st.plate.sample ? 'EJEMPLO · ' : '') + st.plate.W + ' × ' + st.plate.H;
+  $('tag').textContent = (st.plate.sample ? 'SAMPLE · ' : '') + st.plate.W + ' × ' + st.plate.H;
   const kv = [];
   let verts = 0, tris = 0;
   obj.traverse(o => {
@@ -789,9 +841,9 @@ function finishScan(obj, name, kind, fileType) {
       if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3;
     }
   });
-  kv.push(['Tipo', kind === 'points' ? 'Nube de puntos / splat' : 'Malla']);
-  kv.push([kind === 'points' ? 'Puntos' : 'Triángulos', (kind === 'points' ? verts : Math.round(tris)).toLocaleString('es-AR')]);
-  if (st.plyInfo) kv.push(['Filtrado', st.plyInfo]);
+  kv.push(['type', kind === 'points' ? 'Point cloud / splat' : 'Mesh']);
+  kv.push([kind === 'points' ? 'points' : 'triangles', (kind === 'points' ? verts : Math.round(tris)).toLocaleString('en-US')]);
+  if (st.plyInfo) kv.push(['filtered', st.plyInfo]);
   $('scan-kv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   refreshAll();
   setBusy(false);
@@ -810,7 +862,7 @@ function frameScan() {
 function parsePLYPoints(buf) {
   const head = new TextDecoder('latin1').decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, 200000)));
   const hi = head.indexOf('end_header');
-  if (hi < 0) throw new Error('PLY sin header');
+  if (hi < 0) throw new Error('PLY has no header');
   let start = hi + 10; if (head[start] === '\r') start++; start++;
   const lines = head.slice(0, hi).split(/\r?\n/);
   let format = 'ascii', elems = [], cur = null;
@@ -826,7 +878,7 @@ function parsePLYPoints(buf) {
   const faces = elems.find(e => e.name === 'face');
   if (faces && faces.count > 0) return null;
   const ve = elems.find(e => e.name === 'vertex');
-  if (!ve) throw new Error('PLY sin vértices');
+  if (!ve) throw new Error('PLY has no vertices');
   const SZ = { char: 1, int8: 1, uchar: 1, uint8: 1, short: 2, int16: 2, ushort: 2, uint16: 2, int: 4, int32: 4, uint: 4, uint32: 4, float: 4, float32: 4, double: 8, float64: 8 };
   const idx = {}; ve.props.forEach((p, i) => idx[p.name] = i);
   const hasRGB = 'red' in idx, hasDC = 'f_dc_0' in idx, hasOp = 'opacity' in idx;
@@ -861,7 +913,7 @@ function parsePLYPoints(buf) {
   } else {
     const le = format === 'binary_little_endian';
     const dv = new DataView(buf, start);
-    if (ve.props.some(p => p.list)) throw new Error('PLY con listas en vértices no soportado');
+    if (ve.props.some(p => p.list)) throw new Error('PLY with list properties on vertices is not supported');
     const offs = []; let stride = 0;
     for (const p of ve.props) { offs.push(stride); stride += SZ[p.type]; }
     const rd = ve.props.map(p => {
@@ -885,13 +937,13 @@ function parsePLYPoints(buf) {
     }
   }
   const info = [];
-  if (step > 1) info.push(`1 de cada ${step}`);
-  if (dropped) info.push(`${dropped.toLocaleString('es-AR')} splats casi transparentes fuera`);
+  if (step > 1) info.push(`1 in ${step}`);
+  if (dropped) info.push(`${dropped.toLocaleString('en-US')} near-transparent splats removed`);
   return { pos: pos.subarray(0, k * 3), col: col ? col.subarray(0, k * 3) : null, info: info.join(' · ') };
 }
 
 async function loadScanFile(file) {
-  setBusy(true, 'Cargando ' + file.name + '…');
+  setBusy(true, 'Loading ' + file.name + '…');
   const ext = file.name.split('.').pop().toLowerCase();
   st.plyInfo = '';
   try {
@@ -919,11 +971,11 @@ async function loadScanFile(file) {
       obj = await new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', g => res(g.scene), rej));
     } else if (ext === 'fbx') {
       obj = new THREE.FBXLoader().parse(buf, '');
-    } else throw new Error('Formato no soportado: .' + ext);
+    } else throw new Error('unsupported format: .' + ext);
     finishScan(obj, file.name, kind, ext);
   } catch (err) {
     setBusy(false);
-    showMsg('unit-msg', 'No pude leer ' + file.name + ': ' + (err.message || err) + '. Probá exportarlo como GLB, OBJ o PLY binario.', 'msg bad');
+    showMsg('unit-msg', 'Could not read ' + file.name + ': ' + (err.message || err) + '. Try exporting it as GLB, OBJ or binary PLY.', 'msg bad');
     console.error(err);
   }
 }
@@ -954,9 +1006,12 @@ function setPlate(url, W, H, name, sample) {
   st.plate = { W, H, name, sample };
   if (url) { plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
   else { plateImg.hidden = true; $('platecv').hidden = false; }
-  if (url) $('exr-box').hidden = true;
-  $('plate-name').textContent = (sample ? 'Ejemplo' : name) + ' · ' + W + ' × ' + H;
-  $('tag').textContent = (sample ? 'EJEMPLO · ' : '') + W + ' × ' + H;
+  if (url) {
+    $('exr-box').hidden = true; exrState = null;
+    $('cs').value = 'disp'; $('cs').disabled = true; $('view').disabled = true;
+  } else { $('cs').disabled = false; $('view').disabled = false; }
+  $('plate-name').textContent = (sample ? 'Sample' : name) + ' · ' + W + ' × ' + H;
+  $('tag').textContent = (sample ? 'SAMPLE · ' : '') + W + ' × ' + H;
   layoutStage(true);
   applyIntrinsics();
   checkAspect();
@@ -972,7 +1027,7 @@ function loadPlateFile(file) {
     st.pins = []; st.solved = null; st.rms = null;
     refreshAll();
   };
-  im.onerror = () => showMsg('aspect-msg', 'El navegador no puede abrir ' + file.name + '. Exportá el frame como JPG o PNG (EXR y DPX no se leen acá).', 'msg bad');
+  im.onerror = () => showMsg('aspect-msg', 'The browser cannot open ' + file.name + '. Export the frame as EXR, JPG or PNG (DPX is not supported).', 'msg bad');
   im.src = url;
 }
 function checkAspect() {
@@ -981,7 +1036,7 @@ function checkAspect() {
   const m = $('aspect-msg');
   if (d > 0.01) {
     m.hidden = false; m.className = 'msg';
-    m.textContent = `El plate es ${a1.toFixed(3)}:1 y el film back ${a2.toFixed(3)}:1. Se toma el ancho como referencia; si el plate está recortado o reencuadrado, cargá el film back del área que realmente muestra.`;
+    m.textContent = `The plate is ${a1.toFixed(3)}:1 and the film back ${a2.toFixed(3)}:1. Width is used as the reference; if the plate is cropped or reframed, enter the film back of the area it actually shows.`;
   } else m.hidden = true;
 }
 
@@ -990,7 +1045,7 @@ const EXR = (() => {
   const COMP = ['NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB', 'HTJ2K256', 'HTJ2K32'];
   function parseHeader(buf) {
     const dv = new DataView(buf), u8 = new Uint8Array(buf);
-    if (dv.getUint32(0, true) !== 20000630) throw new Error('no es un archivo EXR');
+    if (dv.getUint32(0, true) !== 20000630) throw new Error('not an EXR file');
     const ver = dv.getUint32(4, true);
     const flags = { tiled: !!(ver & 0x200), longNames: !!(ver & 0x400), deep: !!(ver & 0x800), multipart: !!(ver & 0x1000) };
     let o = 8;
@@ -1056,26 +1111,26 @@ const EXR = (() => {
     rec2020: [1.66049100, -0.58764114, -0.07284986, -0.12455047, 1.13289990, -0.00834942, -0.01815076, -0.10057890, 1.11872966],
     rec709: [1, 0, 0, 0, 1, 0, 0, 0, 1],
   };
-  const CS_NAMES = { ap0: 'ACES2065-1 (AP0)', ap1: 'ACEScg (AP1)', awg3: 'ARRI Wide Gamut 3 lineal', rec2020: 'Rec.2020 lineal', rec709: 'Rec.709 / sRGB lineal' };
+  const CS_NAMES = { ap0: 'ACES2065-1 (AP0)', ap1: 'ACEScg (AP1)', awg3: 'ARRI Wide Gamut 3 (linear)', rec2020: 'Rec.2020 (linear)', rec709: 'Rec.709 / sRGB (linear)' };
   function detectSpace(h) {
     const c = h.get('chromaticities');
     if (c) {
       const near = (x, y, tx, ty) => Math.abs(x - tx) < 0.004 && Math.abs(y - ty) < 0.004;
-      if (near(c[0], c[1], 0.7347, 0.2653)) return ['ap0', 'por los primarios del header'];
-      if (near(c[0], c[1], 0.713, 0.293)) return ['ap1', 'por los primarios del header'];
-      if (near(c[0], c[1], 0.684, 0.313)) return ['awg3', 'por los primarios del header'];
-      if (near(c[0], c[1], 0.708, 0.292)) return ['rec2020', 'por los primarios del header'];
-      if (near(c[0], c[1], 0.64, 0.33)) return ['rec709', 'por los primarios del header'];
+      if (near(c[0], c[1], 0.7347, 0.2653)) return ['ap0', 'from the header primaries'];
+      if (near(c[0], c[1], 0.713, 0.293)) return ['ap1', 'from the header primaries'];
+      if (near(c[0], c[1], 0.684, 0.313)) return ['awg3', 'from the header primaries'];
+      if (near(c[0], c[1], 0.708, 0.292)) return ['rec2020', 'from the header primaries'];
+      if (near(c[0], c[1], 0.64, 0.33)) return ['rec709', 'from the header primaries'];
     }
-    if (h.get('acesImageContainerFlag') === 1) return ['ap0', 'archivo ACES (ST 2065-4)'];
+    if (h.get('acesImageContainerFlag') === 1) return ['ap0', 'ACES container file (ST 2065-4)'];
     const csKey = h.attrs.find(a => /colou?rspace|interchange/i.test(a.name) && typeof a.value === 'string');
     if (csKey) {
       const s = csKey.value.toLowerCase();
-      if (/acescg|ap1/.test(s)) return ['ap1', 'por ' + csKey.name];
-      if (/aces|ap0|2065/.test(s)) return ['ap0', 'por ' + csKey.name];
-      if (/awg|alexa/.test(s)) return ['awg3', 'por ' + csKey.name];
+      if (/acescg|ap1/.test(s)) return ['ap1', 'from ' + csKey.name];
+      if (/aces|ap0|2065/.test(s)) return ['ap0', 'from ' + csKey.name];
+      if (/awg|alexa/.test(s)) return ['awg3', 'from ' + csKey.name];
     }
-    return ['ap0', 'sin dato en el header: asumo ACES2065-1'];
+    return ['ap0', 'nothing in the header, assuming ACES2065-1'];
   }
 
   // camera/lens hints from metadata (OpenEXR 3.2+ standard names first, then vendor keys)
@@ -1123,14 +1178,14 @@ const EXR = (() => {
 
   // decode pixels with three's EXRLoader; fixes data windows that don't start at 0,0
   function decode(buf, h) {
-    if (h.flags.tiled || h.flags.multipart || h.flags.deep) throw new Error('el EXR es ' + (h.flags.multipart ? 'multipart' : h.flags.tiled ? 'tileado' : 'deep') + '; exportalo como scanline de una sola parte');
+    if (h.flags.tiled || h.flags.multipart || h.flags.deep) throw new Error('the EXR is ' + (h.flags.multipart ? 'multipart' : h.flags.tiled ? 'tiled' : 'deep') + '; export it as single-part scanline');
     const comp = h.get('compression');
-    if (/^B44/.test(comp) || /^HTJ2K/.test(comp)) throw new Error(`la compresión ${comp} no se puede leer acá; reexportalo con PIZ, ZIP o DWAA`);
+    if (/^B44/.test(comp) || /^HTJ2K/.test(comp)) throw new Error(`${comp} compression is not supported; re-export with PIZ, ZIP or DWAA`);
     const chans = (h.get('channels') || []).map(c => c.name);
     const usable = chans.filter(n => /^(R|G|B|A|Y)$/.test(n));
-    if (!usable.length) throw new Error('no encontré canales R, G, B o Y en la primera capa (' + chans.slice(0, 6).join(', ') + ')');
+    if (!usable.length) throw new Error('no R, G, B or Y channels in the first layer (' + chans.slice(0, 6).join(', ') + ')');
     const types = new Set((h.get('channels') || []).map(c => c.type));
-    if (types.size > 1) throw new Error('el EXR mezcla canales half y float; exportá solo RGB(A) en half');
+    if (types.size > 1) throw new Error('the EXR mixes half and float channels; export RGB(A) as half only');
     const dw = h.get('dataWindow'), dwA = h.find('dataWindow');
     let b = buf;
     if (dw.xMin !== 0 || dw.yMin !== 0) {
@@ -1213,7 +1268,7 @@ const EXR = (() => {
 let exrState = null;
 function resetPinsForNewPlate() { st.pins = []; st.sel = -1; st.solved = null; st.rms = null; }
 async function loadExrFile(file) {
-  setBusy(true, 'Leyendo ' + file.name + '…');
+  setBusy(true, 'Reading ' + file.name + '…');
   await new Promise(r => setTimeout(r, 30));
   try {
     const buf = await file.arrayBuffer();
@@ -1230,46 +1285,46 @@ async function loadExrFile(file) {
     refreshAll();
   } catch (err) {
     console.error(err);
-    showMsg('aspect-msg', 'No pude abrir ' + file.name + ': ' + (err.message || err) + '.', 'msg bad');
+    showMsg('aspect-msg', 'Could not open ' + file.name + ': ' + (err.message || err) + '.', 'msg bad');
   }
   setBusy(false);
 }
 function drawExr() {
   const e = exrState;
   const dims = EXR.draw(e.px, e.h, { cs: $('cs').value, view: $('view').value, ev: +$('ev').value }, $('platecv'));
-  $('cs-note').innerHTML = `Detectado: <b>${EXR.CS_NAMES[e.cs]}</b> · ${e.why}.`;
+  $('cs-note').innerHTML = `Detected: <b>${EXR.CS_NAMES[e.cs]}</b> · ${e.why}.`;
   return dims;
 }
 function redrawExr() {
   if (!exrState) return;
-  setBusy(true, 'Aplicando color…');
+  setBusy(true, 'Applying color…');
   setTimeout(() => { drawExr(); setBusy(false); }, 20);
 }
 function showExrMeta(h) {
   const hint = EXR.lensHints(h);
   const lines = [];
-  if (hint.camera) lines.push('Cámara: ' + hint.camera);
-  if (hint.lens) lines.push('Óptica: ' + hint.lens);
+  if (hint.camera) lines.push('Camera: ' + hint.camera);
+  if (hint.lens) lines.push('Lens: ' + hint.lens);
   if (hint.sw) {
     setSensor(+hint.sw.toFixed(3), +(hint.sh || st.sh).toFixed(3), false);
-    lines.push(`Film back ${hint.sw.toFixed(2)} × ${(hint.sh || st.sh).toFixed(2)} mm (de ${hint.sensorKey})`);
+    lines.push(`Film back ${hint.sw.toFixed(2)} × ${(hint.sh || st.sh).toFixed(2)} mm (from ${hint.sensorKey})`);
   }
   if (hint.focal) {
     st.focal = +hint.focal.toFixed(3); st.fScale = 1; $('focal').value = st.focal; applyIntrinsics();
-    lines.push(`Lente ${hint.focal.toFixed(2)} mm (de ${hint.focalKey})`);
+    lines.push(`Focal ${hint.focal.toFixed(2)} mm (from ${hint.focalKey})`);
   }
   const par = h.get('pixelAspectRatio');
   const m = $('meta-msg');
-  if (lines.length) { m.hidden = false; m.className = 'msg ok'; m.innerHTML = 'Tomado de la metadata: ' + lines.map(l => `<br>· ${l.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`).join(''); }
-  else { m.hidden = false; m.className = 'msg'; m.textContent = 'La metadata no trae lente ni sensor: cargalos a mano.'; }
-  if (par && Math.abs(par - 1) > 1e-3) { m.className = 'msg bad'; m.innerHTML += `<br>Pixel aspect ${(+par).toFixed(3)}: es anamórfico y el solver todavía asume píxeles cuadrados.`; }
+  if (lines.length) { m.hidden = false; m.className = 'msg ok'; m.innerHTML = 'Taken from metadata:' + lines.map(l => `<br>· ${l.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`).join(''); }
+  else { m.hidden = false; m.className = 'msg'; m.textContent = 'No lens or sensor in the metadata: enter them by hand.'; }
+  if (par && Math.abs(par - 1) > 1e-3) { m.className = 'msg bad'; m.innerHTML += `<br>Pixel aspect ${(+par).toFixed(3)}: anamorphic plates are not supported yet, the solver assumes square pixels.`; }
   const first = ['cameraMake', 'cameraModel', 'lensMake', 'lensModel', 'nominalFocalLength', 'pinholeFocalLength', 'effectiveFocalLength', 'focus', 'aperture', 'tStop', 'sensorAcquisitionRectangle', 'sensorPhotositePitch', 'timeCode', 'framesPerSecond', 'chromaticities', 'acesImageContainerFlag', 'displayWindow', 'dataWindow', 'pixelAspectRatio', 'compression', 'channels'];
   const sorted = [...h.attrs].sort((a, b) => { const ia = first.indexOf(a.name), ib = first.indexOf(b.name); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.name.localeCompare(b.name); });
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   $('meta-kv').innerHTML = sorted.map(a => `<dt>${esc(a.name)}</dt><dd>${esc(EXR.fmtVal(a)).slice(0, 300)}</dd>`).join('');
-  $('meta-sum').textContent = `Metadata del EXR (${h.attrs.length} campos)`;
+  $('meta-sum').textContent = `EXR metadata (${h.attrs.length} attributes)`;
 }
-$('cs').onchange = () => { if (exrState) { exrState.cs = $('cs').value; exrState.why = 'elegido a mano'; } redrawExr(); };
+$('cs').onchange = () => { if (exrState) { exrState.cs = $('cs').value; exrState.why = 'set by hand'; } redrawExr(); };
 $('view').value = lsGet('view', 'aces709');
 if (!$('view').value) $('view').value = 'aces709';
 $('view').onchange = () => { lsSet('view', $('view').value); redrawExr(); };
@@ -1311,7 +1366,7 @@ function projectWorld(p) {
 // ---------- Raycast ----------
 const ray = new THREE.Raycaster();
 function pick(x, y) {
-  if (!scanObj) return null;
+  if (!scanObj || !scanRoot.visible) return null;
   const [u, v] = vpToUv(x, y);
   const ndc = new THREE.Vector2(u / st.plate.W * 2 - 1, -(v / st.plate.H * 2 - 1));
   camera.updateMatrixWorld();
@@ -1420,7 +1475,7 @@ function drawOverlay() {
 function updateBadge() {
   const b = $('badge');
   const parts = [];
-  parts.push(`<span><small>Lente</small>${fmt(focalUsed(), 2)} mm</span>`);
+  parts.push(`<span><small>Focal</small>${fmt(focalUsed(), 2)} mm</span>`);
   if (st.rms != null && st.pins.filter(p => p.on).length) parts.push(`<span class="${errClass(st.rms)}"><small>RMS</small>${fmt(st.rms, 2)} px</span>`);
   if (st.view.zoom !== 1) parts.push(`<span><small>Zoom</small>${fmt(st.view.zoom, 1)}×</span>`);
   b.innerHTML = parts.join('');
@@ -1428,34 +1483,33 @@ function updateBadge() {
 
 // ---------- UI refresh ----------
 const HINTS = {
-  nav: '<b>Navegar</b> · arrastrar: orbitar · botón der.: paneo · rueda: acercar',
-  pins: '<b>Pines</b> · click en el scan crea un pin, arrastralo al plate · botón der.: borrar · rueda: zoom · Alt o botón medio: paneo',
-  measure: '<b>Medir</b> · click en un punto del scan y otro click en el segundo · escribí la medida real y Enter para escalar · Esc borra',
+  nav: () => `<b>Navigate</b> · ${NAV[navPreset].hint}`,
+  pins: () => '<b>Pins</b> · click the scan to drop a pin, drag it onto the plate · RMB: delete · wheel: zoom · Alt or MMB: pan',
+  measure: () => `<b>Measure</b> · click two points on the scan, type the real length, Enter to scale · Esc clears · ${NAV[navPreset].hint}`,
 };
 function refreshAll() {
-  $('hint').innerHTML = HINTS[st.mode];
+  $('hint').innerHTML = HINTS[st.mode]();
   ['nav', 'pins', 'measure'].forEach(m => $('m-' + m).setAttribute('aria-pressed', String(st.mode === m)));
-  controls.enabled = st.mode !== 'pins';
   // step 1
   $('s1').dataset.state = st.scaleOk ? 'ok' : 'warn';
-  $('s1st').textContent = st.scaleOk ? 'verificada' : 'sin verificar';
+  $('s1st').textContent = st.scaleOk ? 'verified' : 'not verified';
   // step 2
   const fx = K().fx;
   const hfov = 2 * Math.atan(st.sw / 2 / focalUsed()) * 180 / Math.PI;
   const vfov = 2 * Math.atan((st.sw * st.plate.H / st.plate.W) / 2 / focalUsed()) * 180 / Math.PI;
-  const kv = [['FOV horizontal', fmt(hfov, 2) + '°'], ['FOV vertical', fmt(vfov, 2) + '°'], ['Focal en píxeles', fmt(fx * (st.freeF ? st.fScale : 1), 1) + ' px']];
-  if (st.freeF) kv.push(['Focal estimada', st.pins.filter(p => p.on).length >= 6 ? fmt(focalUsed(), 2) + ' mm' : 'necesita 6 pines']);
+  const kv = [['horizontal FOV', fmt(hfov, 2) + '°'], ['vertical FOV', fmt(vfov, 2) + '°'], ['focal in pixels', fmt(fx * (st.freeF ? st.fScale : 1), 1) + ' px']];
+  if (st.freeF) kv.push(['estimated focal', st.pins.filter(p => p.on).length >= 6 ? fmt(focalUsed(), 2) + ' mm' : 'needs 6 pins']);
   $('cam-kv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   $('s2').dataset.state = st.plate.sample ? 'warn' : 'ok';
-  $('s2st').textContent = st.plate.sample ? 'ejemplo' : 'listo';
+  $('s2st').textContent = st.plate.sample ? 'sample' : 'loaded';
   // step 3
   const on = st.pins.filter(p => p.on).length;
   $('s3').dataset.state = on >= 4 && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
-  $('s3st').textContent = `${on} pin${on === 1 ? '' : 'es'}` + (st.rms != null && on ? ` · ${fmt(st.rms, 2)} px` : '');
+  $('s3st').textContent = `${on} pin${on === 1 ? '' : 's'}` + (st.rms != null && on ? ` · ${fmt(st.rms, 2)} px` : '');
   $('pinlist').innerHTML = st.pins.map((p, i) => {
     const w = pinWorld(p);
-    return `<li class="${i === st.sel ? 'sel' : ''}" data-i="${i}"><input type="checkbox" ${p.on ? 'checked' : ''} aria-label="Usar pin ${p.id}"><span class="id">#${p.id}</span><span class="coord">${fmt(w.x, 2)}, ${fmt(w.y, 2)}, ${fmt(w.z, 2)}</span><span class="err ${errClass(p.err)}">${Number.isFinite(p.err) ? fmt(p.err, 2) + ' px' : '–'}</span><button class="x" aria-label="Borrar pin ${p.id}">×</button></li>`;
-  }).join('') || '<li class="note" style="display:block">Todavía no hay pines.</li>';
+    return `<li class="${i === st.sel ? 'sel' : ''}" data-i="${i}"><input type="checkbox" ${p.on ? 'checked' : ''} aria-label="Use pin ${p.id}"><span class="id">#${p.id}</span><span class="coord">${fmt(w.x, 2)}, ${fmt(w.y, 2)}, ${fmt(w.z, 2)}</span><span class="err ${errClass(p.err)}">${Number.isFinite(p.err) ? fmt(p.err, 2) + ' px' : '–'}</span><button class="x" aria-label="Delete pin ${p.id}">×</button></li>`;
+  }).join('') || '<li class="note" style="display:block">No pins yet.</li>';
   $('solve').disabled = on < 3;
   updateExport();
   render(); drawOverlay();
@@ -1475,18 +1529,18 @@ function updateExport() {
   const t = $('target').value, name = ($('camname').value || 'MatchCam').replace(/[^\w-]/g, '_');
   const d = camData();
   const v3 = (v) => `[${v.map(n6).join(',')}]`;
-  const header = `Camera Pin · ${st.plate.sample ? 'plate de ejemplo' : st.plate.name} ${d.W}x${d.H} · film back ${fmt(st.sw, 2)} mm · lente ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
-  const scaleNote = `Escala aplicada al scan: unidades x${st.unit} · factor ${fmt(st.userScale, 6)} · eje ${st.up}`;
+  const header = `Camera Pin · ${st.plate.sample ? 'sample plate' : st.plate.name} ${d.W}x${d.H} · film back ${fmt(st.sw, 2)} mm · focal ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
+  const scaleNote = `Scan transform: units x${st.unit} · scale ${fmt(st.userScale, 6)} · up ${st.up}`;
   let out = '';
   if (t === 'max-phys' || t === 'max-free') {
-    out = `-- ${header}\n-- ${scaleNote}\n-- Coordenadas en metros, Z arriba. Pegalo en el MAXScript Listener o en un script nuevo y evaluá (Ctrl+E).\n(\n`
+    out = `-- ${header}\n-- ${scaleNote}\n-- Meters, Z up. Paste into the MAXScript Listener or a new script and evaluate (Ctrl+E).\n(\n`
       + `  local k = try (units.decodeValue "1m") catch (1.0)\n`
       + `  local tm = matrix3 ${v3(d.Xm)} ${v3(d.Ym)} ${v3(d.Zm)} (${v3(d.Cm)} * k)\n`;
     if (t === 'max-phys') {
       out += `  local cam = Physical_Camera name:"${name}" targeted:false\n`
         + `  try (cam.specify_fov = false) catch ()\n`
-        + `  try (cam.film_width_mm = ${n6(d.sw)}) catch (format "No pude setear film_width_mm\\n")\n`
-        + `  try (cam.focal_length_mm = ${n6(d.f)}) catch (format "No pude setear focal_length_mm\\n")\n`;
+        + `  try (cam.film_width_mm = ${n6(d.sw)}) catch (format "Could not set film_width_mm\\n")\n`
+        + `  try (cam.focal_length_mm = ${n6(d.f)}) catch (format "Could not set focal_length_mm\\n")\n`;
     } else {
       const hfov = 2 * Math.atan(d.sw / 2 / d.f) * 180 / Math.PI;
       out += `  setRendApertureWidth ${n6(d.sw)}\n`
@@ -1497,11 +1551,11 @@ function updateExport() {
       + `  displaySafeFrames = true\n`
       + `  try (viewport.setCamera cam) catch ()\n`
       + `  select cam\n`
-      + `  -- Plate de fondo: Alt+B en el viewport de la cámara y elegí ${st.plate.sample ? 'tu plate' : st.plate.name}\n`
+      + `  -- Background plate: Alt+B in the camera viewport and pick ${st.plate.sample ? 'your plate' : st.plate.name}\n`
       + `  cam\n)\n`;
   } else if (t === 'nuke') {
     const r2d = 180 / Math.PI;
-    out = `# ${header}\n# ${scaleNote}\n# Metros, Y arriba. Copialo y pegalo en el Node Graph.\nCamera2 {\n`
+    out = `# ${header}\n# ${scaleNote}\n# Meters, Y up. Copy and paste into the Node Graph.\nCamera2 {\n`
       + ` translate {${d.C.map(n6).join(' ')}}\n`
       + ` rotate {${[d.eul.x, d.eul.y, d.eul.z].map(a => n6(a * r2d)).join(' ')}}\n`
       + ` rot_order ZXY\n`
@@ -1509,7 +1563,7 @@ function updateExport() {
       + ` name ${name}\n}\n`;
   } else {
     const rows = [0, 1, 2].map(i => `(${n6(d.Xm[i])}, ${n6(d.Ym[i])}, ${n6(d.Zm[i])}, ${n6(d.Cm[i])})`);
-    out = `# ${header}\n# ${scaleNote}\n# Metros, Z arriba. Pegalo en el editor de texto de Blender y ejecutalo.\nimport bpy\nfrom mathutils import Matrix\n`
+    out = `# ${header}\n# ${scaleNote}\n# Meters, Z up. Paste into Blender's Text Editor and run it.\nimport bpy\nfrom mathutils import Matrix\n`
       + `cd = bpy.data.cameras.new("${name}")\ncd.sensor_fit = 'HORIZONTAL'\ncd.sensor_width = ${n6(d.sw)}\ncd.sensor_height = ${n6(d.sh)}\ncd.lens = ${n6(d.f)}\n`
       + `ob = bpy.data.objects.new("${name}", cd)\nbpy.context.collection.objects.link(ob)\n`
       + `ob.matrix_world = Matrix((\n    ${rows.join(',\n    ')},\n    (0, 0, 0, 1)))\n`
@@ -1519,8 +1573,8 @@ function updateExport() {
   $('s4').dataset.state = st.solved && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
   const sf = st.unit * st.userScale;
   $('export-note').innerHTML = Math.abs(sf - 1) > 1e-6 || st.up !== 'y'
-    ? `La cámara está en el espacio corregido (metros${st.up !== 'y' ? ', eje convertido' : ''}). En Max importá el scan en metros${Math.abs(st.userScale - 1) > 1e-6 ? ` y escalalo <b>×${fmt(st.userScale, 4)}</b> desde el origen` : ''} para que coincida.`
-    : 'La cámara queda en el mismo espacio que el scan, en metros. Importá el scan en Max en metros y coincide.';
+    ? `The camera lives in the corrected space (meters${st.up !== 'y' ? ', axis converted' : ''}). Import the scan in your DCC in meters${Math.abs(st.userScale - 1) > 1e-6 ? ` and scale it <b>×${fmt(st.userScale, 4)}</b> from the origin` : ''} so they line up.`
+    : 'The camera lives in the same space as the scan, in meters. Import the scan in meters and they line up.';
 }
 
 // ---------- Measure ----------
@@ -1534,7 +1588,7 @@ function updateMeasureGeo() {
   measLine.visible = false;
   measPts.visible = false;
   const d = a && b ? a.distanceTo(b) : null;
-  $('meas').value = d != null ? d.toFixed(4) + ' m' : a ? 'falta el 2º punto' : '–';
+  $('meas').value = d != null ? d.toFixed(4) + ' m' : a ? 'pick 2nd point' : '–';
   $('apply-scale').disabled = !(d > 0 && +$('real').value > 0);
 }
 // measure points are kept in scan-local space so they follow scale changes
@@ -1544,7 +1598,7 @@ function measWorld() {
 }
 
 // ---------- Interaction ----------
-let drag = null, spaceDown = false;
+let drag = null;
 function setMode(m) {
   st.mode = m;
   if (m !== 'pins') {
@@ -1586,8 +1640,14 @@ vp.addEventListener('pointerdown', e => {
     vp.setPointerCapture(e.pointerId);
     refreshAll();
     e.preventDefault();
-  } else if (st.mode === 'measure') {
-    if (e.button === 0) drag = { type: 'click', x, y };
+  } else {
+    const action = NAV[navPreset].map(e.button, e);
+    const plain = e.button === 0 && !e.altKey && !e.ctrlKey && !e.shiftKey && !spaceDown;
+    if (action) {
+      drag = { type: 'nav', action, x, y, lx: x, ly: y, click: st.mode === 'measure' && plain };
+      vp.setPointerCapture(e.pointerId); e.preventDefault();
+    } else if (st.mode === 'measure' && plain) drag = { type: 'click', x, y };
+    if (e.button === 1) e.preventDefault();
   }
 });
 let hoverRAF = 0;
@@ -1600,6 +1660,13 @@ vp.addEventListener('pointermove', e => {
   if (!drag) return;
   const [x, y] = evVp(e);
   if (drag.type === 'pan') { st.view.x = drag.vx + (x - drag.x); st.view.y = drag.vy + (y - drag.y); applyView(); }
+  else if (drag.type === 'nav') {
+    const dx = x - drag.lx, dy = y - drag.ly; drag.lx = x; drag.ly = y;
+    if (drag.click && Math.hypot(x - drag.x, y - drag.y) < 4) return;
+    if (drag.action === 'orbit') navOrbit(dx, dy);
+    else if (drag.action === 'pan') navPan(dx, dy);
+    else navDolly(Math.exp((dy - dx) * 0.004));
+  }
   else if (drag.type === 'pin') {
     const [u, v] = vpToUv(x, y);
     const p = st.pins[drag.i]; p.uv = [u + drag.du, v + drag.dv];
@@ -1611,7 +1678,7 @@ vp.addEventListener('pointerup', e => {
   if (!drag) return;
   const [x, y] = evVp(e);
   if (drag.type === 'pin') { solveLive(false); refreshAll(); }
-  if (drag.type === 'click' && Math.hypot(x - drag.x, y - drag.y) < 4) {
+  if ((drag.type === 'click' || (drag.type === 'nav' && drag.click)) && Math.hypot(x - drag.x, y - drag.y) < 4) {
     const hit = pick(x, y);
     if (hit) {
       const loc = scanRoot.worldToLocal(hit.clone());
@@ -1625,8 +1692,8 @@ vp.addEventListener('pointerup', e => {
   drag = null;
 });
 vp.addEventListener('wheel', e => {
-  if (st.mode !== 'pins') return;
   e.preventDefault();
+  if (st.mode !== 'pins') { navDolly(Math.exp(e.deltaY * 0.0012)); return; }
   const [x, y] = evVp(e);
   const v = st.view, z0 = v.zoom;
   const z = Math.min(32, Math.max(0.25, z0 * Math.exp(-e.deltaY * 0.0015)));
@@ -1635,14 +1702,18 @@ vp.addEventListener('wheel', e => {
 }, { passive: false });
 window.addEventListener('keydown', e => {
   if (e.target.matches('input, textarea, select')) return;
-  if (e.code === 'Space') { spaceDown = true; if (st.mode === 'pins') e.preventDefault(); }
+  if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
+  if (e.key === 'Alt') e.preventDefault();
   const k = e.key.toLowerCase();
   if (k === 'n') setMode('nav'); else if (k === 'p') setMode('pins'); else if (k === 'm') setMode('measure');
   else if (k === 'f') layoutStage(true);
+  else if (k === 'h') toggleScan();
   else if (k === 'escape' && st.mode === 'measure') clearMeasure();
   else if ((k === 'delete' || k === 'backspace') && st.sel >= 0) { st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
 });
-window.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+window.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; if (e.key === 'Alt') e.preventDefault(); });
+window.addEventListener('blur', () => { spaceDown = false; });
+vp.addEventListener('auxclick', e => e.preventDefault());
 new ResizeObserver(() => layoutStage(st.view.zoom === 1)).observe(vp);
 
 // drag & drop files
@@ -1668,6 +1739,15 @@ document.querySelectorAll('.step h2').forEach(h => {
   h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
 });
 // ---------- Controls wiring ----------
+function toggleScan() {
+  scanRoot.visible = !scanRoot.visible;
+  $('scan-on').setAttribute('aria-pressed', String(scanRoot.visible));
+  render(); drawOverlay();
+}
+$('scan-on').onclick = toggleScan;
+navPreset = lsGet('nav', 'max'); if (!NAV[navPreset]) navPreset = 'max';
+$('navp').value = navPreset;
+$('navp').onchange = () => { navPreset = $('navp').value; lsSet('nav', navPreset); refreshAll(); };
 $('m-nav').onclick = () => setMode('nav');
 $('m-pins').onclick = () => setMode('pins');
 $('m-measure').onclick = () => setMode('measure');
@@ -1728,7 +1808,7 @@ $('target').onchange = () => { lsSet('target', $('target').value); updateExport(
 $('camname').oninput = updateExport;
 $('copy').onclick = () => {
   const ta = $('out');
-  const done = (ok) => { $('copy-msg').textContent = ok ? 'Copiado' : 'Seleccionado: copialo con Ctrl+C'; setTimeout(() => $('copy-msg').textContent = '', 2500); };
+  const done = (ok) => { $('copy-msg').textContent = ok ? 'Copied' : 'Selected: copy it with Ctrl+C'; setTimeout(() => $('copy-msg').textContent = '', 2500); };
   try {
     navigator.clipboard.writeText(ta.value).then(() => done(true), () => { ta.focus(); ta.select(); done(false); });
   } catch (err) { ta.focus(); ta.select(); done(false); }
@@ -1743,11 +1823,11 @@ function sampleGeometry(colored) {
   box(7, 9, 6, -4, 4.5, -7, 0xc9b79a);             // edificio
   box(1.0, 2.1, 0.12, -2.6, 1.05, -3.94, 0x4a3426); // puerta (2.10 m)
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) box(1.1, 1.4, 0.1, -6.2 + i * 2.2, 3.2 + j * 2.4, -3.95, 0x3d5363); // ventanas
-  box(4, 3.2, 4, 4.5, 1.6, -6, 0x9aa3a8);           // galpón
-  box(1, 1, 1, 2.2, 0.5, -1.2, 0xb07a3c);            // cajón 1 m
+  box(4, 3.2, 4, 4.5, 1.6, -6, 0x9aa3a8);           // shed
+  box(1, 1, 1, 2.2, 0.5, -1.2, 0xb07a3c);            // 1 m crate
   box(0.6, 0.6, 1.2, 3.1, 0.3, -0.4, 0x8a6a40);
   const col = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 4.5, 16, 6), mat(0x808a90)); col.position.set(0.6, 2.25, -2.5); g.add(col);
-  box(12, 0.15, 0.3, -1, 0.075, -1.9, 0xd9d6cc);     // cordón
+  box(12, 0.15, 0.3, -1, 0.075, -1.9, 0xd9d6cc);     // curb
   return g;
 }
 function buildSample() {
@@ -1781,9 +1861,9 @@ function buildSample() {
   scanObj.traverse(o => { if (o.isMesh) o.userData.orig = o.material; });
   st.rawBox = new THREE.Box3().setFromObject(scanRoot);
   setRootTransform(1, 1, 'y', false);
-  $('scan-kv').innerHTML = '<dt>Tipo</dt><dd>Malla de ejemplo</dd><dt>Referencia</dt><dd>puerta 2,10 m · cajón 1 m</dd>';
+  $('scan-kv').innerHTML = '<dt>type</dt><dd>Sample mesh</dd><dt>reference</dt><dd>door 2.10 m · crate 1 m</dd>';
   applyDisplay();
-  setPlate(s.url, s.W, s.H, 'Ejemplo', true);
+  setPlate(s.url, s.W, s.H, 'Sample', true);
   camera.position.set(13, 5, 13); camera.lookAt(0, 2, -3); controls.target.set(0, 2, -3);
   camera.near = 0.05; camera.far = 1000;
   applyIntrinsics();

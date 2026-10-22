@@ -8,6 +8,11 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 ## Workflow
 
+It opens with a sample to try the workflow:
+- **Plate**: a hood-mount shot through the windshield of a car, with a driver and a passenger. Alexa Mini LF Open Gate, 24 mm.
+- **Scan**: the matching empty car interior, in meters.
+
+
 1. **Plate & camera**: load the plate (EXR, JPG, PNG). For EXR, choose the input colorspace (ACES2065-1, ACEScg, ARRI Wide Gamut 3, Rec.2020, Rec.709) and the viewer transform (ACES 1.0 Rec.709 by default). Pick the sensor and the focal length. If the EXR carries camera and lens metadata, those fields fill in automatically.
 2. **Scan & scale**: load the scan (OBJ, PLY, GLB/GLTF, FBX) and check the units and up axis. To set the scale:
    - In **Measure** mode, draw a line between two points of the scan on something of known size (a door, a curb).

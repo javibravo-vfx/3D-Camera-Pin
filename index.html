@@ -1,0 +1,1751 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Camera Pin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: Nuke-style. Viewer column on the left (toolbar / viewer / info bar), Properties bin on the right with collapsible knob groups. Single dark look by choice (compositing suite). */
+:root {
+  --bg: #1d1d1d;          /* viewer surround, app ground */
+  --panel: #323232;       /* properties bin */
+  --panel-2: #3c3c3c;     /* group headers, buttons */
+  --field: #262626;       /* knob fields */
+  --line: #161616;        /* dark separators */
+  --hi: #4a4a4a;          /* light bevel */
+  --fg: #d6d6d6;
+  --muted: #9b9b9b;
+  --accent: #f7a531;      /* selection orange */
+  --pin: #ffb238;
+  --wire: #5ccfe0;
+  --ok: #7fc97f;
+  --warn: #e6c14d;
+  --bad: #ff6d5f;
+  --f-ui: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --f-num: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-size: 13px; overflow: hidden; }
+.app {
+  height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 4px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 8px;
+}
+/* ---------- Viewer column ---------- */
+.viewer { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; background: var(--panel); border: 1px solid var(--line); }
+.vbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 5px 8px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.vbar .sep { width: 1px; align-self: stretch; background: var(--line); box-shadow: 1px 0 0 var(--hi); }
+.vbar label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.vbar .fmt { margin-left: auto; font: 11.5px var(--f-num); color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.seg button { font: 600 12px var(--f-ui); color: var(--fg); background: var(--panel-2); border: 0; padding: 4px 10px; cursor: pointer; box-shadow: inset 0 1px 0 var(--hi); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #1b1307; box-shadow: none; }
+.seg button kbd { font: 10.5px var(--f-num); margin-left: 5px; opacity: .65; }
+main.vp { position: relative; overflow: hidden; background: #262626; min-height: 0; touch-action: none; user-select: none; }
+.ibar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 4px 8px; border-top: 1px solid var(--line); font: 11.5px var(--f-num); color: var(--muted); }
+.ibar b { color: var(--fg); font-weight: 500; }
+.ibar .hint { font: 12px var(--f-ui); color: var(--muted); margin-left: auto; min-width: 0; }
+.ibar .hint b { font-family: var(--f-ui); font-weight: 600; }
+#badge { display: flex; gap: 14px; }
+#badge small { color: var(--muted); font: 10.5px var(--f-ui); letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; }
+/* ---------- Properties bin ---------- */
+aside.props { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); }
+.node { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); box-shadow: inset 0 1px 0 var(--hi); }
+.node .chip { width: 12px; height: 12px; border-radius: 2px; background: var(--accent); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .4); }
+.node b { font-weight: 700; font-size: 13.5px; letter-spacing: .01em; }
+.node span { color: var(--muted); font-size: 12px; margin-left: auto; }
+.scroll { overflow-y: auto; min-height: 0; flex: 1; }
+section.step { border-bottom: 1px solid var(--line); }
+.step h2 { margin: 0; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; padding: 5px 8px; cursor: pointer; user-select: none; background: var(--panel); box-shadow: inset 0 1px 0 var(--hi); }
+.step h2:hover { background: var(--panel-2); }
+.step h2::before { content: ""; width: 0; height: 0; border-left: 5px solid var(--muted); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transform: rotate(90deg); transition: transform .12s; }
+.step.closed h2::before { transform: none; }
+.step.closed .body { display: none; }
+.step h2 .n { font: 500 10.5px var(--f-num); color: #1b1b1b; background: var(--muted); border-radius: 2px; padding: 0 5px; }
+.step[data-state="ok"] h2 .n { background: var(--ok); }
+.step[data-state="warn"] h2 .n { background: var(--warn); }
+.step h2 .st { margin-left: auto; font: 500 11px var(--f-num); color: var(--muted); }
+.step[data-state="ok"] h2 .st { color: var(--ok); }
+.step[data-state="warn"] h2 .st { color: var(--warn); }
+.body { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; }
+/* knob rows: label right-aligned on the left, field on the right */
+.fld { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); text-align: right; }
+.fld > input, .fld > select, .fld > span:not(.evrow) { text-align: left; }
+.grid2 { display: flex; flex-direction: column; gap: 6px; }
+.knobrow { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px; }
+.knobrow > :first-child { text-align: right; color: var(--muted); font-size: 12.5px; }
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.row.k { padding-left: 120px; }
+.row > * { min-width: 0; }
+input[type=number], input[type=text], select, textarea {
+  font: 12.5px var(--f-num); color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 2px; padding: 3px 6px; width: 100%; min-width: 0; height: 24px;
+}
+select { font-family: var(--f-ui); font-size: 12.5px; height: 24px; padding-block: 0; }
+input[readonly] { color: var(--muted); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, .step h2:focus-visible { outline: 1px solid var(--accent); outline-offset: 0; }
+input[type=range] { accent-color: var(--accent); width: 100px; }
+input[type=checkbox] { accent-color: var(--accent); }
+.btn { font: 600 12px var(--f-ui); color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 3px 10px; cursor: pointer; box-shadow: inset 0 1px 0 var(--hi); height: 24px; display: inline-flex; align-items: center; }
+.btn:hover { background: #454545; }
+.btn.primary { background: var(--accent); color: #1b1307; box-shadow: none; }
+.btn.primary:hover { background: #ffb44a; }
+.btn.ghost { background: transparent; box-shadow: none; }
+.btn:disabled { opacity: .45; cursor: default; }
+.file { position: relative; overflow: hidden; }
+.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.note { font-size: 12px; color: var(--muted); line-height: 1.4; margin: 0; }
+.note b { color: var(--fg); font-weight: 600; }
+.msg { font-size: 12px; line-height: 1.4; border-left: 2px solid var(--warn); padding: 4px 8px; background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.msg.ok { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 9%, transparent); }
+.msg.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, transparent); }
+.dims { display: grid; grid-template-columns: 112px repeat(3, minmax(0, 1fr)); gap: 4px 8px; align-items: center; }
+.dims > small { text-align: right; color: var(--muted); font-size: 12.5px; }
+.dims div { background: var(--field); border: 1px solid var(--line); border-radius: 2px; padding: 2px 6px; }
+.dims div small { display: block; color: var(--muted); font-size: 10px; letter-spacing: .08em; }
+.dims span { font: 500 12.5px var(--f-num); font-variant-numeric: tabular-nums; }
+.kv { display: grid; grid-template-columns: 112px 1fr; gap: 2px 8px; font-size: 12.5px; margin: 0; }
+.kv dt { color: var(--muted); text-align: right; }
+.kv dd { margin: 0; font-family: var(--f-num); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pins { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; background: var(--field); border: 1px solid var(--line); }
+.pins li { display: grid; grid-template-columns: 18px 30px 1fr auto 22px; align-items: center; gap: 6px; font: 12px var(--f-num); padding: 2px 6px; }
+.pins li:nth-child(even) { background: rgb(255 255 255 / .025); }
+.pins li.sel { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.pins .id { color: var(--pin); }
+.pins .coord { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pins .err { font-variant-numeric: tabular-nums; }
+.pins .x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; }
+.pins .x:hover { color: var(--bad); }
+.e-ok { color: var(--ok); } .e-warn { color: var(--warn); } .e-bad { color: var(--bad); }
+textarea { height: 150px; resize: vertical; font-size: 11px; line-height: 1.45; white-space: pre; }
+.stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; box-shadow: 0 0 0 1px #000; background: #000; }
+.stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; max-width: none; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage.pix img, .stage.pix #platecv { image-rendering: pixelated; }
+.exr { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); box-shadow: inset 0 1px 0 var(--hi); padding-top: 8px; }
+.evrow { display: contents; }
+.evrow span { font-family: var(--f-num); color: var(--fg); }
+.evwrap { display: flex; align-items: center; gap: 8px; }
+.evwrap input[type=range] { flex: 1; width: auto; }
+details.meta summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+details.meta summary:hover { color: var(--fg); }
+details.meta .kv { margin-top: 6px; max-height: 260px; overflow: auto; grid-template-columns: auto 1fr; }
+details.meta dd { word-break: break-word; }
+details.meta dt { font-family: var(--f-num); font-size: 11px; }
+svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.tag { position: absolute; top: 8px; left: 8px; font: 500 11px var(--f-num); color: var(--muted); pointer-events: none; }
+.drop { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(29 29 29 / .8); border: 2px dashed var(--accent); font-size: 15px; font-weight: 600; text-align: center; padding: 16px; }
+.busy { position: absolute; top: 8px; right: 8px; font: 500 12px var(--f-num); color: var(--accent); background: rgb(29 29 29 / .85); border: 1px solid var(--line); padding: 3px 8px; }
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  .app { height: auto; min-height: 100%; grid-template-columns: minmax(0, 1fr); }
+  .viewer { height: 70vh; }
+  aside.props .scroll { overflow: visible; }
+  .fld, .knobrow, .kv { grid-template-columns: 96px minmax(0, 1fr); }
+  .dims { grid-template-columns: 96px repeat(3, minmax(0, 1fr)); }
+  .row.k { padding-left: 104px; }
+  .ibar .hint { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="viewer">
+    <div class="vbar">
+      <div class="seg" role="group" aria-label="Modo">
+        <button id="m-nav" aria-pressed="true">Navegar<kbd>N</kbd></button>
+        <button id="m-pins" aria-pressed="false">Pines<kbd>P</kbd></button>
+        <button id="m-measure" aria-pressed="false">Medir<kbd>M</kbd></button>
+      </div>
+      <span class="sep"></span>
+      <label for="disp">Scan
+        <select id="disp" style="width:auto">
+          <option value="wire">Wireframe</option>
+          <option value="solid">Sólido</option>
+          <option value="orig">Original</option>
+        </select>
+      </label>
+      <label for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
+      <label for="ptsize">Punto <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2" style="width:70px"></label>
+      <label for="grid"><input id="grid" type="checkbox" checked> Grilla 1 m</label>
+      <span class="sep"></span>
+      <button class="btn" id="fit" title="Encuadrar el plate (F)">Fit</button>
+      <button class="btn" id="back" title="Volver a la cámara resuelta" disabled>Cámara resuelta</button>
+      <span class="fmt" id="tag">EJEMPLO</span>
+    </div>
+
+    <main class="vp" id="vp">
+      <div class="stage" id="stage">
+        <img id="plate" alt="Plate">
+        <canvas id="platecv" hidden></canvas>
+        <canvas id="gl"></canvas>
+      </div>
+      <svg class="ov" id="ov"></svg>
+      <div class="drop" id="drop" hidden>Soltá el scan (OBJ, PLY, GLB, FBX) o el plate (EXR, JPG, PNG)</div>
+      <div class="busy" id="busy" hidden>Cargando…</div>
+    </main>
+
+    <div class="ibar">
+      <span>x <b id="cx">–</b> y <b id="cy">–</b></span>
+      <span id="badge"></span>
+      <span class="hint" id="hint"></span>
+    </div>
+  </div>
+
+  <aside class="props" aria-label="Propiedades">
+    <div class="node"><span class="chip"></span><b>CameraPin1</b><span>match de cámara sobre scan</span></div>
+    <div class="scroll">
+      <section class="step" id="s1" data-state="warn">
+        <h2 tabindex="0"><span class="n">1</span>Scan y escala<span class="st" id="s1st">sin verificar</span></h2>
+        <div class="body">
+          <div class="knobrow"><span>archivo</span>
+            <div class="row"><span class="file btn">Cargar scan<input id="f-scan" type="file" accept=".obj,.ply,.glb,.gltf,.fbx"></span><span class="note" id="scan-name">Ejemplo</span></div>
+          </div>
+          <label class="fld" for="unit">unidades
+            <select id="unit">
+              <option value="1">Metros</option>
+              <option value="0.01">Centímetros</option>
+              <option value="0.001">Milímetros</option>
+              <option value="0.0254">Pulgadas</option>
+              <option value="0.3048">Pies</option>
+            </select>
+          </label>
+          <label class="fld" for="up">eje vertical
+            <select id="up">
+              <option value="y">Y arriba</option>
+              <option value="z">Z arriba</option>
+              <option value="-y">Y abajo (COLMAP)</option>
+            </select>
+          </label>
+          <div class="dims" aria-label="Tamaño del scan en metros">
+            <small>tamaño</small>
+            <div><small>X</small><span id="dx">–</span></div>
+            <div><small>ALTO</small><span id="dy">–</span></div>
+            <div><small>PROF.</small><span id="dz">–</span></div>
+          </div>
+          <div class="msg" id="unit-msg" hidden></div>
+          <dl class="kv" id="scan-kv"></dl>
+          <p class="note">Usá <b>Medir</b> sobre algo conocido (una puerta, un cordón, una persona) y cargá la medida real.</p>
+          <label class="fld" for="meas">medida en scan
+            <input id="meas" type="text" readonly value="–">
+          </label>
+          <label class="fld" for="real">medida real (m)
+            <input id="real" type="number" step="0.001" min="0" placeholder="2.10">
+          </label>
+          <div class="row k">
+            <button class="btn" id="apply-scale" disabled>Escalar</button>
+            <button class="btn ghost" id="reset-scale">Quitar escala</button>
+            <span class="note" id="scale-f">Factor 1.000</span>
+          </div>
+          <div class="row k"><button class="btn primary" id="scale-ok">Escala verificada</button></div>
+        </div>
+      </section>
+
+      <section class="step" id="s2" data-state="warn">
+        <h2 tabindex="0"><span class="n">2</span>Plate y cámara<span class="st" id="s2st">ejemplo</span></h2>
+        <div class="body">
+          <div class="knobrow"><span>file</span>
+            <div class="row"><span class="file btn">Cargar plate<input id="f-plate" type="file" accept=".exr,image/*"></span><span class="note" id="plate-name">Ejemplo · 1920 × 1336</span></div>
+          </div>
+          <div class="exr" id="exr-box" hidden>
+            <label class="fld" for="cs">colorspace
+              <select id="cs">
+                <option value="ap0">ACES2065-1 (AP0)</option>
+                <option value="ap1">ACEScg (AP1)</option>
+                <option value="awg3">ARRI Wide Gamut 3 lineal</option>
+                <option value="rec2020">Rec.2020 lineal</option>
+                <option value="rec709">Rec.709 / sRGB lineal</option>
+              </select>
+            </label>
+            <label class="fld" for="view">viewer
+              <select id="view">
+                <option value="aces709">ACES 1.0 · Rec.709</option>
+                <option value="acessrgb">ACES 1.0 · sRGB</option>
+                <option value="r709">Rec.709 sin tone map</option>
+                <option value="srgb">sRGB sin tone map</option>
+                <option value="raw">Sin transformar</option>
+              </select>
+            </label>
+            <label class="fld" for="ev">exposure
+              <span class="evwrap"><input id="ev" type="range" min="-6" max="6" step="0.25" value="0"><span class="evrow"><span id="ev-v">+0.00 EV</span></span></span>
+            </label>
+            <p class="note" id="cs-note"></p>
+            <div class="msg ok" id="meta-msg" hidden></div>
+            <details class="meta" id="meta"><summary id="meta-sum">Metadata</summary><dl class="kv" id="meta-kv"></dl></details>
+          </div>
+          <label class="fld" for="preset">cámara
+            <select id="preset"></select>
+          </label>
+          <label class="fld" for="sw">haperture (mm)<input id="sw" type="number" step="0.01" min="1"></label>
+          <label class="fld" for="sh">vaperture (mm)<input id="sh" type="number" step="0.01" min="1"></label>
+          <label class="fld" for="focal">focal (mm)<input id="focal" type="number" step="0.1" min="1"></label>
+          <label class="fld" for="free"><span></span><span class="row"><input id="free" type="checkbox"> Estimar focal</span></label>
+          <div class="msg" id="aspect-msg" hidden></div>
+          <dl class="kv" id="cam-kv"></dl>
+        </div>
+      </section>
+
+      <section class="step" id="s3" data-state="warn">
+        <h2 tabindex="0"><span class="n">3</span>Pines<span class="st" id="s3st">0 pines</span></h2>
+        <div class="body">
+          <p class="note">Modo <b>Pines</b>: click sobre el scan crea un pin; arrastralo hasta su lugar en el plate. Con la lente fija alcanzan <b>4 a 6 pines</b> repartidos en profundidad.</p>
+          <ul class="pins" id="pinlist"></ul>
+          <div class="row">
+            <button class="btn" id="solve" title="Resolver la pose con todos los pines">Resolver desde cero</button>
+            <button class="btn ghost" id="clear-pins">Borrar pines</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="step" id="s4" data-state="warn">
+        <h2 tabindex="0"><span class="n">4</span>Exportar cámara</h2>
+        <div class="body">
+          <label class="fld" for="target">destino
+            <select id="target">
+              <option value="max-phys">3ds Max · Physical Camera</option>
+              <option value="max-free">3ds Max · Free Camera</option>
+              <option value="nuke">Nuke · Camera</option>
+              <option value="blender">Blender · Python</option>
+            </select>
+          </label>
+          <label class="fld" for="camname">nombre<input id="camname" type="text" value="MatchCam"></label>
+          <textarea id="out" readonly spellcheck="false" aria-label="Script de cámara"></textarea>
+          <div class="row">
+            <button class="btn primary" id="copy">Copiar</button>
+            <span class="note" id="copy-msg"></span>
+          </div>
+          <p class="note" id="export-note"></p>
+        </div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/fflate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/PLYLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/FBXLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/EXRLoader.js"></script>
+<script>
+// Camera Pin solver: pose from 2D-3D pins with known intrinsics.
+// Camera model: Xc = R (Xw - C), u = fx*Xc.x/Xc.z + cx, v = fy*Xc.y/Xc.z + cy (OpenCV: x right, y down, z forward)
+const Solver = (() => {
+  function rodrigues(w) {
+    const th = Math.hypot(w[0], w[1], w[2]);
+    if (th < 1e-12) return [1, -w[2], w[1], w[2], 1, -w[0], -w[1], w[0], 1];
+    const x = w[0] / th, y = w[1] / th, z = w[2] / th, c = Math.cos(th), s = Math.sin(th), v = 1 - c;
+    return [c + x * x * v, x * y * v - z * s, x * z * v + y * s,
+            y * x * v + z * s, c + y * y * v, y * z * v - x * s,
+            z * x * v - y * s, z * y * v + x * s, c + z * z * v];
+  }
+  function mul3(A, B) {
+    const R = new Array(9);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+      R[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j];
+    return R;
+  }
+  function orthonormalize(R) {
+    let a = [R[0], R[1], R[2]], b = [R[3], R[4], R[5]];
+    const na = Math.hypot(...a); a = a.map(x => x / na);
+    const d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    b = [b[0] - d * a[0], b[1] - d * a[1], b[2] - d * a[2]];
+    const nb = Math.hypot(...b); b = b.map(x => x / nb);
+    const c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    return [...a, ...b, ...c];
+  }
+  function project(R, C, K, f, P) {
+    const dx = P[0] - C[0], dy = P[1] - C[1], dz = P[2] - C[2];
+    const x = R[0] * dx + R[1] * dy + R[2] * dz;
+    const y = R[3] * dx + R[4] * dy + R[5] * dz;
+    const z = R[6] * dx + R[7] * dy + R[8] * dz;
+    const fx = K.fx * f, fy = K.fy * f;
+    return [fx * x / z + K.cx, fy * y / z + K.cy, z];
+  }
+  function residuals(R, C, K, f, pins, out) {
+    let k = 0;
+    for (const p of pins) {
+      const q = project(R, C, K, f, p.X);
+      if (!(q[2] > 1e-6)) { out[k++] = 1e4; out[k++] = 1e4; continue; }
+      out[k++] = q[0] - p.uv[0];
+      out[k++] = q[1] - p.uv[1];
+    }
+    return out;
+  }
+  function sumsq(r) { let s = 0; for (const v of r) s += v * v; return s; }
+  function solveLinear(A, b, n) {
+    const M = A.slice(), x = b.slice();
+    for (let c = 0; c < n; c++) {
+      let piv = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(M[r * n + c]) > Math.abs(M[piv * n + c])) piv = r;
+      if (Math.abs(M[piv * n + c]) < 1e-18) return null;
+      if (piv !== c) {
+        for (let k = 0; k < n; k++) { const t = M[c * n + k]; M[c * n + k] = M[piv * n + k]; M[piv * n + k] = t; }
+        const t = x[c]; x[c] = x[piv]; x[piv] = t;
+      }
+      for (let r = c + 1; r < n; r++) {
+        const f = M[r * n + c] / M[c * n + c];
+        if (!f) continue;
+        for (let k = c; k < n; k++) M[r * n + k] -= f * M[c * n + k];
+        x[r] -= f * x[c];
+      }
+    }
+    for (let r = n - 1; r >= 0; r--) {
+      let s = x[r];
+      for (let k = r + 1; k < n; k++) s -= M[r * n + k] * x[k];
+      x[r] = s / M[r * n + r];
+    }
+    return x;
+  }
+
+  // Levenberg-Marquardt on (rotation, camera center, optional focal scale)
+  // mode: 'rot' keeps C fixed, 'full' solves both. Returns new pose + rms.
+  function refine(pose, K, pins, opt = {}) {
+    const mode = opt.mode || 'full', freeF = !!opt.freeFocal, iters = opt.iters || 30;
+    const sc = opt.sceneScale || 1;
+    const n = (mode === 'rot' ? 3 : 6) + (freeF ? 1 : 0);
+    let R = pose.R.slice(), C = pose.C.slice(), f = pose.f || 1;
+    const m = pins.length * 2;
+    if (!m) return { R, C, f, rms: 0 };
+    const apply = (p) => {
+      const R2 = orthonormalize(mul3(rodrigues([p[0], p[1], p[2]]), R));
+      const C2 = mode === 'rot' ? C : [C[0] + p[3] * sc, C[1] + p[4] * sc, C[2] + p[5] * sc];
+      const f2 = freeF ? f * Math.exp(p[n - 1]) : f;
+      return [R2, C2, f2];
+    };
+    let r0 = residuals(R, C, K, f, pins, new Array(m));
+    let cost = sumsq(r0), lambda = 1e-3;
+    const J = new Array(m * n), rp = new Array(m), eps = 1e-6;
+    for (let it = 0; it < iters; it++) {
+      for (let j = 0; j < n; j++) {
+        const p = new Array(n).fill(0); p[j] = eps;
+        const [R2, C2, f2] = apply(p);
+        residuals(R2, C2, K, f2, pins, rp);
+        for (let i = 0; i < m; i++) J[i * n + j] = (rp[i] - r0[i]) / eps;
+      }
+      const H = new Array(n * n).fill(0), g = new Array(n).fill(0);
+      for (let i = 0; i < m; i++) for (let a = 0; a < n; a++) {
+        const Jia = J[i * n + a];
+        g[a] += Jia * r0[i];
+        for (let b = 0; b < n; b++) H[a * n + b] += Jia * J[i * n + b];
+      }
+      let improved = false;
+      for (let tries = 0; tries < 10; tries++) {
+        const A = H.slice();
+        for (let a = 0; a < n; a++) A[a * n + a] += lambda * (H[a * n + a] + 1e-9);
+        const d = solveLinear(A, g.map(v => -v), n);
+        if (!d) { lambda *= 10; continue; }
+        const [R2, C2, f2] = apply(d);
+        const r2 = residuals(R2, C2, K, f2, pins, new Array(m));
+        const c2 = sumsq(r2);
+        if (c2 < cost) {
+          R = R2; C = C2; f = f2; r0 = r2;
+          const rel = (cost - c2) / (cost + 1e-12);
+          cost = c2; lambda = Math.max(lambda / 4, 1e-9); improved = true;
+          if (rel < 1e-10) it = iters;
+          break;
+        }
+        lambda *= 6;
+      }
+      if (!improved || cost < 1e-12) break;
+    }
+    return { R, C, f, rms: Math.sqrt(cost / pins.length) };
+  }
+
+  // Symmetric Jacobi eigen decomposition. A: flat n*n. Returns {vals, vecs} with vecs columns.
+  function jacobiEig(A, n) {
+    const a = A.slice(), V = new Array(n * n).fill(0);
+    for (let i = 0; i < n; i++) V[i * n + i] = 1;
+    for (let sweep = 0; sweep < 80; sweep++) {
+      let off = 0, diag = 0;
+      for (let p = 0; p < n; p++) for (let q = 0; q < n; q++) {
+        if (p !== q) off += a[p * n + q] ** 2; else diag += a[p * n + q] ** 2;
+      }
+      if (off <= 1e-26 * (diag + 1e-300)) break;
+      for (let p = 0; p < n - 1; p++) for (let q = p + 1; q < n; q++) {
+        const apq = a[p * n + q];
+        if (Math.abs(apq) < 1e-300) continue;
+        const theta = (a[q * n + q] - a[p * n + p]) / (2 * apq);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+        for (let k = 0; k < n; k++) {
+          const akp = a[k * n + p], akq = a[k * n + q];
+          a[k * n + p] = c * akp - s * akq; a[k * n + q] = s * akp + c * akq;
+        }
+        for (let k = 0; k < n; k++) {
+          const apk = a[p * n + k], aqk = a[q * n + k];
+          a[p * n + k] = c * apk - s * aqk; a[q * n + k] = s * apk + c * aqk;
+        }
+        for (let k = 0; k < n; k++) {
+          const vkp = V[k * n + p], vkq = V[k * n + q];
+          V[k * n + p] = c * vkp - s * vkq; V[k * n + q] = s * vkp + c * vkq;
+        }
+      }
+    }
+    const vals = []; for (let i = 0; i < n; i++) vals.push(a[i * n + i]);
+    return { vals, vecs: V };
+  }
+
+  // DLT with known intrinsics (needs >= 6 non-coplanar pins). Returns {R, C} or null.
+  function dlt(K, f, pins) {
+    const N = pins.length;
+    if (N < 6) return null;
+    const c = [0, 0, 0];
+    for (const p of pins) for (let i = 0; i < 3; i++) c[i] += p.X[i] / N;
+    let s = 0;
+    for (const p of pins) s += Math.hypot(p.X[0] - c[0], p.X[1] - c[1], p.X[2] - c[2]) / N;
+    s = s || 1;
+    const AtA = new Array(144).fill(0);
+    const fx = K.fx * f, fy = K.fy * f;
+    for (const p of pins) {
+      const X = [(p.X[0] - c[0]) / s, (p.X[1] - c[1]) / s, (p.X[2] - c[2]) / s, 1];
+      const x = (p.uv[0] - K.cx) / fx, y = (p.uv[1] - K.cy) / fy;
+      const r1 = new Array(12).fill(0), r2 = new Array(12).fill(0);
+      for (let k = 0; k < 4; k++) {
+        r1[k] = X[k]; r1[8 + k] = -x * X[k];
+        r2[4 + k] = X[k]; r2[8 + k] = -y * X[k];
+      }
+      for (const r of [r1, r2]) for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) AtA[i * 12 + j] += r[i] * r[j];
+    }
+    const { vals, vecs } = jacobiEig(AtA, 12);
+    let mi = 0; for (let i = 1; i < 12; i++) if (vals[i] < vals[mi]) mi = i;
+    let P = []; for (let i = 0; i < 12; i++) P.push(vecs[i * 12 + mi]);
+    let M = [P[0], P[1], P[2], P[4], P[5], P[6], P[8], P[9], P[10]];
+    const det = M[0] * (M[4] * M[8] - M[5] * M[7]) - M[1] * (M[3] * M[8] - M[5] * M[6]) + M[2] * (M[3] * M[7] - M[4] * M[6]);
+    if (det < 0) { P = P.map(v => -v); M = M.map(v => -v); }
+    // polar decomposition M = R S
+    const MtM = new Array(9).fill(0);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) MtM[i * 3 + j] += M[k * 3 + i] * M[k * 3 + j];
+    const e = jacobiEig(MtM, 3);
+    const sig = e.vals.map(v => Math.sqrt(Math.max(v, 1e-30)));
+    // (MtM)^(-1/2) = V diag(1/sig) V^T
+    const inv = new Array(9).fill(0);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++)
+      inv[i * 3 + j] += e.vecs[i * 3 + k] * e.vecs[j * 3 + k] / sig[k];
+    let R = mul3(M, inv);
+    R = orthonormalize(R);
+    const scale = (sig[0] + sig[1] + sig[2]) / 3;
+    const tn = [P[3] / scale, P[7] / scale, P[11] / scale];
+    // In normalized space: Xc = R Xn + tn; Xn = (X - c)/s -> Xc*s = R (X - c) + s*tn
+    // camera center in world: X such that Xc=0 -> X = c - s * R^T tn
+    const Cw = [0, 0, 0];
+    for (let i = 0; i < 3; i++) Cw[i] = c[i] - s * (R[i] * tn[0] + R[3 + i] * tn[1] + R[6 + i] * tn[2]);
+    // cheirality check
+    let front = 0;
+    for (const p of pins) {
+      const q = project(R, Cw, K, f, p.X);
+      if (q[2] > 0) front++;
+    }
+    if (front < N / 2) return null;
+    return { R, C: Cw };
+  }
+
+  function rmsOf(pose, K, pins) {
+    if (!pins.length) return 0;
+    const r = residuals(pose.R, pose.C, K, pose.f || 1, pins, new Array(pins.length * 2));
+    return Math.sqrt(sumsq(r) / pins.length);
+  }
+  function errorsOf(pose, K, pins) {
+    return pins.map(p => {
+      const q = project(pose.R, pose.C, K, pose.f || 1, p.X);
+      if (!(q[2] > 0)) return Infinity;
+      return Math.hypot(q[0] - p.uv[0], q[1] - p.uv[1]);
+    });
+  }
+  return { refine, dlt, project, rodrigues, mul3, rmsOf, errorsOf, orthonormalize };
+})();
+
+
+</script>
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+const lsGet = (k, d) => { try { const v = localStorage.getItem('pinmatch.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem('pinmatch.' + k, JSON.stringify(v)); } catch (e) {} };
+
+// ---------- Sensor presets (film back in mm; verificá contra la planilla del rodaje) ----------
+const PRESETS = [
+  ['alexa-lf-og', 'ARRI Alexa LF / Mini LF · Open Gate 4.5K', 36.70, 25.54],
+  ['alexa-lf-169', 'ARRI Alexa LF / Mini LF · 16:9 UHD', 31.68, 17.82],
+  ['alexa35-og', 'ARRI Alexa 35 · Open Gate 4.6K', 27.99, 19.22],
+  ['alexa35-169', 'ARRI Alexa 35 · 16:9 4K', 24.88, 13.99],
+  ['alexamini-og', 'ARRI Alexa Mini · Open Gate 3.4K', 28.25, 18.17],
+  ['alexamini-169', 'ARRI Alexa Mini · 16:9 HD/2.8K', 23.76, 13.37],
+  ['venice-ff', 'Sony Venice / Venice 2 · 6K 3:2 FF', 35.90, 24.00],
+  ['fx6', 'Sony FX6 / FX3 / FX30 FF · 4K', 35.60, 20.03],
+  ['vraptor', 'RED V-Raptor · 8K VV 17:9', 40.96, 21.60],
+  ['komodo', 'RED Komodo · 6K 17:9', 27.03, 14.26],
+  ['c70', 'Canon C70 / C300 III · 4K DCI S35', 26.20, 13.80],
+  ['bmpcc6k', 'Blackmagic Pocket 6K · 6K 16:9', 23.10, 12.99],
+  ['bmpcc4k', 'Blackmagic Pocket 4K · 4K DCI', 18.96, 10.00],
+  ['ff', 'Full Frame foto · 3:2', 36.00, 24.00],
+  ['s35', 'Super 35 genérico · 4-perf', 24.89, 18.66],
+  ['iph12', 'iPhone 12 Pro · gran angular (4.2 mm)', 5.76, 4.29],
+  ['custom', 'Personalizado', null, null],
+];
+
+// ---------- State ----------
+const st = {
+  plate: { W: 1920, H: 1336, name: 'Ejemplo', sample: true },
+  sw: 36.70, sh: 25.54, focal: 32, preset: 'alexa-lf-og',
+  freeF: false, fScale: 1,
+  unit: 1, up: 'y', userScale: 1, scaleOk: false,
+  scanName: 'Ejemplo', scanKind: 'mesh', rawBox: null, sample: true,
+  pins: [], sel: -1, nextId: 1,
+  mode: 'nav',
+  view: { zoom: 1, x: 0, y: 0, baseW: 1, baseH: 1, left: 0, top: 0 },
+  measure: { a: null, b: null },
+  solved: null, rms: null,
+};
+
+// ---------- Three setup ----------
+const vp = $('vp'), stage = $('stage'), canvas = $('gl'), plateImg = $('plate'), ov = $('ov');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setClearColor(0x000000, 0);
+renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1.5, 0.05, 5000);
+scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x3a3328, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(5, 10, 7); scene.add(sun);
+const scanRoot = new THREE.Group(); scene.add(scanRoot);
+let scanObj = null;
+const grid = new THREE.GridHelper(60, 60, 0x5ccfe0, 0x3b4654);
+grid.material.transparent = true; grid.material.opacity = 0.35; grid.material.depthWrite = false;
+scene.add(grid);
+// measure helpers
+const measGeo = new THREE.BufferGeometry(); measGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+const measLine = new THREE.Line(measGeo, new THREE.LineBasicMaterial({ color: 0xffb238, depthTest: false, transparent: true }));
+measLine.renderOrder = 999; measLine.visible = false; scene.add(measLine);
+const measPts = new THREE.Points(measGeo, new THREE.PointsMaterial({ color: 0xffb238, size: 8, sizeAttenuation: false, depthTest: false, transparent: true }));
+measPts.renderOrder = 999; measPts.visible = false; scene.add(measPts);
+
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = false;
+controls.addEventListener('change', () => { render(); drawOverlay(); });
+
+const MAT = {
+  wire: new THREE.MeshBasicMaterial({ color: 0x5ccfe0, wireframe: true, transparent: true, opacity: 0.9 }),
+  solid: new THREE.MeshLambertMaterial({ color: 0xb9c3cd, transparent: true, opacity: 1, side: THREE.DoubleSide }),
+};
+const PTS = { mono: new THREE.PointsMaterial({ color: 0x5ccfe0, size: 2, sizeAttenuation: false }), color: null };
+
+function render() { renderer.render(scene, camera); }
+
+// ---------- Intrinsics / pose conversion ----------
+function focalUsed() { return st.focal * (st.freeF ? st.fScale : 1); }
+function K() {
+  const fx = st.focal / st.sw * st.plate.W;
+  return { fx, fy: fx, cx: st.plate.W / 2, cy: st.plate.H / 2 };
+}
+function applyIntrinsics() {
+  const f = focalUsed();
+  const fy = f / st.sw * st.plate.W;
+  camera.fov = 2 * Math.atan((st.plate.H / 2) / fy) * 180 / Math.PI;
+  camera.aspect = st.plate.W / st.plate.H;
+  camera.updateProjectionMatrix();
+}
+function poseFromCamera() {
+  camera.updateMatrixWorld();
+  const e = camera.matrixWorld.elements; // column-major
+  const X = [e[0], e[1], e[2]], Y = [e[4], e[5], e[6]], Z = [e[8], e[9], e[10]];
+  const R = [X[0], X[1], X[2], -Y[0], -Y[1], -Y[2], -Z[0], -Z[1], -Z[2]];
+  return { R: Solver.orthonormalize(R), C: [e[12], e[13], e[14]], f: st.freeF ? st.fScale : 1 };
+}
+function cameraFromPose(p) {
+  const R = p.R;
+  const m = new THREE.Matrix4().set(
+    R[0], -R[3], -R[6], p.C[0],
+    R[1], -R[4], -R[7], p.C[1],
+    R[2], -R[5], -R[8], p.C[2],
+    0, 0, 0, 1);
+  m.decompose(camera.position, camera.quaternion, new THREE.Vector3());
+  camera.updateMatrixWorld(true);
+  if (st.freeF) st.fScale = p.f;
+  applyIntrinsics();
+}
+
+// ---------- Scan loading ----------
+function sceneSize() {
+  const b = new THREE.Box3().setFromObject(scanRoot);
+  return b.isEmpty() ? 10 : b.getSize(new THREE.Vector3()).length();
+}
+function rootMatrixFor(unit, userScale, up) {
+  const m = new THREE.Matrix4();
+  const r = new THREE.Euler(up === 'z' ? -Math.PI / 2 : up === '-y' ? Math.PI : 0, 0, 0);
+  m.compose(new THREE.Vector3(), new THREE.Quaternion().setFromEuler(r), new THREE.Vector3().setScalar(unit * userScale));
+  return m;
+}
+function setRootTransform(unit, userScale, up, keepView = true) {
+  const oldM = rootMatrixFor(st.unit, st.userScale, st.up);
+  const newM = rootMatrixFor(unit, userScale, up);
+  st.unit = unit; st.userScale = userScale; st.up = up;
+  newM.decompose(scanRoot.position, scanRoot.quaternion, scanRoot.scale);
+  scanRoot.updateMatrixWorld(true);
+  if (keepView) {
+    const D = newM.clone().multiply(oldM.clone().invert());
+    const pos = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+    D.decompose(pos, q, s);
+    camera.position.applyMatrix4(D);
+    camera.quaternion.premultiply(q);
+    camera.updateMatrixWorld(true);
+    if (st.solved) {
+      const p = st.solved; const Cv = new THREE.Vector3(...p.C).applyMatrix4(D);
+      const Rm = new THREE.Matrix4().makeRotationFromQuaternion(q);
+      const qe = Rm.elements; // world rotation; R' = R * Q^T
+      const Q = [qe[0], qe[4], qe[8], qe[1], qe[5], qe[9], qe[2], qe[6], qe[10]];
+      const QT = [Q[0], Q[3], Q[6], Q[1], Q[4], Q[7], Q[2], Q[5], Q[8]];
+      st.solved = { R: Solver.mul3(p.R, QT), C: [Cv.x, Cv.y, Cv.z], f: p.f };
+    }
+  }
+  updateGrid(); updateDims(); updateMeasureGeo();
+}
+function updateGrid() {
+  const b = new THREE.Box3().setFromObject(scanRoot);
+  grid.position.y = b.isEmpty() ? 0 : b.min.y;
+}
+function fmt(n, d = 3) { return Number.isFinite(n) ? n.toFixed(d) : '–'; }
+function updateDims() {
+  const b = new THREE.Box3().setFromObject(scanRoot);
+  if (b.isEmpty()) return;
+  const s = b.getSize(new THREE.Vector3());
+  $('dx').textContent = fmt(s.x, 2) + ' m'; $('dy').textContent = fmt(s.y, 2) + ' m'; $('dz').textContent = fmt(s.z, 2) + ' m';
+  $('scale-f').textContent = 'Factor ' + fmt(st.userScale, 4);
+  const msg = $('unit-msg');
+  const big = Math.max(s.x, s.y, s.z);
+  let txt = '', cls = 'msg';
+  if (big > 2000) { txt = `El lado mayor mide ${fmt(big, 0)} m: casi seguro las unidades están mal (¿mm o cm?).`; cls = 'msg bad'; }
+  else if (big < 0.05) { txt = `El scan mide ${fmt(big * 100, 1)} cm de lado mayor: ¿está en metros pero exportado chico?`; cls = 'msg bad'; }
+  else if (st.guessText && st.guess === String(st.unit)) { txt = st.guessText; }
+  msg.hidden = !txt; msg.className = cls; msg.textContent = txt;
+}
+
+function clearScan() {
+  if (scanObj) {
+    scanRoot.remove(scanObj);
+    scanObj.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  scanObj = null;
+}
+function finishScan(obj, name, kind, fileType) {
+  clearScan();
+  // compute raw bbox with identity root
+  scanRoot.position.set(0, 0, 0); scanRoot.quaternion.identity(); scanRoot.scale.set(1, 1, 1); scanRoot.updateMatrixWorld(true);
+  scanRoot.add(obj); scanObj = obj;
+  obj.traverse(o => {
+    if (o.isMesh) {
+      o.userData.orig = o.material;
+      if (o.geometry && !o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+    }
+  });
+  const raw = new THREE.Box3().setFromObject(scanRoot);
+  const size = raw.getSize(new THREE.Vector3());
+  const big = Math.max(size.x, size.y, size.z);
+  st.rawBox = raw; st.scanName = name; st.scanKind = kind; st.sample = false;
+  // guess units and up axis
+  let unit = 1;
+  if (fileType !== 'glb' && fileType !== 'gltf') unit = big > 2500 ? 0.001 : big > 250 ? 0.01 : 1;
+  st.guess = String(unit);
+  st.guessText = unit === 1 ? '' : `Lado mayor: ${fmt(big, 1)} unidades. Parece estar en ${unit === 0.01 ? 'centímetros' : 'milímetros'}; lo puse así, revisalo.`;
+  let up = fileType === 'ply' ? lsGet('upPly', 'y') : 'y';
+  st.unit = unit; st.up = up; st.userScale = 1; st.scaleOk = false;
+  $('unit').value = String(unit); $('up').value = up;
+  setRootTransform(unit, 1, up, false);
+  st.pins = []; st.sel = -1; st.solved = null; st.rms = null;
+  st.measure = { a: null, b: null }; updateMeasureGeo();
+  applyDisplay();
+  frameScan();
+  $('scan-name').textContent = name;
+  $('tag').textContent = (st.plate.sample ? 'EJEMPLO · ' : '') + st.plate.W + ' × ' + st.plate.H;
+  const kv = [];
+  let verts = 0, tris = 0;
+  obj.traverse(o => {
+    if (o.geometry && o.geometry.attributes.position) {
+      verts += o.geometry.attributes.position.count;
+      if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3;
+    }
+  });
+  kv.push(['Tipo', kind === 'points' ? 'Nube de puntos / splat' : 'Malla']);
+  kv.push([kind === 'points' ? 'Puntos' : 'Triángulos', (kind === 'points' ? verts : Math.round(tris)).toLocaleString('es-AR')]);
+  if (st.plyInfo) kv.push(['Filtrado', st.plyInfo]);
+  $('scan-kv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  refreshAll();
+  setBusy(false);
+}
+function frameScan() {
+  const b = new THREE.Box3().setFromObject(scanRoot);
+  const c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3()).length();
+  camera.position.set(c.x + s * 0.55, c.y + s * 0.3, c.z + s * 0.75);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(c);
+  controls.target.copy(c);
+  camera.near = Math.max(s / 5000, 0.01); camera.far = s * 50;
+  applyIntrinsics();
+}
+
+function parsePLYPoints(buf) {
+  const head = new TextDecoder('latin1').decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, 200000)));
+  const hi = head.indexOf('end_header');
+  if (hi < 0) throw new Error('PLY sin header');
+  let start = hi + 10; if (head[start] === '\r') start++; start++;
+  const lines = head.slice(0, hi).split(/\r?\n/);
+  let format = 'ascii', elems = [], cur = null;
+  for (const ln of lines) {
+    const t = ln.trim().split(/\s+/);
+    if (t[0] === 'format') format = t[1];
+    else if (t[0] === 'element') { cur = { name: t[1], count: +t[2], props: [] }; elems.push(cur); }
+    else if (t[0] === 'property' && cur) {
+      if (t[1] === 'list') cur.props.push({ list: true, ct: t[2], it: t[3], name: t[4] });
+      else cur.props.push({ type: t[1], name: t[2] });
+    }
+  }
+  const faces = elems.find(e => e.name === 'face');
+  if (faces && faces.count > 0) return null;
+  const ve = elems.find(e => e.name === 'vertex');
+  if (!ve) throw new Error('PLY sin vértices');
+  const SZ = { char: 1, int8: 1, uchar: 1, uint8: 1, short: 2, int16: 2, ushort: 2, uint16: 2, int: 4, int32: 4, uint: 4, uint32: 4, float: 4, float32: 4, double: 8, float64: 8 };
+  const idx = {}; ve.props.forEach((p, i) => idx[p.name] = i);
+  const hasRGB = 'red' in idx, hasDC = 'f_dc_0' in idx, hasOp = 'opacity' in idx;
+  const N = ve.count;
+  const maxPts = 6e6, step = Math.max(1, Math.ceil(N / maxPts));
+  const minOp = 0.12;
+  const pos = new Float32Array(Math.ceil(N / step) * 3), col = (hasRGB || hasDC) ? new Float32Array(Math.ceil(N / step) * 3) : null;
+  let k = 0, dropped = 0;
+  const vals = new Float64Array(ve.props.length);
+  const take = (v) => {
+    if (hasOp && 1 / (1 + Math.exp(-v[idx.opacity])) < minOp) { dropped++; return; }
+    pos[k * 3] = v[idx.x]; pos[k * 3 + 1] = v[idx.y]; pos[k * 3 + 2] = v[idx.z];
+    if (col) {
+      if (hasDC) for (let c = 0; c < 3; c++) col[k * 3 + c] = Math.min(1, Math.max(0, 0.5 + 0.28209479 * v[idx['f_dc_' + c]]));
+      else {
+        const isF = ve.props[idx.red].type.startsWith('float');
+        for (const [c, nm] of [[0, 'red'], [1, 'green'], [2, 'blue']]) col[k * 3 + c] = isF ? v[idx[nm]] : v[idx[nm]] / 255;
+      }
+    }
+    k++;
+  };
+  if (format === 'ascii') {
+    const body = new TextDecoder('latin1').decode(new Uint8Array(buf, start)).split(/\r?\n/);
+    let li = 0;
+    for (let i = 0; i < N; i++) {
+      while (li < body.length && !body[li].trim()) li++;
+      const t = body[li++].trim().split(/\s+/);
+      if (i % step) continue;
+      for (let j = 0; j < vals.length; j++) vals[j] = +t[j];
+      take(vals);
+    }
+  } else {
+    const le = format === 'binary_little_endian';
+    const dv = new DataView(buf, start);
+    if (ve.props.some(p => p.list)) throw new Error('PLY con listas en vértices no soportado');
+    const offs = []; let stride = 0;
+    for (const p of ve.props) { offs.push(stride); stride += SZ[p.type]; }
+    const rd = ve.props.map(p => {
+      switch (p.type) {
+        case 'char': case 'int8': return (o) => dv.getInt8(o);
+        case 'uchar': case 'uint8': return (o) => dv.getUint8(o);
+        case 'short': case 'int16': return (o) => dv.getInt16(o, le);
+        case 'ushort': case 'uint16': return (o) => dv.getUint16(o, le);
+        case 'int': case 'int32': return (o) => dv.getInt32(o, le);
+        case 'uint': case 'uint32': return (o) => dv.getUint32(o, le);
+        case 'double': case 'float64': return (o) => dv.getFloat64(o, le);
+        default: return (o) => dv.getFloat32(o, le);
+      }
+    });
+    // read only needed props for speed
+    const need = new Set(['x', 'y', 'z', 'red', 'green', 'blue', 'f_dc_0', 'f_dc_1', 'f_dc_2', 'opacity'].filter(n => n in idx).map(n => idx[n]));
+    for (let i = 0; i < N; i += step) {
+      const base = i * stride;
+      for (const j of need) vals[j] = rd[j](base + offs[j]);
+      take(vals);
+    }
+  }
+  const info = [];
+  if (step > 1) info.push(`1 de cada ${step}`);
+  if (dropped) info.push(`${dropped.toLocaleString('es-AR')} splats casi transparentes fuera`);
+  return { pos: pos.subarray(0, k * 3), col: col ? col.subarray(0, k * 3) : null, info: info.join(' · ') };
+}
+
+async function loadScanFile(file) {
+  setBusy(true, 'Cargando ' + file.name + '…');
+  const ext = file.name.split('.').pop().toLowerCase();
+  st.plyInfo = '';
+  try {
+    const buf = await file.arrayBuffer();
+    let obj, kind = 'mesh';
+    if (ext === 'obj') {
+      obj = new THREE.OBJLoader().parse(new TextDecoder().decode(buf));
+      let anyMesh = false; obj.traverse(o => { if (o.isMesh) anyMesh = true; });
+      if (!anyMesh) kind = 'points';
+    } else if (ext === 'ply') {
+      const pts = parsePLYPoints(buf);
+      if (pts) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pts.pos, 3));
+        if (pts.col) g.setAttribute('color', new THREE.BufferAttribute(pts.col, 3));
+        obj = new THREE.Points(g, PTS.mono); obj.userData.hasColor = !!pts.col;
+        kind = 'points'; st.plyInfo = pts.info;
+      } else {
+        const g = new THREE.PLYLoader().parse(buf);
+        g.computeVertexNormals();
+        const m = new THREE.MeshLambertMaterial({ color: 0xb9c3cd, vertexColors: !!g.attributes.color, side: THREE.DoubleSide });
+        obj = new THREE.Mesh(g, m);
+      }
+    } else if (ext === 'glb' || ext === 'gltf') {
+      obj = await new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', g => res(g.scene), rej));
+    } else if (ext === 'fbx') {
+      obj = new THREE.FBXLoader().parse(buf, '');
+    } else throw new Error('Formato no soportado: .' + ext);
+    finishScan(obj, file.name, kind, ext);
+  } catch (err) {
+    setBusy(false);
+    showMsg('unit-msg', 'No pude leer ' + file.name + ': ' + (err.message || err) + '. Probá exportarlo como GLB, OBJ o PLY binario.', 'msg bad');
+    console.error(err);
+  }
+}
+function showMsg(id, txt, cls) { const m = $(id); m.hidden = false; m.className = cls; m.textContent = txt; }
+function setBusy(on, txt) { $('busy').hidden = !on; if (txt) $('busy').textContent = txt; }
+
+// ---------- Display ----------
+function applyDisplay() {
+  const mode = $('disp').value, op = +$('opac').value, ps = +$('ptsize').value;
+  canvas.style.opacity = op;
+  MAT.wire.opacity = 0.9; MAT.solid.opacity = 1;
+  PTS.mono.size = ps;
+  if (!scanObj) return render();
+  scanObj.traverse(o => {
+    if (o.isMesh) o.material = mode === 'wire' ? MAT.wire : mode === 'solid' ? MAT.solid : o.userData.orig;
+    if (o.isPoints) {
+      if (mode === 'orig' && o.geometry.attributes.color) {
+        if (!o.userData.colMat) o.userData.colMat = new THREE.PointsMaterial({ size: ps, sizeAttenuation: false, vertexColors: true });
+        o.userData.colMat.size = ps; o.material = o.userData.colMat;
+      } else o.material = PTS.mono;
+    }
+  });
+  render(); drawOverlay();
+}
+
+// ---------- Plate ----------
+function setPlate(url, W, H, name, sample) {
+  st.plate = { W, H, name, sample };
+  if (url) { plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
+  else { plateImg.hidden = true; $('platecv').hidden = false; }
+  if (url) $('exr-box').hidden = true;
+  $('plate-name').textContent = (sample ? 'Ejemplo' : name) + ' · ' + W + ' × ' + H;
+  $('tag').textContent = (sample ? 'EJEMPLO · ' : '') + W + ' × ' + H;
+  layoutStage(true);
+  applyIntrinsics();
+  checkAspect();
+  refreshAll();
+}
+function loadPlateFile(file) {
+  if (/\.exr$/i.test(file.name)) return loadExrFile(file);
+  const url = URL.createObjectURL(file);
+  const im = new Image();
+  im.onload = () => {
+    setPlate(url, im.naturalWidth, im.naturalHeight, file.name, false);
+    st.pins.forEach(p => { p.uv = null; });
+    st.pins = []; st.solved = null; st.rms = null;
+    refreshAll();
+  };
+  im.onerror = () => showMsg('aspect-msg', 'El navegador no puede abrir ' + file.name + '. Exportá el frame como JPG o PNG (EXR y DPX no se leen acá).', 'msg bad');
+  im.src = url;
+}
+function checkAspect() {
+  const a1 = st.plate.W / st.plate.H, a2 = st.sw / st.sh;
+  const d = Math.abs(a1 / a2 - 1);
+  const m = $('aspect-msg');
+  if (d > 0.01) {
+    m.hidden = false; m.className = 'msg';
+    m.textContent = `El plate es ${a1.toFixed(3)}:1 y el film back ${a2.toFixed(3)}:1. Se toma el ancho como referencia; si el plate está recortado o reencuadrado, cargá el film back del área que realmente muestra.`;
+  } else m.hidden = true;
+}
+
+// ---------- EXR: header/metadata, decode, color ----------
+const EXR = (() => {
+  const COMP = ['NONE', 'RLE', 'ZIPS', 'ZIP', 'PIZ', 'PXR24', 'B44', 'B44A', 'DWAA', 'DWAB', 'HTJ2K256', 'HTJ2K32'];
+  function parseHeader(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    if (dv.getUint32(0, true) !== 20000630) throw new Error('no es un archivo EXR');
+    const ver = dv.getUint32(4, true);
+    const flags = { tiled: !!(ver & 0x200), longNames: !!(ver & 0x400), deep: !!(ver & 0x800), multipart: !!(ver & 0x1000) };
+    let o = 8;
+    const cstr = () => { let s = ''; while (u8[o] !== 0) s += String.fromCharCode(u8[o++]); o++; return s; };
+    const utf8 = (a, b) => { try { return new TextDecoder('utf-8').decode(u8.subarray(a, b)); } catch (e) { return ''; } };
+    const attrs = [];
+    while (u8[o] !== 0 && o < buf.byteLength) {
+      const name = cstr(), type = cstr(), size = dv.getInt32(o, true); o += 4;
+      const s = o, e = o + size;
+      let v, raw = null;
+      const f = (k) => dv.getFloat32(s + 4 * k, true), i = (k) => dv.getInt32(s + 4 * k, true);
+      switch (type) {
+        case 'string': v = utf8(s, e); break;
+        case 'int': v = i(0); break;
+        case 'float': v = f(0); break;
+        case 'double': v = dv.getFloat64(s, true); break;
+        case 'v2i': v = [i(0), i(1)]; break;
+        case 'v2f': v = [f(0), f(1)]; break;
+        case 'v3i': v = [i(0), i(1), i(2)]; break;
+        case 'v3f': v = [f(0), f(1), f(2)]; break;
+        case 'box2i': v = { xMin: i(0), yMin: i(1), xMax: i(2), yMax: i(3) }; raw = s; break;
+        case 'box2f': v = [f(0), f(1), f(2), f(3)]; break;
+        case 'chromaticities': v = [0, 1, 2, 3, 4, 5, 6, 7].map(f); break;
+        case 'compression': v = COMP[u8[s]] || ('#' + u8[s]); break;
+        case 'lineOrder': v = ['INCREASING_Y', 'DECREASING_Y', 'RANDOM_Y'][u8[s]] || u8[s]; break;
+        case 'rational': v = [i(0), dv.getUint32(s + 4, true)]; break;
+        case 'm33f': v = [...Array(9)].map((_, k) => f(k)); break;
+        case 'm44f': v = [...Array(16)].map((_, k) => f(k)); break;
+        case 'timecode': {
+          const t = dv.getUint32(s, true), bcd = (x) => ((x >> 4) & 0xf) * 10 + (x & 0xf);
+          const pad = (n) => String(n).padStart(2, '0');
+          v = `${pad(bcd((t >> 24) & 0x3f))}:${pad(bcd((t >> 16) & 0x7f))}:${pad(bcd((t >> 8) & 0x7f))}:${pad(bcd(t & 0x3f))}`;
+          break;
+        }
+        case 'chlist': {
+          const ch = []; let p = s;
+          while (p < e && u8[p] !== 0) {
+            let nm = ''; while (u8[p] !== 0) nm += String.fromCharCode(u8[p++]); p++;
+            ch.push({ name: nm, type: ['uint', 'half', 'float'][dv.getInt32(p, true)] || '?' });
+            p += 16;
+          }
+          v = ch; break;
+        }
+        case 'stringvector': {
+          const out = []; let p = s;
+          while (p + 4 <= e) { const n = dv.getInt32(p, true); p += 4; out.push(utf8(p, p + n)); p += n; }
+          v = out; break;
+        }
+        default: v = `(${type}, ${size} bytes)`;
+      }
+      attrs.push({ name, type, value: v, raw });
+      o = e;
+    }
+    const get = (n) => { const a = attrs.find(x => x.name === n); return a ? a.value : undefined; };
+    return { attrs, get, flags, find: (n) => attrs.find(x => x.name === n), end: o + 1 };
+  }
+
+  // linear primaries -> linear Rec.709 / sRGB (D65, Bradford where needed)
+  const TO709 = {
+    ap0: [2.52168619, -1.13413099, -0.38755520, -0.27621507, 1.37271909, -0.09650402, -0.01537792, -0.15297515, 1.16835307],
+    ap1: [1.70505099, -0.62179212, -0.08325887, -0.13025642, 1.14080474, -0.01054832, -0.02400336, -0.12896869, 1.15297205],
+    awg3: [1.617523, -0.537287, -0.080237, -0.070573, 1.334613, -0.26404, -0.021102, -0.226954, 1.248056],
+    rec2020: [1.66049100, -0.58764114, -0.07284986, -0.12455047, 1.13289990, -0.00834942, -0.01815076, -0.10057890, 1.11872966],
+    rec709: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+  };
+  const CS_NAMES = { ap0: 'ACES2065-1 (AP0)', ap1: 'ACEScg (AP1)', awg3: 'ARRI Wide Gamut 3 lineal', rec2020: 'Rec.2020 lineal', rec709: 'Rec.709 / sRGB lineal' };
+  function detectSpace(h) {
+    const c = h.get('chromaticities');
+    if (c) {
+      const near = (x, y, tx, ty) => Math.abs(x - tx) < 0.004 && Math.abs(y - ty) < 0.004;
+      if (near(c[0], c[1], 0.7347, 0.2653)) return ['ap0', 'por los primarios del header'];
+      if (near(c[0], c[1], 0.713, 0.293)) return ['ap1', 'por los primarios del header'];
+      if (near(c[0], c[1], 0.684, 0.313)) return ['awg3', 'por los primarios del header'];
+      if (near(c[0], c[1], 0.708, 0.292)) return ['rec2020', 'por los primarios del header'];
+      if (near(c[0], c[1], 0.64, 0.33)) return ['rec709', 'por los primarios del header'];
+    }
+    if (h.get('acesImageContainerFlag') === 1) return ['ap0', 'archivo ACES (ST 2065-4)'];
+    const csKey = h.attrs.find(a => /colou?rspace|interchange/i.test(a.name) && typeof a.value === 'string');
+    if (csKey) {
+      const s = csKey.value.toLowerCase();
+      if (/acescg|ap1/.test(s)) return ['ap1', 'por ' + csKey.name];
+      if (/aces|ap0|2065/.test(s)) return ['ap0', 'por ' + csKey.name];
+      if (/awg|alexa/.test(s)) return ['awg3', 'por ' + csKey.name];
+    }
+    return ['ap0', 'sin dato en el header: asumo ACES2065-1'];
+  }
+
+  // camera/lens hints from metadata (OpenEXR 3.2+ standard names first, then vendor keys)
+  function lensHints(h) {
+    const num = (v) => typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v.replace(',', '.')) : NaN;
+    const out = {};
+    for (const k of ['pinholeFocalLength', 'effectiveFocalLength', 'nominalFocalLength']) {
+      const v = num(h.get(k)); if (v > 0.5 && v < 2000) { out.focal = v; out.focalKey = k; break; }
+    }
+    if (!out.focal) {
+      const a = h.attrs.find(x => /focal/i.test(x.name) && !/distance|ratio|pixel|px/i.test(x.name) && num(x.value) > 0.5 && num(x.value) < 2000);
+      if (a) { out.focal = num(a.value); out.focalKey = a.name; }
+    }
+    const rect = h.get('sensorAcquisitionRectangle'), pitch = num(h.get('sensorPhotositePitch'));
+    if (rect && pitch > 0) {
+      const w = (rect.xMax - rect.xMin + 1) * pitch / 1000, hh = (rect.yMax - rect.yMin + 1) * pitch / 1000;
+      if (w > 1 && w < 100) { out.sw = w; out.sh = hh; out.sensorKey = 'sensorAcquisitionRectangle × sensorPhotositePitch'; }
+    }
+    if (!out.sw) {
+      const wA = h.attrs.find(x => /(sensor|film.?back)/i.test(x.name) && /width|horiz/i.test(x.name) && num(x.value) > 1 && num(x.value) < 100);
+      const hA = h.attrs.find(x => /(sensor|film.?back)/i.test(x.name) && /height|vert/i.test(x.name) && num(x.value) > 1 && num(x.value) < 100);
+      if (wA) { out.sw = num(wA.value); out.sh = hA ? num(hA.value) : null; out.sensorKey = wA.name; }
+    }
+    const cam = [h.get('cameraMake'), h.get('cameraModel')].filter(Boolean).join(' ');
+    const lens = [h.get('lensMake'), h.get('lensModel')].filter(Boolean).join(' ');
+    if (cam) out.camera = cam;
+    if (lens) out.lens = lens;
+    return out;
+  }
+
+  let halfLUT = null;
+  function half2f(h) {
+    const s = (h & 0x8000) ? -1 : 1, e = (h >> 10) & 0x1f, m = h & 0x3ff;
+    if (e === 0) return s * Math.pow(2, -14) * (m / 1024);
+    if (e === 31) return m ? NaN : s * Infinity;
+    return s * Math.pow(2, e - 15) * (1 + m / 1024);
+  }
+  // display encodings: sRGB piecewise, Rec.709 display = inverse BT.1886 (gamma 2.4)
+  const srgbLUT = new Uint8Array(4097), r709LUT = new Uint8Array(4097);
+  for (let i = 0; i <= 4096; i++) {
+    const x = i / 4096;
+    srgbLUT[i] = Math.round(255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055));
+    r709LUT[i] = Math.round(255 * Math.pow(x, 1 / 2.4));
+  }
+
+  // decode pixels with three's EXRLoader; fixes data windows that don't start at 0,0
+  function decode(buf, h) {
+    if (h.flags.tiled || h.flags.multipart || h.flags.deep) throw new Error('el EXR es ' + (h.flags.multipart ? 'multipart' : h.flags.tiled ? 'tileado' : 'deep') + '; exportalo como scanline de una sola parte');
+    const comp = h.get('compression');
+    if (/^B44/.test(comp) || /^HTJ2K/.test(comp)) throw new Error(`la compresión ${comp} no se puede leer acá; reexportalo con PIZ, ZIP o DWAA`);
+    const chans = (h.get('channels') || []).map(c => c.name);
+    const usable = chans.filter(n => /^(R|G|B|A|Y)$/.test(n));
+    if (!usable.length) throw new Error('no encontré canales R, G, B o Y en la primera capa (' + chans.slice(0, 6).join(', ') + ')');
+    const types = new Set((h.get('channels') || []).map(c => c.type));
+    if (types.size > 1) throw new Error('el EXR mezcla canales half y float; exportá solo RGB(A) en half');
+    const dw = h.get('dataWindow'), dwA = h.find('dataWindow');
+    let b = buf;
+    if (dw.xMin !== 0 || dw.yMin !== 0) {
+      b = buf.slice(0);
+      const v = new DataView(b), w = dw.xMax - dw.xMin, hh = dw.yMax - dw.yMin;
+      v.setInt32(dwA.raw, 0, true); v.setInt32(dwA.raw + 4, 0, true); v.setInt32(dwA.raw + 8, w, true); v.setInt32(dwA.raw + 12, hh, true);
+      // chunk line numbers are absolute: shift them so they start at 0 too
+      const LPB = { NONE: 1, RLE: 1, ZIPS: 1, ZIP: 16, PXR24: 16, PIZ: 32, DWAA: 32, DWAB: 256 }[comp] || 16;
+      const blocks = Math.ceil((hh + 1) / LPB);
+      for (let k = 0; k < blocks; k++) {
+        const off = Number(v.getBigUint64(h.end + k * 8, true));
+        if (off + 4 <= b.byteLength) v.setInt32(off, v.getInt32(off, true) - dw.yMin, true);
+      }
+    }
+    const L = new THREE.EXRLoader(); L.setDataType(THREE.HalfFloatType);
+    const r = L.parse(b);
+    const n = r.width * r.height, stride = Math.round(r.data.length / n);
+    return { w: r.width, h: r.height, data: r.data, stride, hasRGB: chans.includes('R'), isY: !chans.includes('R') && chans.includes('Y'), dw };
+  }
+
+  // render to an 8-bit canvas in display-window space
+  function draw(px, h, opt, cv) {
+    if (!halfLUT) { halfLUT = new Float32Array(65536); for (let i = 0; i < 65536; i++) halfLUT[i] = half2f(i); }
+    const disp = h.get('displayWindow') || px.dw;
+    const W = disp.xMax - disp.xMin + 1, H = disp.yMax - disp.yMin + 1;
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(W, H), out = img.data;
+    for (let i = 3; i < out.length; i += 4) out[i] = 255;
+    const M = TO709[opt.cs], gain = Math.pow(2, opt.ev);
+    const ox = px.dw.xMin - disp.xMin, oy = px.dw.yMin - disp.yMin;
+    const d = px.data, st = px.stride, lut = halfLUT, view = opt.view;
+    const tone = view === 'aces709' || view === 'acessrgb';
+    const enc = view === 'aces709' || view === 'r709' ? r709LUT : srgbLUT;
+    for (let y = 0; y < px.h; y++) {
+      const ty = y + oy; if (ty < 0 || ty >= H) continue;
+      // EXRLoader stores rows bottom-up
+      let si = (px.h - 1 - y) * px.w * st;
+      let di = (ty * W + ox) * 4;
+      for (let x = 0; x < px.w; x++, si += st, di += 4) {
+        const tx = x + ox; if (tx < 0 || tx >= W) continue;
+        let r, g, bb;
+        if (px.isY) { r = g = bb = lut[d[si]]; } else { r = lut[d[si]]; g = lut[d[si + 1]]; bb = lut[d[si + 2]]; }
+        r *= gain; g *= gain; bb *= gain;
+        let R = M[0] * r + M[1] * g + M[2] * bb, G = M[3] * r + M[4] * g + M[5] * bb, B = M[6] * r + M[7] * g + M[8] * bb;
+        if (tone) {
+          // ACES 1.0 sRGB output, fitted (S. Hill): sRGB lin -> RRT_SAT/AP1 -> RRT+ODT fit -> sRGB lin
+          const a = 0.59719 * R + 0.35458 * G + 0.04823 * B, c = 0.07600 * R + 0.90834 * G + 0.01566 * B, e = 0.02840 * R + 0.13383 * G + 0.83777 * B;
+          const fa = (a * (a + 0.0245786) - 0.000090537) / (a * (0.983729 * a + 0.4329510) + 0.238081);
+          const fc = (c * (c + 0.0245786) - 0.000090537) / (c * (0.983729 * c + 0.4329510) + 0.238081);
+          const fe = (e * (e + 0.0245786) - 0.000090537) / (e * (0.983729 * e + 0.4329510) + 0.238081);
+          R = 1.60475 * fa - 0.53108 * fc - 0.07367 * fe; G = -0.10208 * fa + 1.10813 * fc - 0.00605 * fe; B = -0.00327 * fa - 0.07276 * fc + 1.07602 * fe;
+        }
+        if (view === 'raw') {
+          out[di] = Math.max(0, Math.min(255, r * 255)); out[di + 1] = Math.max(0, Math.min(255, g * 255)); out[di + 2] = Math.max(0, Math.min(255, bb * 255));
+        } else {
+          out[di] = enc[(Math.max(0, Math.min(1, R)) * 4096) | 0];
+          out[di + 1] = enc[(Math.max(0, Math.min(1, G)) * 4096) | 0];
+          out[di + 2] = enc[(Math.max(0, Math.min(1, B)) * 4096) | 0];
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return { W, H };
+  }
+
+  function fmtVal(a) {
+    const v = a.value;
+    if (a.type === 'box2i') return `${v.xMin},${v.yMin} → ${v.xMax},${v.yMax} (${v.xMax - v.xMin + 1}×${v.yMax - v.yMin + 1})`;
+    if (a.type === 'chlist') return v.map(c => c.name + ':' + c.type).join(' ');
+    if (a.type === 'chromaticities') return v.map(x => x.toFixed(4)).join(' ');
+    if (a.type === 'rational') return `${v[0]}/${v[1]}${v[1] ? ' (' + (v[0] / v[1]).toFixed(3) + ')' : ''}`;
+    if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(+v.toFixed(5));
+    if (Array.isArray(v)) return v.map(x => typeof x === 'number' ? +x.toFixed(4) : x).join(', ');
+    return String(v);
+  }
+  return { parseHeader, decode, draw, detectSpace, lensHints, fmtVal, CS_NAMES };
+})();
+
+let exrState = null;
+function resetPinsForNewPlate() { st.pins = []; st.sel = -1; st.solved = null; st.rms = null; }
+async function loadExrFile(file) {
+  setBusy(true, 'Leyendo ' + file.name + '…');
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const buf = await file.arrayBuffer();
+    const h = EXR.parseHeader(buf);
+    const px = EXR.decode(buf, h);
+    const [cs, why] = EXR.detectSpace(h);
+    exrState = { h, px, name: file.name, cs, why };
+    $('cs').value = cs; $('ev').value = 0; $('ev-v').textContent = '+0.00 EV';
+    const dims = drawExr();
+    setPlate(null, dims.W, dims.H, file.name, false);
+    $('exr-box').hidden = false;
+    resetPinsForNewPlate();
+    showExrMeta(h);
+    refreshAll();
+  } catch (err) {
+    console.error(err);
+    showMsg('aspect-msg', 'No pude abrir ' + file.name + ': ' + (err.message || err) + '.', 'msg bad');
+  }
+  setBusy(false);
+}
+function drawExr() {
+  const e = exrState;
+  const dims = EXR.draw(e.px, e.h, { cs: $('cs').value, view: $('view').value, ev: +$('ev').value }, $('platecv'));
+  $('cs-note').innerHTML = `Detectado: <b>${EXR.CS_NAMES[e.cs]}</b> · ${e.why}.`;
+  return dims;
+}
+function redrawExr() {
+  if (!exrState) return;
+  setBusy(true, 'Aplicando color…');
+  setTimeout(() => { drawExr(); setBusy(false); }, 20);
+}
+function showExrMeta(h) {
+  const hint = EXR.lensHints(h);
+  const lines = [];
+  if (hint.camera) lines.push('Cámara: ' + hint.camera);
+  if (hint.lens) lines.push('Óptica: ' + hint.lens);
+  if (hint.sw) {
+    setSensor(+hint.sw.toFixed(3), +(hint.sh || st.sh).toFixed(3), false);
+    lines.push(`Film back ${hint.sw.toFixed(2)} × ${(hint.sh || st.sh).toFixed(2)} mm (de ${hint.sensorKey})`);
+  }
+  if (hint.focal) {
+    st.focal = +hint.focal.toFixed(3); st.fScale = 1; $('focal').value = st.focal; applyIntrinsics();
+    lines.push(`Lente ${hint.focal.toFixed(2)} mm (de ${hint.focalKey})`);
+  }
+  const par = h.get('pixelAspectRatio');
+  const m = $('meta-msg');
+  if (lines.length) { m.hidden = false; m.className = 'msg ok'; m.innerHTML = 'Tomado de la metadata: ' + lines.map(l => `<br>· ${l.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`).join(''); }
+  else { m.hidden = false; m.className = 'msg'; m.textContent = 'La metadata no trae lente ni sensor: cargalos a mano.'; }
+  if (par && Math.abs(par - 1) > 1e-3) { m.className = 'msg bad'; m.innerHTML += `<br>Pixel aspect ${(+par).toFixed(3)}: es anamórfico y el solver todavía asume píxeles cuadrados.`; }
+  const first = ['cameraMake', 'cameraModel', 'lensMake', 'lensModel', 'nominalFocalLength', 'pinholeFocalLength', 'effectiveFocalLength', 'focus', 'aperture', 'tStop', 'sensorAcquisitionRectangle', 'sensorPhotositePitch', 'timeCode', 'framesPerSecond', 'chromaticities', 'acesImageContainerFlag', 'displayWindow', 'dataWindow', 'pixelAspectRatio', 'compression', 'channels'];
+  const sorted = [...h.attrs].sort((a, b) => { const ia = first.indexOf(a.name), ib = first.indexOf(b.name); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.name.localeCompare(b.name); });
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  $('meta-kv').innerHTML = sorted.map(a => `<dt>${esc(a.name)}</dt><dd>${esc(EXR.fmtVal(a)).slice(0, 300)}</dd>`).join('');
+  $('meta-sum').textContent = `Metadata del EXR (${h.attrs.length} campos)`;
+}
+$('cs').onchange = () => { if (exrState) { exrState.cs = $('cs').value; exrState.why = 'elegido a mano'; } redrawExr(); };
+$('view').value = lsGet('view', 'aces709');
+if (!$('view').value) $('view').value = 'aces709';
+$('view').onchange = () => { lsSet('view', $('view').value); redrawExr(); };
+$('ev').oninput = () => { const v = +$('ev').value; $('ev-v').textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + ' EV'; };
+$('ev').onchange = redrawExr;
+
+// ---------- Stage layout / 2D view ----------
+function layoutStage(reset) {
+  const r = vp.getBoundingClientRect();
+  const m = 18, a = st.plate.W / st.plate.H;
+  let bw = Math.max(50, r.width - m * 2), bh = bw / a;
+  if (bh > r.height - m * 2) { bh = Math.max(40, r.height - m * 2); bw = bh * a; }
+  const v = st.view;
+  v.baseW = bw; v.baseH = bh;
+  if (reset) { v.zoom = 1; v.x = (r.width - bw) / 2; v.y = (r.height - bh) / 2; }
+  stage.style.width = bw + 'px'; stage.style.height = bh + 'px';
+  applyView();
+}
+function applyView() {
+  const v = st.view;
+  stage.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.zoom})`;
+  stage.classList.toggle('pix', v.zoom > 2.5);
+  const dpr = window.devicePixelRatio || 1;
+  const pr = Math.min(dpr * v.zoom, 4096 / v.baseW, 4096 / v.baseH, 4);
+  renderer.setPixelRatio(pr);
+  renderer.setSize(v.baseW, v.baseH, false);
+  render(); drawOverlay();
+}
+// plate pixel <-> viewport css coords
+function uvToVp(u, v) { const s = st.view; return [s.x + u / st.plate.W * s.baseW * s.zoom, s.y + v / st.plate.H * s.baseH * s.zoom]; }
+function vpToUv(x, y) { const s = st.view; return [(x - s.x) / (s.baseW * s.zoom) * st.plate.W, (y - s.y) / (s.baseH * s.zoom) * st.plate.H]; }
+function evVp(e) { const r = vp.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function projectWorld(p) {
+  const v = p.clone().project(camera);
+  const inFront = new THREE.Vector3().copy(p).applyMatrix4(camera.matrixWorldInverse).z < 0;
+  return { u: (v.x + 1) / 2 * st.plate.W, v: (1 - v.y) / 2 * st.plate.H, front: inFront };
+}
+
+// ---------- Raycast ----------
+const ray = new THREE.Raycaster();
+function pick(x, y) {
+  if (!scanObj) return null;
+  const [u, v] = vpToUv(x, y);
+  const ndc = new THREE.Vector2(u / st.plate.W * 2 - 1, -(v / st.plate.H * 2 - 1));
+  camera.updateMatrixWorld();
+  ray.setFromCamera(ndc, camera);
+  // point threshold: ~5 px in world at hit distance, approximated with scene size
+  const ctr = new THREE.Box3().setFromObject(scanRoot).getCenter(new THREE.Vector3());
+  const dist = Math.max(camera.position.distanceTo(ctr), 1e-3);
+  const pxPlate = 6 / (st.view.baseH * st.view.zoom) * st.plate.H;
+  const worldPerPx = 2 * dist * Math.tan(camera.fov * Math.PI / 360) / st.plate.H;
+  ray.params.Points.threshold = Math.max(worldPerPx * pxPlate, 1e-5);
+  const hits = ray.intersectObject(scanRoot, true).filter(h => h.object.visible && (h.object.isMesh || h.object.isPoints));
+  if (!hits.length) return null;
+  let h = hits[0];
+  if (h.object.isPoints) {
+    // among close hits prefer the one closest to the ray
+    const near = hits.filter(x => x.object.isPoints && x.distance < h.distance * 1.03);
+    h = near.reduce((a, b) => (b.distanceToRay < a.distanceToRay ? b : a), h);
+  }
+  return h.point.clone();
+}
+
+// ---------- Pins & solving ----------
+function pinWorld(p) { return scanRoot.localToWorld(p.local.clone()); }
+function activePins() { return st.pins.filter(p => p.on).map(p => { const w = pinWorld(p); return { X: [w.x, w.y, w.z], uv: p.uv, ref: p }; }); }
+function solveLive(full) {
+  const pins = activePins();
+  if (!pins.length) { st.rms = null; return; }
+  let pose = poseFromCamera();
+  const k = K();
+  const sc = sceneSize() * 0.1;
+  const freeF = st.freeF && pins.length >= 6;
+  const mode = pins.length >= 3 ? 'full' : 'rot';
+  let best = Solver.refine(pose, k, pins, { mode, freeFocal: freeF, iters: full ? 200 : 25, sceneScale: sc });
+  if (full && pins.length >= 6) {
+    const d = Solver.dlt(k, pose.f, pins);
+    if (d) {
+      const r2 = Solver.refine({ ...d, f: pose.f }, k, pins, { mode: 'full', freeFocal: freeF, iters: 200, sceneScale: sc });
+      if (r2.rms < best.rms) best = r2;
+    }
+  }
+  cameraFromPose(best);
+  st.rms = best.rms;
+  const errs = Solver.errorsOf(best, k, pins);
+  pins.forEach((p, i) => p.ref.err = errs[i]);
+  st.pins.filter(p => !p.on).forEach(p => {
+    const q = projectWorld(pinWorld(p)); p.err = q.front ? Math.hypot(q.u - p.uv[0], q.v - p.uv[1]) : Infinity;
+  });
+  if (pins.length >= 3) { st.solved = { R: best.R, C: best.C, f: best.f }; $('back').disabled = false; }
+}
+function errClass(e) { return !Number.isFinite(e) ? 'e-bad' : e < 1 ? 'e-ok' : e < 3 ? 'e-warn' : 'e-bad'; }
+
+// ---------- Overlay ----------
+const NS = 'http://www.w3.org/2000/svg';
+function drawOverlay() {
+  let h = '';
+  camera.updateMatrixWorld();
+  // measure label
+  if (st.measure.a && st.measure.b && st.mode !== 'pins') {
+    const a = projectWorld(st.measure.a), b = projectWorld(st.measure.b);
+    if (a.front && b.front) {
+      const [x, y] = uvToVp((a.u + b.u) / 2, (a.v + b.v) / 2);
+      const d = st.measure.a.distanceTo(st.measure.b);
+      h += `<g transform="translate(${x},${y - 14})"><rect x="-44" y="-12" width="88" height="22" rx="5" fill="rgb(15 18 22 / .9)" stroke="#ffb238"/><text text-anchor="middle" y="4" fill="#ffb238" font-family="JetBrains Mono, monospace" font-size="12">${d.toFixed(3)} m</text></g>`;
+    }
+  }
+  if (st.mode === 'pins' || st.pins.length) {
+    st.pins.forEach((p, i) => {
+      const q = projectWorld(pinWorld(p));
+      const [tx, ty] = uvToVp(p.uv[0], p.uv[1]);
+      const sel = i === st.sel;
+      const col = p.on ? '#ffb238' : '#8a96a6';
+      if (q.front) {
+        const [px, py] = uvToVp(q.u, q.v);
+        h += `<line x1="${tx}" y1="${ty}" x2="${px}" y2="${py}" stroke="#ff6d5f" stroke-width="1.5"/>`;
+        h += `<circle cx="${px}" cy="${py}" r="2.6" fill="#5ccfe0"/>`;
+      }
+      h += `<circle cx="${tx}" cy="${ty}" r="${sel ? 8 : 7}" fill="none" stroke="#0f1216" stroke-width="3.5"/>`;
+      h += `<circle cx="${tx}" cy="${ty}" r="${sel ? 8 : 7}" fill="none" stroke="${col}" stroke-width="${sel ? 2.2 : 1.6}"/>`;
+      h += `<line x1="${tx - 3}" y1="${ty}" x2="${tx + 3}" y2="${ty}" stroke="${col}"/><line x1="${tx}" y1="${ty - 3}" x2="${tx}" y2="${ty + 3}" stroke="${col}"/>`;
+      h += `<text x="${tx + 10}" y="${ty - 8}" fill="${col}" stroke="#0f1216" stroke-width="3" paint-order="stroke" font-family="JetBrains Mono, monospace" font-size="11.5">${p.id}</text>`;
+    });
+  }
+  ov.innerHTML = h;
+  updateBadge();
+}
+function updateBadge() {
+  const b = $('badge');
+  const parts = [];
+  parts.push(`<span><small>Lente</small>${fmt(focalUsed(), 2)} mm</span>`);
+  if (st.rms != null && st.pins.filter(p => p.on).length) parts.push(`<span class="${errClass(st.rms)}"><small>RMS</small>${fmt(st.rms, 2)} px</span>`);
+  if (st.view.zoom !== 1) parts.push(`<span><small>Zoom</small>${fmt(st.view.zoom, 1)}×</span>`);
+  b.innerHTML = parts.join('');
+}
+
+// ---------- UI refresh ----------
+const HINTS = {
+  nav: '<b>Navegar</b> · arrastrar: orbitar · botón der.: paneo · rueda: acercar',
+  pins: '<b>Pines</b> · click en el scan crea un pin, arrastralo al plate · botón der.: borrar · rueda: zoom · Alt o botón medio: paneo',
+  measure: '<b>Medir</b> · click en dos puntos del scan, después cargá la medida real',
+};
+function refreshAll() {
+  $('hint').innerHTML = HINTS[st.mode];
+  ['nav', 'pins', 'measure'].forEach(m => $('m-' + m).setAttribute('aria-pressed', String(st.mode === m)));
+  controls.enabled = st.mode !== 'pins';
+  // step 1
+  $('s1').dataset.state = st.scaleOk ? 'ok' : 'warn';
+  $('s1st').textContent = st.scaleOk ? 'verificada' : 'sin verificar';
+  // step 2
+  const fx = K().fx;
+  const hfov = 2 * Math.atan(st.sw / 2 / focalUsed()) * 180 / Math.PI;
+  const vfov = 2 * Math.atan((st.sw * st.plate.H / st.plate.W) / 2 / focalUsed()) * 180 / Math.PI;
+  const kv = [['FOV horizontal', fmt(hfov, 2) + '°'], ['FOV vertical', fmt(vfov, 2) + '°'], ['Focal en píxeles', fmt(fx * (st.freeF ? st.fScale : 1), 1) + ' px']];
+  if (st.freeF) kv.push(['Focal estimada', st.pins.filter(p => p.on).length >= 6 ? fmt(focalUsed(), 2) + ' mm' : 'necesita 6 pines']);
+  $('cam-kv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  $('s2').dataset.state = st.plate.sample ? 'warn' : 'ok';
+  $('s2st').textContent = st.plate.sample ? 'ejemplo' : 'listo';
+  // step 3
+  const on = st.pins.filter(p => p.on).length;
+  $('s3').dataset.state = on >= 4 && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
+  $('s3st').textContent = `${on} pin${on === 1 ? '' : 'es'}` + (st.rms != null && on ? ` · ${fmt(st.rms, 2)} px` : '');
+  $('pinlist').innerHTML = st.pins.map((p, i) => {
+    const w = pinWorld(p);
+    return `<li class="${i === st.sel ? 'sel' : ''}" data-i="${i}"><input type="checkbox" ${p.on ? 'checked' : ''} aria-label="Usar pin ${p.id}"><span class="id">#${p.id}</span><span class="coord">${fmt(w.x, 2)}, ${fmt(w.y, 2)}, ${fmt(w.z, 2)}</span><span class="err ${errClass(p.err)}">${Number.isFinite(p.err) ? fmt(p.err, 2) + ' px' : '–'}</span><button class="x" aria-label="Borrar pin ${p.id}">×</button></li>`;
+  }).join('') || '<li class="note" style="display:block">Todavía no hay pines.</li>';
+  $('solve').disabled = on < 3;
+  updateExport();
+  render(); drawOverlay();
+}
+
+// ---------- Export ----------
+function camData() {
+  camera.updateMatrixWorld();
+  const e = camera.matrixWorld.elements;
+  const X = [e[0], e[1], e[2]], Y = [e[4], e[5], e[6]], Z = [e[8], e[9], e[10]], C = [e[12], e[13], e[14]];
+  const A = (v) => [v[0], -v[2], v[1]]; // Y-up -> Z-up (Max / Blender)
+  const eul = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().extractRotation(camera.matrixWorld), 'YXZ');
+  return { X, Y, Z, C, Xm: A(X), Ym: A(Y), Zm: A(Z), Cm: A(C), eul, f: focalUsed(), sw: st.sw, sh: st.sw * st.plate.H / st.plate.W, W: st.plate.W, H: st.plate.H };
+}
+const n6 = (v) => (Math.abs(v) < 5e-13 ? 0 : v).toFixed(6);
+function updateExport() {
+  const t = $('target').value, name = ($('camname').value || 'MatchCam').replace(/[^\w-]/g, '_');
+  const d = camData();
+  const v3 = (v) => `[${v.map(n6).join(',')}]`;
+  const header = `Camera Pin · ${st.plate.sample ? 'plate de ejemplo' : st.plate.name} ${d.W}x${d.H} · film back ${fmt(st.sw, 2)} mm · lente ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
+  const scaleNote = `Escala aplicada al scan: unidades x${st.unit} · factor ${fmt(st.userScale, 6)} · eje ${st.up}`;
+  let out = '';
+  if (t === 'max-phys' || t === 'max-free') {
+    out = `-- ${header}\n-- ${scaleNote}\n-- Coordenadas en metros, Z arriba. Pegalo en el MAXScript Listener o en un script nuevo y evaluá (Ctrl+E).\n(\n`
+      + `  local k = try (units.decodeValue "1m") catch (1.0)\n`
+      + `  local tm = matrix3 ${v3(d.Xm)} ${v3(d.Ym)} ${v3(d.Zm)} (${v3(d.Cm)} * k)\n`;
+    if (t === 'max-phys') {
+      out += `  local cam = Physical_Camera name:"${name}" targeted:false\n`
+        + `  try (cam.specify_fov = false) catch ()\n`
+        + `  try (cam.film_width_mm = ${n6(d.sw)}) catch (format "No pude setear film_width_mm\\n")\n`
+        + `  try (cam.focal_length_mm = ${n6(d.f)}) catch (format "No pude setear focal_length_mm\\n")\n`;
+    } else {
+      const hfov = 2 * Math.atan(d.sw / 2 / d.f) * 180 / Math.PI;
+      out += `  setRendApertureWidth ${n6(d.sw)}\n`
+        + `  local cam = Freecamera name:"${name}" fovType:1 fov:${n6(hfov)}\n`;
+    }
+    out += `  cam.transform = tm\n`
+      + `  renderWidth = ${d.W}\n  renderHeight = ${d.H}\n`
+      + `  displaySafeFrames = true\n`
+      + `  try (viewport.setCamera cam) catch ()\n`
+      + `  select cam\n`
+      + `  -- Plate de fondo: Alt+B en el viewport de la cámara y elegí ${st.plate.sample ? 'tu plate' : st.plate.name}\n`
+      + `  cam\n)\n`;
+  } else if (t === 'nuke') {
+    const r2d = 180 / Math.PI;
+    out = `# ${header}\n# ${scaleNote}\n# Metros, Y arriba. Copialo y pegalo en el Node Graph.\nCamera2 {\n`
+      + ` translate {${d.C.map(n6).join(' ')}}\n`
+      + ` rotate {${[d.eul.x, d.eul.y, d.eul.z].map(a => n6(a * r2d)).join(' ')}}\n`
+      + ` rot_order ZXY\n`
+      + ` focal ${n6(d.f)}\n haperture ${n6(d.sw)}\n vaperture ${n6(d.sh)}\n`
+      + ` name ${name}\n}\n`;
+  } else {
+    const rows = [0, 1, 2].map(i => `(${n6(d.Xm[i])}, ${n6(d.Ym[i])}, ${n6(d.Zm[i])}, ${n6(d.Cm[i])})`);
+    out = `# ${header}\n# ${scaleNote}\n# Metros, Z arriba. Pegalo en el editor de texto de Blender y ejecutalo.\nimport bpy\nfrom mathutils import Matrix\n`
+      + `cd = bpy.data.cameras.new("${name}")\ncd.sensor_fit = 'HORIZONTAL'\ncd.sensor_width = ${n6(d.sw)}\ncd.sensor_height = ${n6(d.sh)}\ncd.lens = ${n6(d.f)}\n`
+      + `ob = bpy.data.objects.new("${name}", cd)\nbpy.context.collection.objects.link(ob)\n`
+      + `ob.matrix_world = Matrix((\n    ${rows.join(',\n    ')},\n    (0, 0, 0, 1)))\n`
+      + `sc = bpy.context.scene\nsc.render.resolution_x = ${d.W}\nsc.render.resolution_y = ${d.H}\nsc.render.resolution_percentage = 100\nsc.camera = ob\n`;
+  }
+  $('out').value = out;
+  $('s4').dataset.state = st.solved && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
+  const sf = st.unit * st.userScale;
+  $('export-note').innerHTML = Math.abs(sf - 1) > 1e-6 || st.up !== 'y'
+    ? `La cámara está en el espacio corregido (metros${st.up !== 'y' ? ', eje convertido' : ''}). En Max importá el scan en metros${Math.abs(st.userScale - 1) > 1e-6 ? ` y escalalo <b>×${fmt(st.userScale, 4)}</b> desde el origen` : ''} para que coincida.`
+    : 'La cámara queda en el mismo espacio que el scan, en metros. Importá el scan en Max en metros y coincide.';
+}
+
+// ---------- Measure ----------
+function updateMeasureGeo() {
+  const a = st.measure.a, b = st.measure.b;
+  const arr = measGeo.attributes.position.array;
+  if (a) { arr[0] = a.x; arr[1] = a.y; arr[2] = a.z; }
+  if (b) { arr[3] = b.x; arr[4] = b.y; arr[5] = b.z; } else if (a) { arr[3] = a.x; arr[4] = a.y; arr[5] = a.z; }
+  measGeo.attributes.position.needsUpdate = true;
+  measGeo.computeBoundingSphere();
+  measLine.visible = !!(a && b) && st.mode !== 'pins';
+  measPts.visible = !!a && st.mode !== 'pins';
+  const d = a && b ? a.distanceTo(b) : null;
+  $('meas').value = d != null ? d.toFixed(4) + ' m' : a ? 'falta el 2º punto' : '–';
+  $('apply-scale').disabled = !(d > 0 && +$('real').value > 0);
+}
+// measure points are kept in scan-local space so they follow scale changes
+function measWorld() {
+  st.measure.a = st.measure.la ? scanRoot.localToWorld(st.measure.la.clone()) : null;
+  st.measure.b = st.measure.lb ? scanRoot.localToWorld(st.measure.lb.clone()) : null;
+}
+
+// ---------- Interaction ----------
+let drag = null, spaceDown = false;
+function setMode(m) {
+  st.mode = m;
+  if (m !== 'pins') {
+    // orbit around a point in front of the camera, at the scan's distance, so the view doesn't jump
+    const ctr = new THREE.Box3().setFromObject(scanRoot).getCenter(new THREE.Vector3());
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    controls.target.copy(camera.position).addScaledVector(dir, Math.max(camera.position.distanceTo(ctr), 0.1));
+  }
+  updateMeasureGeo();
+  refreshAll();
+}
+vp.addEventListener('contextmenu', e => e.preventDefault());
+vp.addEventListener('pointerdown', e => {
+  const [x, y] = evVp(e);
+  const panBtn = e.button === 1 || (e.button === 0 && (spaceDown || e.altKey));
+  if (st.mode === 'pins') {
+    if (panBtn) { drag = { type: 'pan', x, y, vx: st.view.x, vy: st.view.y }; vp.setPointerCapture(e.pointerId); e.preventDefault(); return; }
+    // nearest pin handle
+    let bi = -1, bd = 14;
+    st.pins.forEach((p, i) => { const [tx, ty] = uvToVp(p.uv[0], p.uv[1]); const d = Math.hypot(tx - x, ty - y); if (d < bd) { bd = d; bi = i; } });
+    if (e.button === 2) {
+      if (bi >= 0) { st.pins.splice(bi, 1); st.sel = -1; solveLive(false); refreshAll(); }
+      return;
+    }
+    if (e.button !== 0) return;
+    if (bi >= 0) {
+      st.sel = bi; const [u, v] = vpToUv(x, y); const p = st.pins[bi];
+      drag = { type: 'pin', i: bi, du: p.uv[0] - u, dv: p.uv[1] - v };
+    } else {
+      const hit = pick(x, y);
+      if (!hit) return;
+      const local = scanRoot.worldToLocal(hit.clone());
+      const q = projectWorld(hit);
+      st.pins.push({ id: st.nextId++, local, uv: [q.u, q.v], on: true, err: 0 });
+      st.sel = st.pins.length - 1;
+      const [u, v] = vpToUv(x, y);
+      drag = { type: 'pin', i: st.sel, du: q.u - u, dv: q.v - v };
+    }
+    vp.setPointerCapture(e.pointerId);
+    refreshAll();
+    e.preventDefault();
+  } else if (st.mode === 'measure') {
+    if (e.button === 0) drag = { type: 'click', x, y };
+  }
+});
+vp.addEventListener('pointermove', e => {
+  { const [mx, my] = evVp(e); const [u, v] = vpToUv(mx, my); $('cx').textContent = Math.floor(u); $('cy').textContent = Math.floor(st.plate.H - v); }
+  if (!drag) return;
+  const [x, y] = evVp(e);
+  if (drag.type === 'pan') { st.view.x = drag.vx + (x - drag.x); st.view.y = drag.vy + (y - drag.y); applyView(); }
+  else if (drag.type === 'pin') {
+    const [u, v] = vpToUv(x, y);
+    const p = st.pins[drag.i]; p.uv = [u + drag.du, v + drag.dv];
+    solveLive(false);
+    render(); drawOverlay();
+  }
+});
+vp.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const [x, y] = evVp(e);
+  if (drag.type === 'pin') { solveLive(false); refreshAll(); }
+  if (drag.type === 'click' && Math.hypot(x - drag.x, y - drag.y) < 4) {
+    const hit = pick(x, y);
+    if (hit) {
+      const loc = scanRoot.worldToLocal(hit.clone());
+      if (!st.measure.la || st.measure.lb) { st.measure.la = loc; st.measure.lb = null; }
+      else st.measure.lb = loc;
+      measWorld(); updateMeasureGeo(); render(); drawOverlay();
+    }
+  }
+  drag = null;
+});
+vp.addEventListener('wheel', e => {
+  if (st.mode !== 'pins') return;
+  e.preventDefault();
+  const [x, y] = evVp(e);
+  const v = st.view, z0 = v.zoom;
+  const z = Math.min(32, Math.max(0.25, z0 * Math.exp(-e.deltaY * 0.0015)));
+  v.x = x - (x - v.x) * z / z0; v.y = y - (y - v.y) * z / z0; v.zoom = z;
+  applyView();
+}, { passive: false });
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, select')) return;
+  if (e.code === 'Space') { spaceDown = true; if (st.mode === 'pins') e.preventDefault(); }
+  const k = e.key.toLowerCase();
+  if (k === 'n') setMode('nav'); else if (k === 'p') setMode('pins'); else if (k === 'm') setMode('measure');
+  else if (k === 'f') layoutStage(true);
+  else if ((k === 'delete' || k === 'backspace') && st.sel >= 0) { st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
+});
+window.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+new ResizeObserver(() => layoutStage(st.view.zoom === 1)).observe(vp);
+
+// drag & drop files
+let dragDepth = 0;
+vp.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; $('drop').hidden = false; });
+vp.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('drop').hidden = true; } });
+vp.addEventListener('dragover', e => e.preventDefault());
+vp.addEventListener('drop', e => {
+  e.preventDefault(); dragDepth = 0; $('drop').hidden = true;
+  for (const f of e.dataTransfer.files) {
+    if (/\.(obj|ply|glb|gltf|fbx)$/i.test(f.name)) loadScanFile(f);
+    else if (f.type.startsWith('image/') || /\.exr$/i.test(f.name)) loadPlateFile(f);
+  }
+});
+
+// ---------- Collapsible knob groups ----------
+document.querySelectorAll('.step h2').forEach(h => {
+  const sec = h.parentElement, key = 'closed.' + sec.id;
+  if (lsGet(key, false)) sec.classList.add('closed');
+  h.setAttribute('aria-expanded', String(!sec.classList.contains('closed')));
+  const toggle = () => { sec.classList.toggle('closed'); const c = sec.classList.contains('closed'); h.setAttribute('aria-expanded', String(!c)); lsSet(key, c); };
+  h.addEventListener('click', toggle);
+  h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+});
+// ---------- Controls wiring ----------
+$('m-nav').onclick = () => setMode('nav');
+$('m-pins').onclick = () => setMode('pins');
+$('m-measure').onclick = () => setMode('measure');
+$('disp').onchange = applyDisplay; $('opac').oninput = applyDisplay; $('ptsize').oninput = applyDisplay;
+$('grid').onchange = () => { grid.visible = $('grid').checked; render(); };
+$('fit').onclick = () => layoutStage(true);
+$('back').onclick = () => { if (st.solved) { cameraFromPose(st.solved); solveLive(false); refreshAll(); } };
+$('f-scan').onchange = e => { const f = e.target.files[0]; if (f) loadScanFile(f); e.target.value = ''; };
+$('f-plate').onchange = e => { const f = e.target.files[0]; if (f) loadPlateFile(f); e.target.value = ''; };
+$('unit').onchange = () => { setRootTransform(+$('unit').value, st.userScale, st.up); st.scaleOk = false; measWorld(); updateMeasureGeo(); refreshAll(); };
+$('up').onchange = () => { if (/\.ply$/i.test(st.scanName)) lsSet('upPly', $('up').value); setRootTransform(st.unit, st.userScale, $('up').value); st.scaleOk = false; measWorld(); updateMeasureGeo(); refreshAll(); };
+$('real').oninput = updateMeasureGeo;
+$('apply-scale').onclick = () => {
+  const d = st.measure.a.distanceTo(st.measure.b), real = +$('real').value;
+  if (!(d > 0 && real > 0)) return;
+  setRootTransform(st.unit, st.userScale * real / d, st.up);
+  measWorld(); updateMeasureGeo(); st.scaleOk = true; refreshAll();
+};
+$('reset-scale').onclick = () => { setRootTransform(st.unit, 1, st.up); measWorld(); updateMeasureGeo(); st.scaleOk = false; refreshAll(); };
+$('scale-ok').onclick = () => { st.scaleOk = true; refreshAll(); };
+const pre = $('preset');
+pre.innerHTML = PRESETS.map(p => `<option value="${p[0]}">${p[1]}${p[2] ? ` (${p[2].toFixed(2)} × ${p[3].toFixed(2)})` : ''}</option>`).join('');
+function setSensor(w, h, fromPreset) {
+  st.sw = w; st.sh = h; $('sw').value = w; $('sh').value = h;
+  if (!fromPreset) { st.preset = 'custom'; pre.value = 'custom'; }
+  lsSet('sensor', { preset: st.preset, sw: w, sh: h });
+  applyIntrinsics(); checkAspect(); if (st.pins.length) solveLive(false); refreshAll();
+}
+pre.onchange = () => { const p = PRESETS.find(x => x[0] === pre.value); st.preset = p[0]; if (p[2]) setSensor(p[2], p[3], true); };
+$('sw').onchange = () => { const v = +$('sw').value; if (v > 0) setSensor(v, st.sh, false); };
+$('sh').onchange = () => { const v = +$('sh').value; if (v > 0) setSensor(st.sw, v, false); };
+$('focal').onchange = () => { const v = +$('focal').value; if (v > 0) { st.focal = v; st.fScale = 1; lsSet('focal', v); applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll(); } };
+$('free').onchange = () => { st.freeF = $('free').checked; st.fScale = 1; applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll(); };
+$('solve').onclick = () => { solveLive(true); refreshAll(); };
+$('clear-pins').onclick = () => { st.pins = []; st.sel = -1; st.rms = null; refreshAll(); };
+$('pinlist').addEventListener('click', e => {
+  const li = e.target.closest('li[data-i]'); if (!li) return;
+  const i = +li.dataset.i;
+  if (e.target.matches('.x')) { st.pins.splice(i, 1); st.sel = -1; solveLive(false); }
+  else if (e.target.matches('input')) { st.pins[i].on = e.target.checked; solveLive(true); }
+  else st.sel = i;
+  refreshAll();
+});
+$('target').onchange = () => { lsSet('target', $('target').value); updateExport(); };
+$('camname').oninput = updateExport;
+$('copy').onclick = () => {
+  const ta = $('out');
+  const done = (ok) => { $('copy-msg').textContent = ok ? 'Copiado' : 'Seleccionado: copialo con Ctrl+C'; setTimeout(() => $('copy-msg').textContent = '', 2500); };
+  try {
+    navigator.clipboard.writeText(ta.value).then(() => done(true), () => { ta.focus(); ta.select(); done(false); });
+  } catch (err) { ta.focus(); ta.select(); done(false); }
+};
+
+// ---------- Sample scene (escala real, metros, Y arriba) ----------
+function sampleGeometry(colored) {
+  const g = new THREE.Group();
+  const mat = (c) => colored ? new THREE.MeshLambertMaterial({ color: c }) : new THREE.MeshLambertMaterial({ color: 0xb9c3cd });
+  const box = (w, h, d, x, y, z, c) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d, Math.ceil(w), Math.ceil(h), Math.ceil(d)), mat(c)); m.position.set(x, y, z); g.add(m); return m; };
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 24, 24, 24), mat(0x6d6f66)); ground.rotation.x = -Math.PI / 2; g.add(ground);
+  box(7, 9, 6, -4, 4.5, -7, 0xc9b79a);             // edificio
+  box(1.0, 2.1, 0.12, -2.6, 1.05, -3.94, 0x4a3426); // puerta (2.10 m)
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) box(1.1, 1.4, 0.1, -6.2 + i * 2.2, 3.2 + j * 2.4, -3.95, 0x3d5363); // ventanas
+  box(4, 3.2, 4, 4.5, 1.6, -6, 0x9aa3a8);           // galpón
+  box(1, 1, 1, 2.2, 0.5, -1.2, 0xb07a3c);            // cajón 1 m
+  box(0.6, 0.6, 1.2, 3.1, 0.3, -0.4, 0x8a6a40);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 4.5, 16, 6), mat(0x808a90)); col.position.set(0.6, 2.25, -2.5); g.add(col);
+  box(12, 0.15, 0.3, -1, 0.075, -1.9, 0xd9d6cc);     // cordón
+  return g;
+}
+function buildSample() {
+  // plate rendered from a hidden "real" camera: Alexa Mini LF Open Gate, 32 mm
+  const W = 1920, H = 1336, f = 32, sw = 36.70;
+  const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  r.setSize(W, H, false); r.setPixelRatio(1); r.outputEncoding = THREE.sRGBEncoding;
+  const sc = new THREE.Scene();
+  sc.background = new THREE.Color(0xa9bccb); sc.fog = new THREE.Fog(0xa9bccb, 25, 70);
+  sc.add(new THREE.HemisphereLight(0xe6eef5, 0x5a5040, 0.75));
+  const s2 = new THREE.DirectionalLight(0xfff1dc, 0.9); s2.position.set(-8, 12, 6); sc.add(s2);
+  sc.add(sampleGeometry(true));
+  const cam = new THREE.PerspectiveCamera(2 * Math.atan((H / 2) / (f / sw * W)) * 180 / Math.PI, W / H, 0.05, 500);
+  cam.position.set(8.5, 1.6, 7.5); cam.lookAt(-1.2, 2.4, -5); cam.rotateZ(0.025);
+  r.render(sc, cam);
+  const url = r.domElement.toDataURL('image/jpeg', 0.9);
+  r.dispose();
+  return { url, W, H };
+}
+
+// ---------- Boot ----------
+(function boot() {
+  const saved = lsGet('sensor', null);
+  const tgt = lsGet('target', null); if (tgt) $('target').value = tgt;
+  // the sample uses its own known camera; saved sensor/focal apply once a real plate loads
+  st.sw = 36.70; st.sh = 25.54; st.focal = 32; st.preset = 'alexa-lf-og';
+  pre.value = st.preset; $('sw').value = st.sw; $('sh').value = st.sh; $('focal').value = st.focal;
+  st._saved = saved;
+  const s = buildSample();
+  scanObj = sampleGeometry(false); scanRoot.add(scanObj);
+  scanObj.traverse(o => { if (o.isMesh) o.userData.orig = o.material; });
+  st.rawBox = new THREE.Box3().setFromObject(scanRoot);
+  setRootTransform(1, 1, 'y', false);
+  $('scan-kv').innerHTML = '<dt>Tipo</dt><dd>Malla de ejemplo</dd><dt>Referencia</dt><dd>puerta 2,10 m · cajón 1 m</dd>';
+  applyDisplay();
+  setPlate(s.url, s.W, s.H, 'Ejemplo', true);
+  camera.position.set(13, 5, 13); camera.lookAt(0, 2, -3); controls.target.set(0, 2, -3);
+  camera.near = 0.05; camera.far = 1000;
+  applyIntrinsics();
+  refreshAll();
+})();
+// when the first real plate arrives, restore the last sensor/focal the user used
+const _setPlate = setPlate;
+setPlate = function (...a) {
+  _setPlate(...a);
+  if (!a[4] && st._saved) {
+    const sv = st._saved; st._saved = null;
+    st.preset = sv.preset; pre.value = sv.preset;
+    setSensor(sv.sw, sv.sh, sv.preset !== 'custom');
+    const fl = lsGet('focal', null); if (fl) { st.focal = fl; $('focal').value = fl; applyIntrinsics(); refreshAll(); }
+  }
+};
+})();
+</script>
+</body>
+</html>

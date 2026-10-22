@@ -141,6 +141,13 @@ details.meta dt { font-family: var(--f-num); font-size: 11px; }
 svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .tag { position: absolute; top: 8px; left: 8px; font: 500 11px var(--f-num); color: var(--muted); pointer-events: none; }
 .drop { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(29 29 29 / .8); border: 2px dashed var(--accent); font-size: 15px; font-weight: 600; text-align: center; padding: 16px; }
+.mpop { position: absolute; transform: translate(-50%, calc(-100% - 14px)); display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 9px; background: rgb(40 40 40 / .96); border: 1px solid var(--pin); border-radius: 3px; box-shadow: 0 4px 14px rgb(0 0 0 / .5); white-space: nowrap; z-index: 2; }
+.mpop .d { font: 500 12.5px var(--f-num); color: var(--pin); }
+.mpop .arrow { color: var(--muted); }
+.mpop input { width: 84px; height: 24px; }
+.mpop .u { color: var(--muted); font-size: 12px; }
+.mpop.done { border-color: var(--ok); }
+.mpop.done .d { color: var(--ok); }
 .busy { position: absolute; top: 8px; right: 8px; font: 500 12px var(--f-num); color: var(--accent); background: rgb(29 29 29 / .85); border: 1px solid var(--line); padding: 3px 8px; }
 @media (max-width: 900px) {
   body { overflow: auto; }
@@ -189,6 +196,13 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
         <canvas id="gl"></canvas>
       </div>
       <svg class="ov" id="ov"></svg>
+      <div class="mpop" id="mpop" hidden>
+        <span class="d" id="mpop-d">0.000 m</span><span class="arrow">→</span>
+        <input id="mpop-real" type="number" step="0.001" min="0" placeholder="real" aria-label="Medida real en metros">
+        <span class="u">m</span>
+        <button class="btn primary" id="mpop-ok">Escalar</button>
+        <button class="btn ghost" id="mpop-x" aria-label="Borrar medida" title="Borrar medida (Esc)">×</button>
+      </div>
       <div class="drop" id="drop" hidden>Soltá el scan (OBJ, PLY, GLB, FBX) o el plate (EXR, JPG, PNG)</div>
       <div class="busy" id="busy" hidden>Cargando…</div>
     </main>
@@ -1354,15 +1368,35 @@ const NS = 'http://www.w3.org/2000/svg';
 function drawOverlay() {
   let h = '';
   camera.updateMatrixWorld();
-  // measure label
-  if (st.measure.a && st.measure.b && st.mode !== 'pins') {
-    const a = projectWorld(st.measure.a), b = projectWorld(st.measure.b);
-    if (a.front && b.front) {
-      const [x, y] = uvToVp((a.u + b.u) / 2, (a.v + b.v) / 2);
-      const d = st.measure.a.distanceTo(st.measure.b);
-      h += `<g transform="translate(${x},${y - 14})"><rect x="-44" y="-12" width="88" height="22" rx="5" fill="rgb(15 18 22 / .9)" stroke="#ffb238"/><text text-anchor="middle" y="4" fill="#ffb238" font-family="JetBrains Mono, monospace" font-size="12">${d.toFixed(3)} m</text></g>`;
+  // measure: rubber band while placing the 2nd point, popup with the real length once both exist
+  const pop = $('mpop');
+  let showPop = false;
+  if (st.mode !== 'pins' && st.measure.a) {
+    const endW = st.measure.b || st.measure.hover;
+    if (endW) {
+      const a = projectWorld(st.measure.a), b = projectWorld(endW);
+      if (a.front && b.front) {
+        const [ax, ay] = uvToVp(a.u, a.v), [bx, by] = uvToVp(b.u, b.v);
+        const d = st.measure.a.distanceTo(endW);
+        h += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#ffb238" stroke-width="2" ${st.measure.b ? '' : 'stroke-dasharray="6 4"'}/>`;
+        for (const [x, y] of [[ax, ay], [bx, by]]) h += `<circle cx="${x}" cy="${y}" r="4.5" fill="#ffb238" stroke="#1d1d1d" stroke-width="1.5"/>`;
+        if (st.measure.b) {
+          showPop = true;
+          pop.style.left = (ax + bx) / 2 + 'px'; pop.style.top = (ay + by) / 2 + 'px';
+          $('mpop-d').textContent = d.toFixed(3) + ' m';
+          const real = +$('mpop-real').value;
+          pop.classList.toggle('done', real > 0 && Math.abs(d - real) < 5e-4);
+        } else {
+          const [mx, my] = [(ax + bx) / 2, (ay + by) / 2];
+          h += `<text x="${mx}" y="${my - 10}" text-anchor="middle" fill="#ffb238" stroke="#1d1d1d" stroke-width="3" paint-order="stroke" font-family="JetBrains Mono, monospace" font-size="12">${d.toFixed(3)} m</text>`;
+        }
+      } else if (st.measure.b) showPop = false;
+    } else {
+      const a = projectWorld(st.measure.a);
+      if (a.front) { const [ax, ay] = uvToVp(a.u, a.v); h += `<circle cx="${ax}" cy="${ay}" r="4.5" fill="#ffb238" stroke="#1d1d1d" stroke-width="1.5"/>`; }
     }
   }
+  pop.hidden = !showPop;
   if (st.mode === 'pins' || st.pins.length) {
     st.pins.forEach((p, i) => {
       const q = projectWorld(pinWorld(p));
@@ -1396,7 +1430,7 @@ function updateBadge() {
 const HINTS = {
   nav: '<b>Navegar</b> · arrastrar: orbitar · botón der.: paneo · rueda: acercar',
   pins: '<b>Pines</b> · click en el scan crea un pin, arrastralo al plate · botón der.: borrar · rueda: zoom · Alt o botón medio: paneo',
-  measure: '<b>Medir</b> · click en dos puntos del scan, después cargá la medida real',
+  measure: '<b>Medir</b> · click en un punto del scan y otro click en el segundo · escribí la medida real y Enter para escalar · Esc borra',
 };
 function refreshAll() {
   $('hint').innerHTML = HINTS[st.mode];
@@ -1497,8 +1531,8 @@ function updateMeasureGeo() {
   if (b) { arr[3] = b.x; arr[4] = b.y; arr[5] = b.z; } else if (a) { arr[3] = a.x; arr[4] = a.y; arr[5] = a.z; }
   measGeo.attributes.position.needsUpdate = true;
   measGeo.computeBoundingSphere();
-  measLine.visible = !!(a && b) && st.mode !== 'pins';
-  measPts.visible = !!a && st.mode !== 'pins';
+  measLine.visible = false;
+  measPts.visible = false;
   const d = a && b ? a.distanceTo(b) : null;
   $('meas').value = d != null ? d.toFixed(4) + ' m' : a ? 'falta el 2º punto' : '–';
   $('apply-scale').disabled = !(d > 0 && +$('real').value > 0);
@@ -1556,8 +1590,13 @@ vp.addEventListener('pointerdown', e => {
     if (e.button === 0) drag = { type: 'click', x, y };
   }
 });
+let hoverRAF = 0;
 vp.addEventListener('pointermove', e => {
   { const [mx, my] = evVp(e); const [u, v] = vpToUv(mx, my); $('cx').textContent = Math.floor(u); $('cy').textContent = Math.floor(st.plate.H - v); }
+  if (st.mode === 'measure' && st.measure.a && !st.measure.b && !drag && !hoverRAF) {
+    const [mx, my] = evVp(e);
+    hoverRAF = requestAnimationFrame(() => { hoverRAF = 0; st.measure.hover = pick(mx, my); drawOverlay(); });
+  }
   if (!drag) return;
   const [x, y] = evVp(e);
   if (drag.type === 'pan') { st.view.x = drag.vx + (x - drag.x); st.view.y = drag.vy + (y - drag.y); applyView(); }
@@ -1576,9 +1615,11 @@ vp.addEventListener('pointerup', e => {
     const hit = pick(x, y);
     if (hit) {
       const loc = scanRoot.worldToLocal(hit.clone());
-      if (!st.measure.la || st.measure.lb) { st.measure.la = loc; st.measure.lb = null; }
+      if (!st.measure.la || st.measure.lb) { st.measure.la = loc; st.measure.lb = null; $('mpop-real').value = ''; }
       else st.measure.lb = loc;
+      st.measure.hover = null;
       measWorld(); updateMeasureGeo(); render(); drawOverlay();
+      if (st.measure.lb) setTimeout(() => $('mpop-real').focus(), 0);
     }
   }
   drag = null;
@@ -1598,6 +1639,7 @@ window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'n') setMode('nav'); else if (k === 'p') setMode('pins'); else if (k === 'm') setMode('measure');
   else if (k === 'f') layoutStage(true);
+  else if (k === 'escape' && st.mode === 'measure') clearMeasure();
   else if ((k === 'delete' || k === 'backspace') && st.sel >= 0) { st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
 });
 window.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
@@ -1638,12 +1680,25 @@ $('f-plate').onchange = e => { const f = e.target.files[0]; if (f) loadPlateFile
 $('unit').onchange = () => { setRootTransform(+$('unit').value, st.userScale, st.up); st.scaleOk = false; measWorld(); updateMeasureGeo(); refreshAll(); };
 $('up').onchange = () => { if (/\.ply$/i.test(st.scanName)) lsSet('upPly', $('up').value); setRootTransform(st.unit, st.userScale, $('up').value); st.scaleOk = false; measWorld(); updateMeasureGeo(); refreshAll(); };
 $('real').oninput = updateMeasureGeo;
-$('apply-scale').onclick = () => {
-  const d = st.measure.a.distanceTo(st.measure.b), real = +$('real').value;
+function applyScaleFrom(real) {
+  if (!st.measure.a || !st.measure.b) return;
+  const d = st.measure.a.distanceTo(st.measure.b);
   if (!(d > 0 && real > 0)) return;
+  $('real').value = real; $('mpop-real').value = real;
   setRootTransform(st.unit, st.userScale * real / d, st.up);
   measWorld(); updateMeasureGeo(); st.scaleOk = true; refreshAll();
-};
+}
+$('apply-scale').onclick = () => applyScaleFrom(+$('real').value);
+$('mpop-ok').onclick = () => applyScaleFrom(+$('mpop-real').value);
+$('mpop-real').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); applyScaleFrom(+$('mpop-real').value); }
+  if (e.key === 'Escape') { e.preventDefault(); clearMeasure(); }
+  e.stopPropagation();
+});
+$('mpop-real').addEventListener('input', () => drawOverlay());
+function clearMeasure() { st.measure = { a: null, b: null }; updateMeasureGeo(); drawOverlay(); }
+$('mpop-x').onclick = clearMeasure;
+['pointerdown', 'wheel'].forEach(t => $('mpop').addEventListener(t, e => e.stopPropagation()));
 $('reset-scale').onclick = () => { setRootTransform(st.unit, 1, st.up); measWorld(); updateMeasureGeo(); st.scaleOk = false; refreshAll(); };
 $('scale-ok').onclick = () => { st.scaleOk = true; refreshAll(); };
 const pre = $('preset');

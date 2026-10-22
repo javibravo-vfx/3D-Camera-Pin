@@ -7,7 +7,7 @@ Es un único archivo HTML. Corre en el navegador, sin instalar nada, y los archi
 ## Uso
 
 1. Abrí `index.html` en Chrome, Edge o Firefox. También se puede publicar con GitHub Pages.
-2. **Scan y escala**: cargá el scan (OBJ, PLY, GLB/GLTF, FBX). Revisá las unidades y el eje vertical, y verificá la escala con **Medir** sobre algo de medida conocida (una puerta, un cordón). Todo se trabaja en metros.
+2. **Scan y escala**: cargá el scan (OBJ, PLY, GLB/GLTF, FBX) y revisá las unidades y el eje vertical. Para fijar la escala, en modo **Medir** trazá una línea entre dos puntos del scan sobre algo de medida conocida (una puerta, un cordón), escribí cuánto mide en metros y apretá Enter: el scan se escala para que esa medida sea real.
 3. **Plate y cámara**: cargá el plate (EXR, JPG, PNG), elegí el sensor y la lente. Si el EXR trae metadata de cámara y lente, se completan solos.
 4. **Pines**: en modo Pines, hacé click sobre el scan para crear un pin y arrastralo a su lugar en el plate. La pose se resuelve en vivo. Con 4 a 6 pines repartidos en profundidad alcanza.
 5. **Exportar**: copiá el script de la cámara para 3ds Max (Physical o Free Camera), Nuke (Camera2) o Blender (Python).
@@ -21,6 +21,7 @@ Es un único archivo HTML. Corre en el navegador, sin instalar nada, y los archi
 | Rueda (modo Pines) | Zoom 2D sobre el plate |
 | `Alt` + arrastrar, botón medio o `Espacio` + arrastrar | Paneo del plate |
 | Botón derecho sobre un pin | Borrar pin |
+| `Esc` (modo Medir) | Borrar la medida |
 | `Supr` | Borrar el pin seleccionado |
 
 ## Formatos

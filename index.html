@@ -49,6 +49,14 @@ body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-s
 .seg button[aria-pressed="true"] { background: var(--accent); color: #1b1307; box-shadow: none; }
 .seg button kbd { font: 10.5px var(--f-num); margin-left: 5px; opacity: .65; }
 .vmid { display: grid; grid-template-columns: 40px minmax(0, 1fr); min-height: 0; }
+.vpbar { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center; z-index: 3; max-width: calc(100% - 12px); }
+.vpchip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; font: 600 12px var(--f-ui); color: var(--fg); background: rgb(30 30 30 / .78); border: 1px solid rgb(0 0 0 / .5); border-radius: 3px; cursor: pointer; }
+select.vpchip { width: auto; padding-right: 4px; }
+label.vpchip { font-weight: 400; color: var(--muted); cursor: default; }
+.vpchip input[type=range] { width: 70px; }
+.vpchip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+button.vpchip[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; }
+button.vpchip[aria-pressed="true"] svg { color: var(--accent); }
 .tools { display: flex; flex-direction: column; gap: 2px; padding: 6px 4px; border-right: 1px solid var(--line); background: var(--panel); }
 .tool { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--fg); cursor: pointer; position: relative; padding: 0; }
 .tool svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -187,16 +195,6 @@ select:disabled { color: var(--muted); opacity: .8; }
 <div class="app">
   <div class="viewer">
     <div class="vbar">
-      <div class="seg"><button id="scan-on" aria-pressed="true" title="Show / hide the scan (H)">Scan<kbd>H</kbd></button></div>
-      <select id="disp" style="width:auto" aria-label="Scan display">
-        <option value="wire">Wireframe</option>
-        <option value="solid">Solid</option>
-        <option value="orig">Original</option>
-      </select>
-      <label for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
-      <label for="ptsize">Point <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2" style="width:70px"></label>
-      <label for="grid"><input id="grid" type="checkbox" checked> Grid 1 m</label>
-      <span class="sep"></span>
       <label for="navp">Nav
         <select id="navp" style="width:auto">
           <option value="max">3ds Max</option>
@@ -217,6 +215,23 @@ select:disabled { color: var(--muted); opacity: .8; }
           <option value="raw">Raw</option>
         </select>
       </label>
+      <span class="sep"></span>
+      <label for="mask">Mask
+        <select id="mask" style="width:auto">
+          <option value="0">None</option>
+          <option value="1.3333">4:3 (1.33)</option>
+          <option value="1.6667">1.66</option>
+          <option value="1.7778">16:9 (1.78)</option>
+          <option value="1.85">1.85</option>
+          <option value="2">2:1</option>
+          <option value="2.35">2.35</option>
+          <option value="2.39">2.39</option>
+          <option value="1">1:1</option>
+          <option value="0.5625">9:16 (0.56)</option>
+          <option value="custom">Custom…</option>
+        </select>
+      </label>
+      <input id="mask-c" type="number" step="0.01" min="0.1" max="10" value="2.00" style="width:68px" aria-label="Custom mask aspect" hidden>
       <span class="sep"></span>
       <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button>
       <span class="fmt" id="tag">SAMPLE</span>
@@ -245,6 +260,19 @@ select:disabled { color: var(--muted); opacity: .8; }
         <canvas id="gl"></canvas>
       </div>
       <svg class="ov" id="ov"></svg>
+      <div class="vpbar" id="vpbar">
+        <button class="vpchip" id="scan-on" aria-pressed="true" title="Show / hide the scan (H)">
+          <svg viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>Scan
+        </button>
+        <select class="vpchip" id="disp" aria-label="Scan display">
+          <option value="wire">Wireframe</option>
+          <option value="solid">Solid</option>
+          <option value="orig">Original</option>
+        </select>
+        <label class="vpchip" for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
+        <label class="vpchip" for="ptsize">Point <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2"></label>
+        <label class="vpchip" for="grid"><input id="grid" type="checkbox" checked> Grid 1 m</label>
+      </div>
       <div class="mpop" id="mpop" hidden>
         <span class="d" id="mpop-d">0.000 m</span><span class="arrow">→</span>
         <input id="mpop-real" type="number" step="0.001" min="0" placeholder="real" aria-label="Real length in meters">
@@ -376,6 +404,7 @@ select:disabled { color: var(--muted); opacity: .8; }
             </select>
           </label>
           <label class="fld" for="camname">name<input id="camname" type="text" value="MatchCam"></label>
+          <label class="fld" for="exp-crop">format<span class="row"><input id="exp-crop" type="checkbox"> Use mask format <span class="note" id="crop-info"></span></span></label>
           <textarea id="out" readonly spellcheck="false" aria-label="Camera script"></textarea>
           <div class="row">
             <button class="btn primary" id="copy">Copy</button>
@@ -1502,6 +1531,15 @@ function drawOverlay() {
       h += `<text x="${tx + 10}" y="${ty - 8}" fill="${col}" stroke="#0f1216" stroke-width="3" paint-order="stroke" font-family="JetBrains Mono, monospace" font-size="11.5">${p.id}</text>`;
     });
   }
+  const ma = maskAspect();
+  if (ma) {
+    const c = maskRect();
+    const [x0, y0] = uvToVp(0, 0), [x1, y1] = uvToVp(st.plate.W, st.plate.H);
+    const [cx0, cy0] = uvToVp(c.x, c.y), [cx1, cy1] = uvToVp(c.x + c.w, c.y + c.h);
+    h = `<path d="M${x0} ${y0}H${x1}V${y1}H${x0}Z M${cx0} ${cy0}V${cy1}H${cx1}V${cy0}Z" fill="rgb(0 0 0 / .6)" fill-rule="evenodd"/>`
+      + `<rect x="${cx0}" y="${cy0}" width="${cx1 - cx0}" height="${cy1 - cy0}" fill="none" stroke="#e8e8e8" stroke-opacity=".8" stroke-width="1"/>`
+      + `<text x="${cx1 - 6}" y="${cy0 + 15}" text-anchor="end" fill="#e8e8e8" fill-opacity=".85" font-family="JetBrains Mono, monospace" font-size="11">${ma.toFixed(2)}:1 · ${c.w}×${c.h}</text>` + h;
+  }
   ov.innerHTML = h;
   updateBadge();
 }
@@ -1549,20 +1587,37 @@ function refreshAll() {
 }
 
 // ---------- Export ----------
+// ---------- Mask / safe frame ----------
+function maskAspect() {
+  const v = $('mask').value;
+  if (v === 'custom') { const c = +$('mask-c').value; return c > 0 ? c : 0; }
+  return +v || 0;
+}
+// centered crop of the plate, in plate pixels
+function maskRect() {
+  const W = st.plate.W, H = st.plate.H, a = maskAspect(), pa = W / H;
+  if (!a || Math.abs(a - pa) < 1e-4) return { x: 0, y: 0, w: W, h: H };
+  if (a < pa) { const w = Math.round(H * a); return { x: (W - w) / 2, y: 0, w, h: H }; }
+  const h = Math.round(W / a); return { x: 0, y: (H - h) / 2, w: W, h };
+}
 function camData() {
   camera.updateMatrixWorld();
   const e = camera.matrixWorld.elements;
   const X = [e[0], e[1], e[2]], Y = [e[4], e[5], e[6]], Z = [e[8], e[9], e[10]], C = [e[12], e[13], e[14]];
   const A = (v) => [v[0], -v[2], v[1]]; // Y-up -> Z-up (Max / Blender)
   const eul = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().extractRotation(camera.matrixWorld), 'YXZ');
-  return { X, Y, Z, C, Xm: A(X), Ym: A(Y), Zm: A(Z), Cm: A(C), eul, f: focalUsed(), sw: st.sw, sh: st.sw * st.plate.H / st.plate.W, W: st.plate.W, H: st.plate.H };
+  const crop = $('exp-crop').checked && maskAspect() ? maskRect() : null;
+  const W = crop ? crop.w : st.plate.W, H = crop ? crop.h : st.plate.H;
+  const sw = st.sw * W / st.plate.W; // same focal and center, narrower or same film back
+  return { X, Y, Z, C, Xm: A(X), Ym: A(Y), Zm: A(Z), Cm: A(C), eul, f: focalUsed(), sw, sh: sw * H / W, W, H, crop };
 }
 const n6 = (v) => (Math.abs(v) < 5e-13 ? 0 : v).toFixed(6);
 function updateExport() {
+  { const a = maskAspect(), c = maskRect(); $('crop-info').textContent = a ? `(${c.w} × ${c.h})` : '(set a mask in the top bar)'; }
   const t = $('target').value, name = ($('camname').value || 'MatchCam').replace(/[^\w-]/g, '_');
   const d = camData();
   const v3 = (v) => `[${v.map(n6).join(',')}]`;
-  const header = `Camera Pin · ${st.plate.sample ? 'sample plate' : st.plate.name} ${d.W}x${d.H} · film back ${fmt(st.sw, 2)} mm · focal ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
+  const header = `Camera Pin · ${st.plate.sample ? 'sample plate' : st.plate.name} ${d.crop ? `crop ${d.W}x${d.H} of ${st.plate.W}x${st.plate.H} (mask ${maskAspect().toFixed(2)}:1)` : `${d.W}x${d.H}`} · film back ${fmt(d.sw, 3)} mm · focal ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
   const scaleNote = `Scan transform: units x${st.unit} · scale ${fmt(st.userScale, 6)} · up ${st.up}`;
   let out = '';
   if (t === 'max-phys' || t === 'max-free') {
@@ -1778,6 +1833,18 @@ function toggleScan() {
   render(); drawOverlay();
 }
 $('scan-on').onclick = toggleScan;
+['pointerdown', 'wheel', 'dblclick'].forEach(t => $('vpbar').addEventListener(t, e => e.stopPropagation()));
+function maskChanged() {
+  $('mask-c').hidden = $('mask').value !== 'custom';
+  lsSet('mask', { v: $('mask').value, c: $('mask-c').value });
+  const a = maskAspect();
+  $('exp-crop').disabled = !a;
+  if (!a) $('exp-crop').checked = false;
+  drawOverlay(); updateExport();
+}
+{ const m = lsGet('mask', null); if (m) { $('mask').value = m.v; $('mask-c').value = m.c; if (!$('mask').value) $('mask').value = '0'; } }
+$('mask').onchange = maskChanged; $('mask-c').oninput = maskChanged;
+$('exp-crop').onchange = updateExport;
 $('t-fit').onclick = () => layoutStage(true);
 try { $('scan-more').open = !!lsGet('scanMore', false); } catch (e) {}
 $('scan-more').addEventListener('toggle', () => lsSet('scanMore', $('scan-more').open));
@@ -1904,6 +1971,7 @@ function buildSample() {
   camera.near = 0.05; camera.far = 1000;
   applyIntrinsics();
   refreshAll();
+  maskChanged();
 })();
 // when the first real plate arrives, restore the last sensor/focal the user used
 const _setPlate = setPlate;

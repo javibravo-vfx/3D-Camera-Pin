@@ -26,6 +26,19 @@ It is a single HTML file that runs in the browser with nothing to install. Files
   - The film width is the physical, squeezed sensor width. The export writes the desqueezed width (sensor × pixel aspect) plus the pixel aspect: `renderPixelAspect` in Max and `pixel_aspect_x` in Blender. In Nuke, set the format's pixel aspect.
 - **Knob names** follow the **Nav** preset, so the film back reads as Film width (3ds Max), H film aperture (Maya), Aperture (Houdini), Sensor width (Blender) or haperture (Nuke). Maya shows the aperture in inches, so divide by 25.4.
 
+## Environments
+
+Modular 3D set pieces you can turn on behind or around the scan to check a match. They live in world meters, independent of the scan's own transform. Pick one in **Environment → Module**, and toggle it with the **Env** chip on the viewport or the `E` key.
+
+**Avenue / street**
+- Number of lanes, lane width, median width (0 gives a painted center line), sidewalk width and length.
+- Traffic on/off, with density and a clear zone around the origin so no car overlaps the hero vehicle. **Shuffle** generates new traffic.
+- Street lights and buildings on/off.
+- Placement: offset X/Z, ground height and rotation. **Ground to scan** sets the ground to the lowest point of the scan.
+- Display as solid or wireframe.
+
+New modules plug into `ENV_MODULES` in `index.html`. Each one declares its parameters (numbers and toggles) and a `build(params, rng, origin)` function that returns a three.js group. The panel builds its controls from that list, so adding a module needs no UI work.
+
 ## Scan display
 
 | Mode | What it shows |
@@ -66,6 +79,7 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 |---|---|
 | `N` / `P` / `M` | Navigate / Pins / Measure mode |
 | `H` | Show / hide the scan |
+| `E` | Show / hide the environment |
 | `F` | Fit the plate |
 | `Esc` (Measure) | Clear the measurement |
 | `Delete` | Delete the selected pin |

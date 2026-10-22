@@ -182,6 +182,12 @@ details.meta dd { word-break: break-word; text-align: left; }
 details.meta dt { font-family: var(--f-num); font-size: 11px; }
 svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .drop { position: absolute; inset: 10px; display: grid; place-items: center; background: rgb(18 18 18 / .85); border: 2px dashed var(--accent-hi); border-radius: 12px; font-size: 15px; font-weight: 600; text-align: center; padding: 16px; }
+.eparams { display: flex; flex-direction: column; gap: 8px; }
+.eparams .sub { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+#env-extra { display: flex; flex-direction: column; gap: 8px; }
+.erow { display: grid; grid-template-columns: minmax(0, 1fr) 74px; gap: 8px; align-items: center; }
+.erow input[type=range] { width: 100%; min-width: 0; }
+button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .mrow .arrow { color: var(--muted); }
 .mono { font: 500 13px var(--f-ui); font-variant-numeric: tabular-nums; }
@@ -289,6 +295,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
           <option value="flat">Flat (unlit)</option>
           <option value="orig">Original (lit)</option>
         </select>
+        <button class="vpchip" id="env-on" aria-pressed="false" disabled title="Show / hide the environment (E)">
+          <svg viewBox="0 0 24 24"><path d="M8 3 4 21M16 3l4 18M12 4v3M12 10v3M12 16v4"/></svg>Env
+        </button>
         <label class="vpchip" for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
         <label class="vpchip" for="ptsize">Point <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2"></label>
         <label class="vpchip" for="grid"><input id="grid" type="checkbox" checked> Grid 1 m</label>
@@ -404,6 +413,27 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
           </div>
           </div>
           </details>
+        </div>
+      </section>
+
+      <section class="step" id="s5">
+        <h2 tabindex="0"><span class="n">3</span>Environment<span class="st" id="env-st">none</span></h2>
+        <div class="body">
+          <label class="fld" for="env-mod">Module
+            <select id="env-mod"></select>
+          </label>
+          <div id="env-extra" hidden>
+            <div class="eparams" id="env-params"></div>
+            <label class="fld" for="env-disp">Display
+              <select id="env-disp"><option value="solid">Solid</option><option value="wire">Wireframe</option></select>
+            </label>
+            <div class="row k">
+              <button class="btn" id="env-shuffle" title="New random traffic and buildings">Shuffle</button>
+              <button class="btn" id="env-ground" title="Put the environment ground at the lowest point of the scan">Ground to scan</button>
+              <button class="btn ghost" id="env-reset">Reset</button>
+            </div>
+          </div>
+          <p class="note">Modular set pieces to check the match against. They live in world meters, independent of the scan.</p>
         </div>
       </section>
 
@@ -724,7 +754,7 @@ const st = {
 
 // ---------- Three setup ----------
 const vp = $('vp'), stage = $('stage'), canvas = $('gl'), plateImg = $('plate'), ov = $('ov');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, logarithmicDepthBuffer: true });
 renderer.setClearColor(0x000000, 0);
 renderer.outputEncoding = THREE.sRGBEncoding;
 const scene = new THREE.Scene();
@@ -793,6 +823,193 @@ const MAT = {
   solid: new THREE.MeshLambertMaterial({ color: 0xb9c3cd, transparent: true, opacity: 1, side: THREE.DoubleSide }),
 };
 const PTS = { mono: new THREE.PointsMaterial({ color: 0x5ccfe0, size: 2, sizeAttenuation: false }), color: null };
+// ---------- Environment modules (independent of the scan, world meters, Y up) ----------
+// Each module: { name, params: [{ key, label, type: 'num'|'bool', min, max, step, def, unit }], build(p, rng) -> THREE.Object3D }
+// Shared transform params (position, rotation) are added by the host, so modules only describe their own content.
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const ENV_MAT = {
+  asphalt: new THREE.MeshLambertMaterial({ color: 0x3b3c3f }),
+  paintW: new THREE.MeshBasicMaterial({ color: 0xe9e9e4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  paintY: new THREE.MeshBasicMaterial({ color: 0xe0b437, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  walk: new THREE.MeshLambertMaterial({ color: 0x9a978f }),
+  median: new THREE.MeshLambertMaterial({ color: 0x5f6b4e }),
+  building: new THREE.MeshLambertMaterial({ color: 0xffffff }),
+  car: new THREE.MeshLambertMaterial({ color: 0xffffff }),
+  glass: new THREE.MeshLambertMaterial({ color: 0x1d242b }),
+  tire: new THREE.MeshLambertMaterial({ color: 0x141414 }),
+  pole: new THREE.MeshLambertMaterial({ color: 0x55585c }),
+};
+const CAR_COLORS = [0xe8e8e6, 0xe8e8e6, 0xb9bcc0, 0xb9bcc0, 0x2a2c30, 0x1b1c1e, 0x5d6166, 0x8c1c1c, 0x1f3f78, 0x6b7f8c];
+function boxAt(w, h, d, x, y, z, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return m; }
+// one instanced set of cars; cars: [{ x, z, dir(+1 drives toward -Z, -1 toward +Z), len, wid, color }]
+function buildCars(cars) {
+  const g = new THREE.Group(), n = cars.length;
+  if (!n) return g;
+  const body = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), ENV_MAT.car, n);
+  const cab = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), ENV_MAT.glass, n);
+  const wheel = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.33, 0.33, 0.24, 14).rotateZ(Math.PI / 2), ENV_MAT.tire, n * 4);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
+  cars.forEach((c, i) => {
+    const bodyH = c.tall ? 1.25 : 0.78, base = 0.3;
+    m.compose(p.set(c.x, base + bodyH / 2, c.z), q, s.set(c.wid, bodyH, c.len)); body.setMatrixAt(i, m);
+    body.setColorAt(i, col.setHex(c.color));
+    const cabL = c.len * (c.tall ? 0.62 : 0.5), cabH = c.tall ? 0.62 : 0.58;
+    m.compose(p.set(c.x, base + bodyH + cabH / 2, c.z + c.dir * c.len * 0.06), q, s.set(c.wid * 0.9, cabH, cabL)); cab.setMatrixAt(i, m);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz], k) => {
+      m.compose(p.set(c.x + sx * (c.wid / 2 - 0.08), 0.33, c.z + sz * (c.len / 2 - 0.75)), q, s.set(1, 1, 1));
+      wheel.setMatrixAt(i * 4 + k, m);
+    });
+  });
+  body.instanceColor.needsUpdate = true;
+  g.add(body, cab, wheel);
+  return g;
+}
+const ENV_MODULES = {
+  avenue: {
+    name: 'Avenue / street',
+    params: [
+      { key: 'lanes', label: 'Lanes', type: 'num', min: 1, max: 12, step: 1, def: 6 },
+      { key: 'laneW', label: 'Lane width', type: 'num', min: 2.5, max: 5, step: 0.05, def: 3.5, unit: 'm' },
+      { key: 'median', label: 'Median', type: 'num', min: 0, max: 20, step: 0.5, def: 2, unit: 'm' },
+      { key: 'walk', label: 'Sidewalk', type: 'num', min: 0, max: 12, step: 0.5, def: 4, unit: 'm' },
+      { key: 'length', label: 'Length', type: 'num', min: 50, max: 1000, step: 10, def: 300, unit: 'm' },
+      { key: 'cars', label: 'Cars', type: 'bool', def: true },
+      { key: 'density', label: 'Traffic', type: 'num', min: 0.05, max: 1, step: 0.05, def: 0.45 },
+      { key: 'clear', label: 'Clear zone', type: 'num', min: 0, max: 50, step: 1, def: 10, unit: 'm' },
+      { key: 'lights', label: 'Street lights', type: 'bool', def: true },
+      { key: 'buildings', label: 'Buildings', type: 'bool', def: false },
+    ],
+    build(p, rng, origin) {
+      const g = new THREE.Group();
+      const L = Math.round(p.lanes), lw = p.laneW, med = p.median, len = p.length;
+      const leftN = Math.floor(L / 2), rightN = L - leftN; // right side (+X) drives toward -Z
+      const roadW = L * lw + med, half = roadW / 2;
+      const road = new THREE.Mesh(new THREE.PlaneGeometry(roadW, len).rotateX(-Math.PI / 2), ENV_MAT.asphalt); g.add(road);
+      // lane x centres
+      const lanes = [];
+      for (let i = 0; i < rightN; i++) lanes.push({ x: med / 2 + lw * (i + 0.5), dir: 1 });
+      for (let i = 0; i < leftN; i++) lanes.push({ x: -(med / 2 + lw * (i + 0.5)), dir: -1 });
+      // markings
+      const dashLen = 3, gap = 9, lineW = 0.12;
+      const dashes = [];
+      const sideLines = (n, sign) => { for (let i = 1; i < n; i++) dashes.push(sign * (med / 2 + lw * i)); };
+      sideLines(rightN, 1); sideLines(leftN, -1);
+      const nD = Math.floor(len / (dashLen + gap));
+      if (dashes.length && nD) {
+        const dm = new THREE.InstancedMesh(new THREE.PlaneGeometry(lineW, dashLen).rotateX(-Math.PI / 2), ENV_MAT.paintW, dashes.length * nD);
+        const m = new THREE.Matrix4(); let k = 0;
+        for (const x of dashes) for (let j = 0; j < nD; j++) { m.makeTranslation(x, 0.005, -len / 2 + (j + 0.5) * (dashLen + gap)); dm.setMatrixAt(k++, m); }
+        g.add(dm);
+      }
+      const solid = (x, mat) => { const l = new THREE.Mesh(new THREE.PlaneGeometry(lineW * 1.2, len).rotateX(-Math.PI / 2), mat); l.position.set(x, 0.005, 0); g.add(l); };
+      solid(half - 0.3, ENV_MAT.paintW); solid(-half + 0.3, ENV_MAT.paintW);
+      if (med >= 0.6) {
+        const md = boxAt(med, 0.18, len, 0, 0.09, 0, ENV_MAT.median); g.add(md);
+        solid(med / 2 + 0.25, ENV_MAT.paintY); solid(-med / 2 - 0.25, ENV_MAT.paintY);
+      } else if (leftN && rightN) { solid(0.1, ENV_MAT.paintY); solid(-0.1, ENV_MAT.paintY); }
+      // sidewalks with curb
+      if (p.walk > 0) {
+        g.add(boxAt(p.walk, 0.15, len, half + p.walk / 2, 0.075, 0, ENV_MAT.walk));
+        g.add(boxAt(p.walk, 0.15, len, -half - p.walk / 2, 0.075, 0, ENV_MAT.walk));
+      }
+      // street lights
+      if (p.lights) {
+        const step = 30, x = half + Math.min(p.walk, 1.2) * 0.5 + 0.3;
+        for (let z = -len / 2 + 10; z < len / 2; z += step) for (const sgn of [1, -1]) {
+          g.add(boxAt(0.18, 8, 0.18, sgn * x, 4, z, ENV_MAT.pole));
+          g.add(boxAt(2.2, 0.15, 0.25, sgn * (x - 1.1), 8, z, ENV_MAT.pole));
+        }
+      }
+      // buildings
+      if (p.buildings) {
+        const bm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), ENV_MAT.building, 400);
+        const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), c = new THREE.Color();
+        let k = 0;
+        for (const sgn of [1, -1]) {
+          let z = -len / 2;
+          while (z < len / 2 && k < 400) {
+            const w = 10 + rng() * 18, d = 12 + rng() * 10, h = 8 + rng() * 34;
+            m.compose(v.set(sgn * (half + p.walk + d / 2 + 0.5), h / 2, z + w / 2), q, s.set(d, h, w - 0.6));
+            bm.setMatrixAt(k, m); const gv = 0.42 + rng() * 0.3; bm.setColorAt(k, c.setRGB(gv, gv * 0.98, gv * 0.94)); k++;
+            z += w;
+          }
+        }
+        bm.count = k; bm.instanceColor.needsUpdate = true; g.add(bm);
+      }
+      // traffic
+      if (p.cars && lanes.length) {
+        const cars = [];
+        for (const ln of lanes) {
+          let z = -len / 2 + rng() * 10;
+          while (z < len / 2 - 3) {
+            const tall = rng() < 0.22, clen = tall ? 4.9 + rng() * 0.5 : 4.2 + rng() * 0.6, cwid = tall ? 1.95 : 1.78;
+            const cz = z + clen / 2, cx = ln.x + (rng() - 0.5) * 0.4;
+            if (Math.hypot(cx - origin.x, cz - origin.z) > p.clear + clen / 2) {
+              cars.push({ x: cx, z: cz, dir: ln.dir, len: clen, wid: cwid, tall, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
+            }
+            z += clen + 2 + (1 - p.density) * (8 + rng() * 40) + rng() * 4;
+          }
+        }
+        g.add(buildCars(cars));
+      }
+      return g;
+    },
+  },
+};
+const ENV_COMMON = [
+  { key: 'x', label: 'Offset X', type: 'num', min: -500, max: 500, step: 0.1, def: 0, unit: 'm' },
+  { key: 'z', label: 'Offset Z', type: 'num', min: -500, max: 500, step: 0.1, def: 0, unit: 'm' },
+  { key: 'y', label: 'Ground height', type: 'num', min: -100, max: 100, step: 0.01, def: 0, unit: 'm' },
+  { key: 'rot', label: 'Rotation', type: 'num', min: -180, max: 180, step: 0.5, def: 0, unit: '°' },
+];
+const envRoot = new THREE.Group(); envRoot.visible = false; scene.add(envRoot);
+const env = { id: 'none', on: false, seed: 7, vals: {}, display: 'solid' };
+function envDefaults(id) { const o = {}; [...ENV_COMMON, ...(ENV_MODULES[id]?.params || [])].forEach(p => o[p.key] = p.def); return o; }
+function envSave() { lsSet('env', { id: env.id, on: env.on, seed: env.seed, vals: env.vals, display: env.display }); }
+function envRebuild() {
+  envRoot.children.slice().forEach(c => { envRoot.remove(c); c.traverse(o => { if (o.geometry) o.geometry.dispose(); }); });
+  const mod = ENV_MODULES[env.id];
+  if (mod) {
+    const v = env.vals;
+    envRoot.position.set(v.x, v.y, v.z); envRoot.rotation.set(0, v.rot * Math.PI / 180, 0); envRoot.updateMatrixWorld(true);
+    const origin = envRoot.worldToLocal(new THREE.Vector3(0, 0, 0));
+    const obj = mod.build(v, mulberry32(env.seed), origin);
+    if (env.display === 'wire') obj.traverse(o => { if (o.isMesh) { o.material = MAT.wire; } });
+    envRoot.add(obj);
+  }
+  envRoot.visible = !!mod && env.on;
+  if (envRoot.visible && camera.far < 3000) { camera.far = 3000; camera.updateProjectionMatrix(); }
+  const chip = $('env-on');
+  chip.disabled = !mod; chip.setAttribute('aria-pressed', String(!!mod && env.on));
+  $('env-st').textContent = mod ? (env.on ? mod.name : 'off') : 'none';
+  $('s5').dataset.state = mod && env.on ? 'ok' : '';
+  render(); drawOverlay();
+}
+function envRenderParams() {
+  const mod = ENV_MODULES[env.id], box = $('env-params');
+  if (!mod) { box.innerHTML = ''; $('env-extra').hidden = true; return; }
+  $('env-extra').hidden = false;
+  const row = (p) => {
+    const id = 'envp-' + p.key, v = env.vals[p.key];
+    if (p.type === 'bool') return `<label class="fld" for="${id}">${p.label}<span class="row"><input id="${id}" type="checkbox" data-k="${p.key}" ${v ? 'checked' : ''}></span></label>`;
+    return `<div class="knobrow"><label for="${id}">${p.label}${p.unit ? ` (${p.unit})` : ''}</label><div class="erow"><input type="range" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}" aria-label="${p.label}"><input id="${id}" type="number" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}"></div></div>`;
+  };
+  box.innerHTML = mod.params.map(row).join('') + '<div class="sub">Placement</div>' + ENV_COMMON.map(row).join('');
+}
+function envSet(k, val) {
+  env.vals[k] = val;
+  $('env-params').querySelectorAll(`[data-k="${k}"]`).forEach(el => { if (el.type === 'checkbox') el.checked = !!val; else if (document.activeElement !== el) el.value = val; });
+  envSave(); envRebuild();
+}
+function envSelect(id) {
+  env.id = ENV_MODULES[id] ? id : 'none';
+  const saved = lsGet('env.vals.' + env.id, null);
+  env.vals = Object.assign(envDefaults(env.id), saved || {});
+  if (env.id !== 'none') env.on = true;
+  $('env-mod').value = env.id;
+  envRenderParams(); envSave(); envRebuild();
+}
+function toggleEnv() { if (!ENV_MODULES[env.id]) return; env.on = !env.on; envSave(); envRebuild(); }
 
 function render() { renderer.render(scene, camera); }
 
@@ -948,7 +1165,7 @@ function frameScan() {
   camera.up.set(0, 1, 0);
   camera.lookAt(c);
   controls.target.copy(c);
-  camera.near = Math.max(s / 5000, 0.01); camera.far = s * 50;
+  camera.near = Math.max(s / 5000, 0.01); camera.far = Math.max(s * 50, envRoot.visible ? 3000 : 0);
   applyIntrinsics();
 }
 
@@ -1851,6 +2068,7 @@ window.addEventListener('keydown', e => {
   if (k === 'n') setMode('nav'); else if (k === 'p') setMode('pins'); else if (k === 'm') setMode('measure');
   else if (k === 'f') layoutStage(true);
   else if (k === 'h') toggleScan();
+  else if (k === 'e') toggleEnv();
   else if (k === 'escape' && st.mode === 'measure') clearMeasure();
   else if ((k === 'delete' || k === 'backspace') && st.sel >= 0) { st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
 });
@@ -1907,6 +2125,7 @@ $('scan-on').onclick = toggleScan;
   });
   window.addEventListener('resize', () => { const v = lsGet('sideW', null); if (v) setW(v, false); });
 }
+$('env-on').addEventListener('pointerdown', e => e.stopPropagation());
 ['pointerdown', 'wheel', 'dblclick'].forEach(t => $('vpbar').addEventListener(t, e => e.stopPropagation()));
 function maskChanged() {
   $('mask-c').hidden = $('mask').value !== 'custom';
@@ -2020,7 +2239,33 @@ $('copy').onclick = () => {
   } catch (err) { ta.focus(); ta.select(); done(false); }
 };
 
-// ---------- Sample scene (escala real, metros, Y arriba) ----------
+// ---------- Environment UI ----------
+$('env-mod').innerHTML = '<option value="none">None</option>' + Object.entries(ENV_MODULES).map(([k, m]) => `<option value="${k}">${m.name}</option>`).join('');
+$('env-mod').onchange = () => envSelect($('env-mod').value);
+$('env-on').onclick = toggleEnv;
+$('env-disp').onchange = () => { env.display = $('env-disp').value; envSave(); envRebuild(); };
+$('env-params').addEventListener('input', e => {
+  const k = e.target.dataset.k; if (!k) return;
+  const v = e.target.type === 'checkbox' ? e.target.checked : +e.target.value;
+  if (e.target.type !== 'checkbox' && !Number.isFinite(v)) return;
+  envSet(k, v);
+  lsSet('env.vals.' + env.id, env.vals);
+});
+$('env-shuffle').onclick = () => { env.seed = (env.seed * 9301 + 49297) % 233280 + 1; envSave(); envRebuild(); };
+$('env-ground').onclick = () => {
+  const b = new THREE.Box3().setFromObject(scanRoot);
+  if (!b.isEmpty()) { envSet('y', +b.min.y.toFixed(3)); lsSet('env.vals.' + env.id, env.vals); }
+};
+$('env-reset').onclick = () => { env.vals = envDefaults(env.id); lsSet('env.vals.' + env.id, null); envRenderParams(); envSave(); envRebuild(); };
+{
+  const s = lsGet('env', null);
+  if (s && ENV_MODULES[s.id]) {
+    env.seed = s.seed || 7; env.display = s.display || 'solid'; $('env-disp').value = env.display;
+    envSelect(s.id); env.on = !!s.on; envSave(); envRebuild();
+  } else { $('env-mod').value = 'none'; envRebuild(); }
+}
+
+// ---------- Sample scene (real scale, meters, Y up) ----------
 function sampleGeometry(colored) {
   const g = new THREE.Group();
   const mat = (c) => colored ? new THREE.MeshLambertMaterial({ color: c }) : new THREE.MeshLambertMaterial({ color: 0xb9c3cd });

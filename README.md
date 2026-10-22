@@ -104,4 +104,4 @@ Each pin shows its reprojection error in pixels.
 
 Loaded from CDNs, so the first load needs a connection:
 - [three.js](https://threejs.org) r147, for the viewer and the loaders.
-- Google Fonts.
+- Google Fonts (Inter, JetBrains Mono).

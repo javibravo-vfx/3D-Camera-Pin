@@ -43,12 +43,14 @@ Pick an aspect ratio in **Mask** (top bar), or enter a custom one, to frame a pl
 
 The tools (Navigate, Pins, Measure, Fit) sit in the vertical toolbar on the left of the viewer. The navigation preset, viewer transform and mask are in the top bar. The scan display controls (on/off, display mode, mix, point size, grid) sit at the top of the viewport itself.
 
-Choose the 3D navigation preset from the **Nav** menu. Navigation works in Navigate and Measure modes.
+Choose the 3D navigation preset from the **Nav** menu (Maya by default). Navigation works in Navigate and Measure modes.
+
+The properties panel can be resized by dragging the handle between it and the viewer; double-click the handle to reset its width.
 
 | Preset | Orbit | Pan | Zoom |
 |---|---|---|---|
-| 3ds Max | Alt+MMB | MMB | Ctrl+Alt+MMB, wheel |
 | Maya | Alt+LMB | Alt+MMB | Alt+RMB, wheel |
+| 3ds Max | Alt+MMB | MMB | Ctrl+Alt+MMB, wheel |
 | Houdini | Space/Alt + LMB | Space/Alt + MMB | Space/Alt + RMB, wheel |
 | Blender | MMB | Shift+MMB | Ctrl+MMB, wheel |
 | Nuke | Alt+RMB, Ctrl+LMB | Alt+LMB | Alt+MMB, wheel |

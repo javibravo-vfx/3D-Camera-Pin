@@ -106,6 +106,11 @@ section.step { border-bottom: 1px solid var(--line); }
 .knobrow > :first-child { text-align: right; color: var(--muted); font-size: 12.5px; }
 .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .row.k { padding-left: 120px; }
+.row.nowrap { flex-wrap: nowrap; }
+.row.nowrap > input { flex: 1; width: auto; min-width: 72px; }
+.row.nowrap > .note { white-space: nowrap; }
+.chk { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.knobrow > label:first-child { text-align: right; color: var(--muted); font-size: 12.5px; line-height: 1.15; }
 .row > * { min-width: 0; }
 input[type=number], input[type=text], select, textarea {
   font: 12.5px var(--f-num); color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 2px; padding: 3px 6px; width: 100%; min-width: 0; height: 24px;
@@ -323,9 +328,15 @@ select:disabled { color: var(--muted); opacity: .8; }
           <label class="fld" for="preset">camera
             <select id="preset"></select>
           </label>
-          <label class="fld" for="sw">haperture (mm)<input id="sw" type="number" step="0.01" min="1"></label>
-          <label class="fld" for="sh">vaperture (mm)<input id="sh" type="number" step="0.01" min="1"></label>
-          <label class="fld" for="focal">focal (mm)<input id="focal" type="number" step="0.1" min="1"></label>
+          <div class="knobrow"><label for="sw" id="lb-sw">haperture (mm)</label><input id="sw" type="number" step="0.01" min="1"></div>
+          <div class="knobrow"><label for="sh" id="lb-sh">vaperture (mm)</label>
+            <div class="row nowrap"><input id="sh" type="number" step="0.01" min="0.1" disabled><label class="note chk" for="sh-auto"><input id="sh-auto" type="checkbox" checked> auto</label></div>
+          </div>
+          <div class="knobrow"><label for="focal" id="lb-focal">focal (mm)</label><input id="focal" type="number" step="0.1" min="1"></div>
+          <div class="knobrow"><label for="par" id="lb-par">pixel aspect</label>
+            <div class="row nowrap"><input id="par" type="number" step="0.01" min="0.25" max="4" value="1" list="par-list"><span class="note" id="par-note">square</span></div>
+          </div>
+          <datalist id="par-list"><option value="1"></option><option value="1.3"></option><option value="1.33"></option><option value="1.5"></option><option value="1.8"></option><option value="2"></option></datalist>
           <label class="fld" for="free"><span></span><span class="row"><input id="free" type="checkbox"> Estimate focal</span></label>
           <div class="msg" id="aspect-msg" hidden></div>
           <dl class="kv" id="cam-kv"></dl>
@@ -685,7 +696,7 @@ const PRESETS = [
 // ---------- State ----------
 const st = {
   plate: { W: 1920, H: 1336, name: 'Sample', sample: true },
-  sw: 36.70, sh: 25.54, focal: 32, preset: 'alexa-lf-og',
+  sw: 36.70, sh: 25.54, focal: 32, preset: 'alexa-lf-og', shAuto: true, par: 1,
   freeF: false, fScale: 1,
   unit: 1, up: 'y', userScale: 1, scaleOk: false,
   scanName: 'Sample', scanKind: 'mesh', rawBox: null, sample: true,
@@ -772,15 +783,19 @@ function render() { renderer.render(scene, camera); }
 
 // ---------- Intrinsics / pose conversion ----------
 function focalUsed() { return st.focal * (st.freeF ? st.fScale : 1); }
+// pixel aspect p: film back width is the physical (squeezed) sensor width; vertical is unsqueezed
+function par() { return st.par > 0 ? st.par : 1; }
+function autoSh() { return st.sw * st.plate.H / st.plate.W; }
+function shUsed() { return st.shAuto ? autoSh() : st.sh; }
 function K() {
-  const fx = st.focal / st.sw * st.plate.W;
-  return { fx, fy: fx, cx: st.plate.W / 2, cy: st.plate.H / 2 };
+  const fy = st.focal / st.sw * st.plate.W;
+  return { fx: fy / par(), fy, cx: st.plate.W / 2, cy: st.plate.H / 2 };
 }
 function applyIntrinsics() {
   const f = focalUsed();
   const fy = f / st.sw * st.plate.W;
   camera.fov = 2 * Math.atan((st.plate.H / 2) / fy) * 180 / Math.PI;
-  camera.aspect = st.plate.W / st.plate.H;
+  camera.aspect = st.plate.W * par() / st.plate.H;
   camera.updateProjectionMatrix();
 }
 function poseFromCamera() {
@@ -1090,10 +1105,11 @@ function setPlate(url, W, H, name, sample) {
     $('cs').value = 'disp'; $('cs').disabled = true; $('view').disabled = true;
   } else { $('cs').disabled = false; $('view').disabled = false; }
   $('plate-name').textContent = (sample ? 'Sample' : name) + ' · ' + W + ' × ' + H;
-  $('tag').textContent = (sample ? 'SAMPLE · ' : '') + W + ' × ' + H;
+  $('tag').textContent = (sample ? 'SAMPLE · ' : '') + W + ' × ' + H + (par() !== 1 ? ' · PAR ' + par() : '');
   layoutStage(true);
   applyIntrinsics();
   checkAspect();
+  if ($('par-note')) $('par-note').textContent = Math.abs(par() - 1) < 1e-6 ? 'square' : `${(W * par() / H).toFixed(2)}:1 desqueezed`;
   refreshAll();
 }
 function loadPlateFile(file) {
@@ -1110,12 +1126,13 @@ function loadPlateFile(file) {
   im.src = url;
 }
 function checkAspect() {
-  const a1 = st.plate.W / st.plate.H, a2 = st.sw / st.sh;
+  if (st.shAuto) { st.sh = +autoSh().toFixed(3); $('sh').value = st.sh; }
+  const a1 = st.plate.W / st.plate.H, a2 = st.sw / shUsed();
   const d = Math.abs(a1 / a2 - 1);
   const m = $('aspect-msg');
   if (d > 0.01) {
     m.hidden = false; m.className = 'msg';
-    m.textContent = `The plate is ${a1.toFixed(3)}:1 and the film back ${a2.toFixed(3)}:1. Width is used as the reference; if the plate is cropped or reframed, enter the film back of the area it actually shows.`;
+    m.textContent = `The plate is ${a1.toFixed(3)}:1 in pixels and the film back ${a2.toFixed(3)}:1. The solve uses the film width as the reference; the manual height only goes into the export. If the plate is cropped or reframed, enter the film back of the area it actually shows.`;
   } else m.hidden = true;
 }
 
@@ -1396,7 +1413,8 @@ function showExrMeta(h) {
   const m = $('meta-msg');
   if (lines.length) { m.hidden = false; m.className = 'msg ok'; m.innerHTML = 'Taken from metadata:' + lines.map(l => `<br>· ${l.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`).join(''); }
   else { m.hidden = false; m.className = 'msg'; m.textContent = 'No lens or sensor in the metadata: enter them by hand.'; }
-  if (par && Math.abs(par - 1) > 1e-3) { m.className = 'msg bad'; m.innerHTML += `<br>Pixel aspect ${(+par).toFixed(3)}: anamorphic plates are not supported yet, the solver assumes square pixels.`; }
+  if (par && Math.abs(par - 1) > 1e-3) { setPar(+par); m.innerHTML += `<br>· Pixel aspect ${(+par).toFixed(3)} (from pixelAspectRatio)`; }
+  else setPar(1);
   const first = ['cameraMake', 'cameraModel', 'lensMake', 'lensModel', 'nominalFocalLength', 'pinholeFocalLength', 'effectiveFocalLength', 'focus', 'aperture', 'tStop', 'sensorAcquisitionRectangle', 'sensorPhotositePitch', 'timeCode', 'framesPerSecond', 'chromaticities', 'acesImageContainerFlag', 'displayWindow', 'dataWindow', 'pixelAspectRatio', 'compression', 'channels'];
   const sorted = [...h.attrs].sort((a, b) => { const ia = first.indexOf(a.name), ib = first.indexOf(b.name); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.name.localeCompare(b.name); });
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -1413,7 +1431,7 @@ $('ev').onchange = redrawExr;
 // ---------- Stage layout / 2D view ----------
 function layoutStage(reset) {
   const r = vp.getBoundingClientRect();
-  const m = 18, a = st.plate.W / st.plate.H;
+  const m = 18, a = st.plate.W * par() / st.plate.H;
   let bw = Math.max(50, r.width - m * 2), bh = bw / a;
   if (bh > r.height - m * 2) { bh = Math.max(40, r.height - m * 2); bw = bh * a; }
   const v = st.view;
@@ -1583,8 +1601,8 @@ function refreshAll() {
   $('s1st').textContent = st.scaleOk ? 'verified' : 'not verified';
   // step 2
   const fx = K().fx;
-  const hfov = 2 * Math.atan(st.sw / 2 / focalUsed()) * 180 / Math.PI;
-  const vfov = 2 * Math.atan((st.sw * st.plate.H / st.plate.W) / 2 / focalUsed()) * 180 / Math.PI;
+  const hfov = 2 * Math.atan(st.sw * par() / 2 / focalUsed()) * 180 / Math.PI;
+  const vfov = 2 * Math.atan(autoSh() / 2 / focalUsed()) * 180 / Math.PI;
   const kv = [['horizontal FOV', fmt(hfov, 2) + '°'], ['vertical FOV', fmt(vfov, 2) + '°'], ['focal in pixels', fmt(fx * (st.freeF ? st.fScale : 1), 1) + ' px']];
   if (st.freeF) kv.push(['estimated focal', st.pins.filter(p => p.on).length >= 6 ? fmt(focalUsed(), 2) + ' mm' : 'needs 6 pins']);
   $('cam-kv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
@@ -1612,10 +1630,10 @@ function maskAspect() {
 }
 // centered crop of the plate, in plate pixels
 function maskRect() {
-  const W = st.plate.W, H = st.plate.H, a = maskAspect(), pa = W / H;
+  const W = st.plate.W, H = st.plate.H, a = maskAspect(), p = par(), pa = W * p / H;
   if (!a || Math.abs(a - pa) < 1e-4) return { x: 0, y: 0, w: W, h: H };
-  if (a < pa) { const w = Math.round(H * a); return { x: (W - w) / 2, y: 0, w, h: H }; }
-  const h = Math.round(W / a); return { x: 0, y: (H - h) / 2, w: W, h };
+  if (a < pa) { const w = Math.round(H * a / p); return { x: (W - w) / 2, y: 0, w, h: H }; }
+  const h = Math.round(W * p / a); return { x: 0, y: (H - h) / 2, w: W, h };
 }
 function camData() {
   camera.updateMatrixWorld();
@@ -1625,8 +1643,11 @@ function camData() {
   const eul = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().extractRotation(camera.matrixWorld), 'YXZ');
   const crop = $('exp-crop').checked && maskAspect() ? maskRect() : null;
   const W = crop ? crop.w : st.plate.W, H = crop ? crop.h : st.plate.H;
-  const sw = st.sw * W / st.plate.W; // same focal and center, narrower or same film back
-  return { X, Y, Z, C, Xm: A(X), Ym: A(Y), Zm: A(Z), Cm: A(C), eul, f: focalUsed(), sw, sh: sw * H / W, W, H, crop };
+  // same focal and center; film back shrinks with the crop. Horizontal is exported desqueezed (sensor × pixel aspect)
+  const p = par();
+  const sw = st.sw * p * W / st.plate.W;
+  const sh = shUsed() * H / st.plate.H;
+  return { X, Y, Z, C, Xm: A(X), Ym: A(Y), Zm: A(Z), Cm: A(C), eul, f: focalUsed(), sw, sh, W, H, crop, p };
 }
 const n6 = (v) => (Math.abs(v) < 5e-13 ? 0 : v).toFixed(6);
 function updateExport() {
@@ -1634,7 +1655,7 @@ function updateExport() {
   const t = $('target').value, name = ($('camname').value || 'MatchCam').replace(/[^\w-]/g, '_');
   const d = camData();
   const v3 = (v) => `[${v.map(n6).join(',')}]`;
-  const header = `Camera Pin · ${st.plate.sample ? 'sample plate' : st.plate.name} ${d.crop ? `crop ${d.W}x${d.H} of ${st.plate.W}x${st.plate.H} (mask ${maskAspect().toFixed(2)}:1)` : `${d.W}x${d.H}`} · film back ${fmt(d.sw, 3)} mm · focal ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
+  const header = `Camera Pin · ${st.plate.sample ? 'sample plate' : st.plate.name} ${d.crop ? `crop ${d.W}x${d.H} of ${st.plate.W}x${st.plate.H} (mask ${maskAspect().toFixed(2)}:1)` : `${d.W}x${d.H}`} · film back ${fmt(d.sw, 3)} × ${fmt(d.sh, 3)} mm${d.p !== 1 ? ` (desqueezed, pixel aspect ${d.p})` : ''} · focal ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
   const scaleNote = `Scan transform: units x${st.unit} · scale ${fmt(st.userScale, 6)} · up ${st.up}`;
   let out = '';
   if (t === 'max-phys' || t === 'max-free') {
@@ -1653,6 +1674,7 @@ function updateExport() {
     }
     out += `  cam.transform = tm\n`
       + `  renderWidth = ${d.W}\n  renderHeight = ${d.H}\n`
+      + `  try (renderPixelAspect = ${n6(d.p)}) catch ()\n`
       + `  displaySafeFrames = true\n`
       + `  try (viewport.setCamera cam) catch ()\n`
       + `  select cam\n`
@@ -1665,6 +1687,7 @@ function updateExport() {
       + ` rotate {${[d.eul.x, d.eul.y, d.eul.z].map(a => n6(a * r2d)).join(' ')}}\n`
       + ` rot_order ZXY\n`
       + ` focal ${n6(d.f)}\n haperture ${n6(d.sw)}\n vaperture ${n6(d.sh)}\n`
+      + (d.p !== 1 ? ` label "anamorphic ${d.p}: use a format with pixel aspect ${d.p}"\n` : '')
       + ` name ${name}\n}\n`;
   } else {
     const rows = [0, 1, 2].map(i => `(${n6(d.Xm[i])}, ${n6(d.Ym[i])}, ${n6(d.Zm[i])}, ${n6(d.Cm[i])})`);
@@ -1672,7 +1695,7 @@ function updateExport() {
       + `cd = bpy.data.cameras.new("${name}")\ncd.sensor_fit = 'HORIZONTAL'\ncd.sensor_width = ${n6(d.sw)}\ncd.sensor_height = ${n6(d.sh)}\ncd.lens = ${n6(d.f)}\n`
       + `ob = bpy.data.objects.new("${name}", cd)\nbpy.context.collection.objects.link(ob)\n`
       + `ob.matrix_world = Matrix((\n    ${rows.join(',\n    ')},\n    (0, 0, 0, 1)))\n`
-      + `sc = bpy.context.scene\nsc.render.resolution_x = ${d.W}\nsc.render.resolution_y = ${d.H}\nsc.render.resolution_percentage = 100\nsc.camera = ob\n`;
+      + `sc = bpy.context.scene\nsc.render.resolution_x = ${d.W}\nsc.render.resolution_y = ${d.H}\nsc.render.resolution_percentage = 100\nsc.render.pixel_aspect_x = ${n6(d.p)}\nsc.render.pixel_aspect_y = 1\nsc.camera = ob\n`;
   }
   $('out').value = out;
   $('s4').dataset.state = st.solved && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
@@ -1867,7 +1890,7 @@ try { $('scan-more').open = !!lsGet('scanMore', false); } catch (e) {}
 $('scan-more').addEventListener('toggle', () => lsSet('scanMore', $('scan-more').open));
 navPreset = lsGet('nav', 'max'); if (!NAV[navPreset]) navPreset = 'max';
 $('navp').value = navPreset;
-$('navp').onchange = () => { navPreset = $('navp').value; lsSet('nav', navPreset); refreshAll(); };
+$('navp').onchange = () => { navPreset = $('navp').value; lsSet('nav', navPreset); applyKnobNames(); refreshAll(); };
 $('m-nav').onclick = () => setMode('nav');
 $('m-pins').onclick = () => setMode('pins');
 $('m-measure').onclick = () => setMode('measure');
@@ -1905,14 +1928,42 @@ $('scale-ok').onclick = () => { st.scaleOk = true; refreshAll(); };
 const pre = $('preset');
 pre.innerHTML = PRESETS.map(p => `<option value="${p[0]}">${p[1]}${p[2] ? ` (${p[2].toFixed(2)} × ${p[3].toFixed(2)})` : ''}</option>`).join('');
 function setSensor(w, h, fromPreset) {
-  st.sw = w; st.sh = h; $('sw').value = w; $('sh').value = h;
+  st.sw = w; $('sw').value = w;
+  if (!st.shAuto && h) { st.sh = h; $('sh').value = h; }
   if (!fromPreset) { st.preset = 'custom'; pre.value = 'custom'; }
   lsSet('sensor', { preset: st.preset, sw: w, sh: h });
   applyIntrinsics(); checkAspect(); if (st.pins.length) solveLive(false); refreshAll();
 }
 pre.onchange = () => { const p = PRESETS.find(x => x[0] === pre.value); st.preset = p[0]; if (p[2]) setSensor(p[2], p[3], true); };
 $('sw').onchange = () => { const v = +$('sw').value; if (v > 0) setSensor(v, st.sh, false); };
-$('sh').onchange = () => { const v = +$('sh').value; if (v > 0) setSensor(st.sw, v, false); };
+$('sh').onchange = () => { const v = +$('sh').value; if (v > 0) { st.sh = v; checkAspect(); refreshAll(); } };
+$('sh-auto').onchange = () => {
+  st.shAuto = $('sh-auto').checked; $('sh').disabled = st.shAuto;
+  if (!st.shAuto && !(st.sh > 0)) st.sh = +autoSh().toFixed(3);
+  $('sh').value = st.shAuto ? (+autoSh().toFixed(3)) : st.sh;
+  checkAspect(); refreshAll();
+};
+function setPar(v) {
+  st.par = v > 0 ? v : 1; $('par').value = st.par;
+  $('par-note').textContent = Math.abs(st.par - 1) < 1e-6 ? 'square' : `${(st.plate.W * st.par / st.plate.H).toFixed(2)}:1 desqueezed`;
+  $('tag').textContent = (st.plate.sample ? 'SAMPLE · ' : '') + st.plate.W + ' × ' + st.plate.H + (st.par !== 1 ? ' · PAR ' + st.par : '');
+  applyIntrinsics(); layoutStage(true); if (st.pins.length) solveLive(true); refreshAll();
+}
+$('par').onchange = () => setPar(+$('par').value);
+// knob names follow the chosen DCC
+const KNOB_NAMES = {
+  max: ['Film width (mm)', 'Film height (mm)', 'Focal length (mm)', 'Pixel aspect'],
+  maya: ['H film aperture (mm)', 'V film aperture (mm)', 'Focal length (mm)', 'Pixel aspect ratio'],
+  houdini: ['Aperture (mm)', 'Vert. aperture (mm)', 'Focal length (mm)', 'Pixel aspect ratio'],
+  blender: ['Sensor width (mm)', 'Sensor height (mm)', 'Focal length (mm)', 'Aspect X'],
+  nuke: ['haperture (mm)', 'vaperture (mm)', 'focal (mm)', 'pixel aspect'],
+  simple: ['Film back width (mm)', 'Film back height (mm)', 'Focal (mm)', 'Pixel aspect'],
+};
+function applyKnobNames() {
+  const n = KNOB_NAMES[navPreset] || KNOB_NAMES.nuke;
+  ['lb-sw', 'lb-sh', 'lb-focal', 'lb-par'].forEach((id, i) => $(id).textContent = n[i]);
+  $('lb-sw').title = navPreset === 'maya' ? 'Maya shows the film aperture in inches: divide by 25.4' : '';
+}
 $('focal').onchange = () => { const v = +$('focal').value; if (v > 0) { st.focal = v; st.fScale = 1; lsSet('focal', v); applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll(); } };
 $('free').onchange = () => { st.freeF = $('free').checked; st.fScale = 1; applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll(); };
 $('solve').onclick = () => { solveLive(true); refreshAll(); };
@@ -1976,6 +2027,7 @@ function buildSample() {
   // the sample uses its own known camera; saved sensor/focal apply once a real plate loads
   st.sw = 36.70; st.sh = 25.54; st.focal = 32; st.preset = 'alexa-lf-og';
   pre.value = st.preset; $('sw').value = st.sw; $('sh').value = st.sh; $('focal').value = st.focal;
+  applyKnobNames();
   st._saved = saved;
   const s = buildSample();
   scanObj = sampleGeometry(false); scanRoot.add(scanObj);

@@ -18,6 +18,14 @@ It is a single HTML file that runs in the browser with nothing to install. Files
    - By default the camera uses the plate format.
    - With **Use mask format** checked, it uses the mask crop instead. The crop is centered, the focal stays the same, and the film back and resolution are reduced to the crop.
 
+## Film back, pixel aspect and knob names
+
+- **Film back height** is computed from the width and the plate proportions by default. Untick **auto** to type it in; the solve keeps using the width as the reference, and the manual height goes into the export.
+- **Pixel aspect** defaults to 1. Set it to the squeeze for anamorphic plates (1.3, 1.5, 1.8, 2, …), or let it come from the EXR's `pixelAspectRatio`.
+  - The viewer shows the plate desqueezed, and the solve accounts for the squeeze.
+  - The film width is the physical, squeezed sensor width. The export writes the desqueezed width (sensor × pixel aspect) plus the pixel aspect: `renderPixelAspect` in Max and `pixel_aspect_x` in Blender. In Nuke, set the format's pixel aspect.
+- **Knob names** follow the **Nav** preset, so the film back reads as Film width (3ds Max), H film aperture (Maya), Aperture (Houdini), Sensor width (Blender) or haperture (Nuke). Maya shows the aperture in inches, so divide by 25.4.
+
 ## Scan display
 
 | Mode | What it shows |
@@ -89,7 +97,6 @@ Each pin shows its reprojection error in pixels.
 ## Limitations
 
 - No lens distortion correction: undistort wide-angle plates first.
-- Square pixels only, so no anamorphic plates.
 - EXR with B44/HTJ2K compression, tiled, multipart or layered channels is not supported.
 - The ACES view is a fitted approximation of the RRT+ODT: good for placing pins, but not a match for OCIO.
 

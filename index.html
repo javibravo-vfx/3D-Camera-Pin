@@ -191,6 +191,10 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .keybox { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 10px; }
 .keyopts { display: flex; flex-direction: column; gap: 8px; }
 .keybox .seg { justify-self: start; }
+.camh { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; }
+.camh input { width: 78px; height: 24px; padding: 2px 7px; font-size: 12px; letter-spacing: 0; }
+#cam-ang small { color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; margin-right: 4px; }
+#cam-ang { display: flex; gap: 12px; }
 .mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .mrow .arrow { color: var(--muted); }
 .mono { font: 500 13px var(--f-ui); font-variant-numeric: tabular-nums; }
@@ -325,6 +329,8 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     <div class="ibar">
       <span>x <b id="cx">–</b> y <b id="cy">–</b></span>
       <span id="badge"></span>
+      <label class="camh" for="cam-h" title="Camera height above the ground (y = 0). Changing it moves the scan and the camera together, so the match holds.">CAM HEIGHT <input id="cam-h" type="number" step="0.01"> m</label>
+      <span id="cam-ang"></span>
       <span class="hint" id="hint"></span>
     </div>
   </div>
@@ -355,6 +361,10 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             </label>
             <p class="note" id="cs-note"></p>
             <div class="msg ok" id="meta-msg" hidden></div>
+            <div class="knobrow" id="orient-row" hidden><span>Orientation</span>
+              <div class="row nowrap"><span class="note" id="orient-txt"></span><button class="btn" id="orient-apply" title="Set the camera tilt, roll and yaw from the file metadata, keeping its position">Apply</button></div>
+            </div>
+            <label class="fld" for="orient-auto" id="orient-auto-row" hidden><span class="lblx"></span><span class="row"><input id="orient-auto" type="checkbox" checked> Apply on load</span></label>
             <details class="meta" id="meta"><summary id="meta-sum">Metadata</summary><dl class="kv" id="meta-kv"></dl></details>
           </div>
           <div class="keybox">
@@ -412,6 +422,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
               <option value="-y">Y down (COLMAP)</option>
             </select>
           </label>
+          <div class="knobrow"><label for="scan-y">Height offset (m)</label>
+            <div class="row nowrap"><input id="scan-y" type="number" step="0.01" value="0"><button class="btn" id="scan-sit" title="Move the scan so its lowest point sits on the ground (y = 0); the camera follows">Sit on ground</button></div>
+          </div>
           <div class="msg" id="unit-msg" hidden></div>
           <details class="more" id="scan-more">
           <summary id="scan-sum">Size, measure &amp; scale</summary>
@@ -764,7 +777,7 @@ const PRESETS = [
 // ---------- State ----------
 const st = {
   plate: { W: 1920, H: 1336, name: 'Sample', sample: true },
-  sw: 36.70, sh: 25.54, focal: 32, preset: 'alexa-lf-og', shAuto: true, par: 1,
+  sw: 36.70, sh: 25.54, focal: 32, preset: 'alexa-lf-og', shAuto: true, par: 1, scanY: 0,
   freeF: false, fScale: 1,
   unit: 1, up: 'y', userScale: 1, scaleOk: false,
   scanName: 'Sample', scanKind: 'mesh', rawBox: null, sample: true,
@@ -1139,7 +1152,7 @@ function sceneSize() {
 function rootMatrixFor(unit, userScale, up) {
   const m = new THREE.Matrix4();
   const r = new THREE.Euler(up === 'z' ? -Math.PI / 2 : up === '-y' ? Math.PI : 0, 0, 0);
-  m.compose(new THREE.Vector3(), new THREE.Quaternion().setFromEuler(r), new THREE.Vector3().setScalar(unit * userScale));
+  m.compose(new THREE.Vector3(0, st.scanY || 0, 0), new THREE.Quaternion().setFromEuler(r), new THREE.Vector3().setScalar(unit * userScale));
   return m;
 }
 function setRootTransform(unit, userScale, up, keepView = true) {
@@ -1168,7 +1181,7 @@ function setRootTransform(unit, userScale, up, keepView = true) {
 }
 function updateGrid() {
   const b = new THREE.Box3().setFromObject(scanRoot);
-  grid.position.y = b.isEmpty() ? 0 : b.min.y;
+  grid.position.y = 0; // ground
 }
 function fmt(n, d = 3) { return Number.isFinite(n) ? n.toFixed(d) : '–'; }
 function updateDims() {
@@ -1217,6 +1230,7 @@ function finishScan(obj, name, kind, fileType) {
   let up = fileType === 'ply' ? lsGet('upPly', 'y') : 'y';
   st.unit = unit; st.up = up; st.userScale = 1; st.scaleOk = false;
   $('unit').value = String(unit); $('up').value = up;
+  st.scanY = 0; $('scan-y').value = 0;
   setRootTransform(unit, 1, up, false);
   st.pins = []; st.sel = -1; st.solved = null; st.rms = null;
   st.measure = { a: null, b: null }; updateMeasureGeo();
@@ -1568,6 +1582,15 @@ const EXR = (() => {
     const lens = [h.get('lensMake'), h.get('lensModel')].filter(Boolean).join(' ');
     if (cam) out.camera = cam;
     if (lens) out.lens = lens;
+    // camera orientation (degrees) from vendor keys: tilt/pitch, roll, yaw/pan
+    const angle = (re, not, lim) => {
+      const a = h.attrs.find(x => re.test(x.name) && !(not && not.test(x.name)) && Number.isFinite(num(x.value)) && Math.abs(num(x.value)) <= lim);
+      return a ? { v: num(a.value), key: a.name } : null;
+    };
+    const tilt = angle(/(tilt|pitch)/i, /(shift|lens|sensor)/i, 90);
+    const roll = angle(/roll/i, /(rolling|shutter|lens)/i, 180);
+    const yaw = angle(/(yaw|(^|[^a-z])pan(angle)?$|camerapan|headingangle)/i, /(panel|pano|pant)/i, 360);
+    if (tilt || roll || yaw) out.orient = { tilt, roll, yaw };
     return out;
   }
 
@@ -1714,6 +1737,15 @@ function redrawExr() {
 function showExrMeta(h) {
   const hint = EXR.lensHints(h);
   const lines = [];
+  st.metaOrient = hint.orient || null;
+  $('orient-row').hidden = !st.metaOrient; $('orient-auto-row').hidden = !st.metaOrient;
+  if (st.metaOrient) {
+    const o = st.metaOrient, f = (a, n) => a ? `${n} ${a.v.toFixed(2)}°` : null;
+    $('orient-txt').textContent = [f(o.tilt, 'tilt'), f(o.roll, 'roll'), f(o.yaw, 'yaw')].filter(Boolean).join(' · ');
+    $('orient-txt').title = [o.tilt, o.roll, o.yaw].filter(Boolean).map(a => a.key).join(', ');
+    lines.push('Orientation: ' + $('orient-txt').textContent);
+    if ($('orient-auto').checked) setTimeout(() => applyOrientation(st.metaOrient), 0);
+  }
   if (hint.camera) lines.push('Camera: ' + hint.camera);
   if (hint.lens) lines.push('Lens: ' + hint.lens);
   if (hint.sw) {
@@ -1894,6 +1926,43 @@ function drawOverlay() {
   ov.innerHTML = h;
   updateBadge();
 }
+// move scan and camera together (keeps the match), so the camera height above ground changes
+function shiftVertical(d) {
+  if (!Number.isFinite(d) || Math.abs(d) < 1e-9) return;
+  st.scanY = (st.scanY || 0) + d;
+  scanRoot.position.y += d; scanRoot.updateMatrixWorld(true);
+  camera.position.y += d; camera.updateMatrixWorld(true);
+  nav.target.y += d;
+  if (st.solved) st.solved.C[1] += d;
+  lsSet('scanY', st.scanY);
+  $('scan-y').value = +st.scanY.toFixed(4);
+  measWorld(); updateMeasureGeo(); updateDims();
+  refreshAll();
+}
+function camAngles() {
+  camera.updateMatrixWorld();
+  const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+  const d = 180 / Math.PI;
+  return { tilt: e.x * d, yaw: e.y * d, roll: e.z * d };
+}
+function updateCamInfo() {
+  const hEl = $('cam-h');
+  if (document.activeElement !== hEl) hEl.value = camera.position.y.toFixed(3);
+  const a = camAngles();
+  $('cam-ang').innerHTML = `<span><small>TILT</small>${fmt(a.tilt, 2)}°</span><span><small>ROLL</small>${fmt(a.roll, 2)}°</span><span><small>YAW</small>${fmt(a.yaw, 2)}°</span>`;
+}
+// set camera orientation (degrees); missing values keep the current ones
+function applyOrientation(o) {
+  if (!o) return;
+  const cur = camAngles(), r = Math.PI / 180;
+  const t = o.tilt ? o.tilt.v : cur.tilt, ro = o.roll ? o.roll.v : cur.roll, y = o.yaw ? o.yaw.v : cur.yaw;
+  camera.quaternion.setFromEuler(new THREE.Euler(t * r, y * r, ro * r, 'YXZ'));
+  camera.updateMatrixWorld(true);
+  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  nav.target.copy(camera.position).addScaledVector(dir, Math.max(camera.position.distanceTo(nav.target), 0.5));
+  if (st.pins.length) solveLive(false);
+  refreshAll();
+}
 function updateBadge() {
   const b = $('badge');
   const parts = [];
@@ -1901,6 +1970,7 @@ function updateBadge() {
   if (st.rms != null && st.pins.filter(p => p.on).length) parts.push(`<span class="${errClass(st.rms)}"><small>RMS</small>${fmt(st.rms, 2)} px</span>`);
   if (st.view.zoom !== 1) parts.push(`<span><small>Zoom</small>${fmt(st.view.zoom, 1)}×</span>`);
   b.innerHTML = parts.join('');
+  updateCamInfo();
 }
 
 // ---------- UI refresh ----------
@@ -1972,7 +2042,7 @@ function updateExport() {
   const d = camData();
   const v3 = (v) => `[${v.map(n6).join(',')}]`;
   const header = `Camera Pin · ${st.plate.sample ? 'sample plate' : st.plate.name} ${d.crop ? `crop ${d.W}x${d.H} of ${st.plate.W}x${st.plate.H} (mask ${maskAspect().toFixed(2)}:1)` : `${d.W}x${d.H}`} · film back ${fmt(d.sw, 3)} × ${fmt(d.sh, 3)} mm${d.p !== 1 ? ` (desqueezed, pixel aspect ${d.p})` : ''} · focal ${fmt(d.f, 3)} mm · RMS ${st.rms != null ? fmt(st.rms, 2) + ' px' : '–'}`;
-  const scaleNote = `Scan transform: units x${st.unit} · scale ${fmt(st.userScale, 6)} · up ${st.up}`;
+  const scaleNote = `Scan transform: units x${st.unit} · scale ${fmt(st.userScale, 6)} · up ${st.up} · height offset ${fmt(st.scanY || 0, 4)} m`;
   let out = '';
   if (t === 'max-phys' || t === 'max-free') {
     out = `-- ${header}\n-- ${scaleNote}\n-- Meters, Z up. Paste into the MAXScript Listener or a new script and evaluate (Ctrl+E).\n(\n`
@@ -2016,9 +2086,10 @@ function updateExport() {
   $('out').value = out;
   $('s4').dataset.state = st.solved && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
   const sf = st.unit * st.userScale;
-  $('export-note').innerHTML = Math.abs(sf - 1) > 1e-6 || st.up !== 'y'
+  const yo = st.scanY || 0;
+  $('export-note').innerHTML = (Math.abs(yo) > 1e-6 ? `Scan height offset: move the scan <b>${yo > 0 ? 'up' : 'down'} ${fmt(Math.abs(yo), 3)} m</b> in your DCC (after any scale). ` : '') + (Math.abs(sf - 1) > 1e-6 || st.up !== 'y'
     ? `The camera lives in the corrected space (meters${st.up !== 'y' ? ', axis converted' : ''}). Import the scan in your DCC in meters${Math.abs(st.userScale - 1) > 1e-6 ? ` and scale it <b>×${fmt(st.userScale, 4)}</b> from the origin` : ''} so they line up.`
-    : 'The camera lives in the same space as the scan, in meters. Import the scan in meters and they line up.';
+    : 'The camera lives in the same space as the scan, in meters. Import the scan in meters and they line up.');
 }
 
 // ---------- Measure ----------
@@ -2324,6 +2395,14 @@ $('copy').onclick = () => {
   } catch (err) { ta.focus(); ta.select(); done(false); }
 };
 
+// ---------- Camera height / scan offset / orientation ----------
+$('cam-h').addEventListener('change', () => { const v = +$('cam-h').value; if (Number.isFinite(v)) shiftVertical(v - camera.position.y); });
+$('cam-h').addEventListener('keydown', e => { if (e.key === 'Enter') $('cam-h').blur(); e.stopPropagation(); });
+$('scan-y').addEventListener('change', () => { const v = +$('scan-y').value; if (Number.isFinite(v)) shiftVertical(v - (st.scanY || 0)); });
+$('scan-sit').onclick = () => { const b = new THREE.Box3().setFromObject(scanRoot); if (!b.isEmpty()) shiftVertical(-b.min.y); };
+$('orient-apply').onclick = () => applyOrientation(st.metaOrient);
+$('orient-auto').checked = lsGet('orientAuto', true);
+$('orient-auto').onchange = () => lsSet('orientAuto', $('orient-auto').checked);
 // ---------- Chroma key UI ----------
 function keyUI() {
   $('key-on').checked = key.on; $('key-opts').hidden = !key.on;

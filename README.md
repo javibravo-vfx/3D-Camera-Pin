@@ -31,6 +31,18 @@ It opens with a sample to try the workflow:
   - The film width is the physical, squeezed sensor width. The export writes the desqueezed width (sensor × pixel aspect) plus the pixel aspect: `renderPixelAspect` in Max and `pixel_aspect_x` in Blender. In Nuke, set the format's pixel aspect.
 - **Knob names** follow the **Nav** preset, so the film back reads as Film width (3ds Max), H film aperture (Maya), Aperture (Houdini), Sensor width (Blender) or haperture (Nuke). Maya shows the aperture in inches, so divide by 25.4.
 
+## Camera height, scan offset and orientation
+
+- **Ground**: world y = 0, shown by the 1 m grid.
+- **Camera height**: the info bar under the viewport always shows the camera height above the ground, plus its tilt, roll and yaw.
+  - Editing the height moves the scan and the camera up or down together, so the match holds and only the distance to the ground changes.
+- **Height offset** (Scan & scale): the same vertical shift, typed in directly. **Sit on ground** puts the lowest point of the scan at y = 0. In both cases the 3D camera follows.
+  - The environment's **Ground to scan** respects the offset.
+  - The export notes tell you how far to move the scan in your DCC.
+- **Orientation from EXR metadata**: tilt, roll and yaw are read from vendor attributes such as `CameraTilt`, `CameraRoll` or `Pan`/`Yaw`.
+  - They are applied on load (**Apply on load**, on by default). **Apply** sets them again if the camera drifts after adjustments.
+  - The camera position is kept, and values missing from the file keep the current ones.
+
 ## Chroma key
 
 Turn on **Chroma key** in Plate & camera, or use the **Key** chip or the `K` key, to pull a green or blue screen out of the plate.

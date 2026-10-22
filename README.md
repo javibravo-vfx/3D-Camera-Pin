@@ -18,13 +18,22 @@ It is a single HTML file that runs in the browser with nothing to install. Files
    - By default the camera uses the plate format.
    - With **Use mask format** checked, it uses the mask crop instead. The crop is centered, the focal stays the same, and the film back and resolution are reduced to the crop.
 
+## Scan display
+
+| Mode | What it shows |
+|---|---|
+| Wireframe | Edges only, over the plate. |
+| Solid | Gray shaded surface. |
+| Flat (unlit) | Self-illuminated: textures and vertex colors at full value, with no shading. Best for photogrammetry and LiDAR scans whose geometry is too noisy to read once lit. |
+| Original (lit) | The file's own materials with scene lighting. |
+
 ## Mask / safe frame
 
 Pick an aspect ratio in **Mask** (top bar), or enter a custom one, to frame a plate shot wider or taller than the delivery format. Outside the frame is darkened, and the crop size in pixels is shown in the corner.
 
 ## Navigation
 
-The tools (Navigate, Pins, Measure, Fit) sit in the vertical toolbar on the left of the viewer. The navigation preset, viewer transform and mask are in the top bar. The scan display controls (on/off, wireframe/solid/original, mix, point size, grid) sit at the top of the viewport itself.
+The tools (Navigate, Pins, Measure, Fit) sit in the vertical toolbar on the left of the viewer. The navigation preset, viewer transform and mask are in the top bar. The scan display controls (on/off, display mode, mix, point size, grid) sit at the top of the viewport itself.
 
 Choose the 3D navigation preset from the **Nav** menu. Navigation works in Navigate and Measure modes.
 

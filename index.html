@@ -267,7 +267,8 @@ select:disabled { color: var(--muted); opacity: .8; }
         <select class="vpchip" id="disp" aria-label="Scan display">
           <option value="wire">Wireframe</option>
           <option value="solid">Solid</option>
-          <option value="orig">Original</option>
+          <option value="flat">Flat (unlit)</option>
+          <option value="orig">Original (lit)</option>
         </select>
         <label class="vpchip" for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
         <label class="vpchip" for="ptsize">Point <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2"></label>
@@ -1045,6 +1046,19 @@ function showMsg(id, txt, cls) { const m = $(id); m.hidden = false; m.className 
 function setBusy(on, txt) { $('busy').hidden = !on; if (txt) $('busy').textContent = txt; }
 
 // ---------- Display ----------
+// unlit copy of a material: texture / vertex colors shown at full value, no lighting
+function flatOf(m) {
+  if (Array.isArray(m)) return m.map(flatOf);
+  if (!m) return MAT.solid;
+  const f = new THREE.MeshBasicMaterial({
+    map: m.map || null,
+    color: m.map ? 0xffffff : (m.color ? m.color.clone() : 0xffffff),
+    vertexColors: !!m.vertexColors,
+    side: THREE.DoubleSide,
+    transparent: !!m.transparent, opacity: m.opacity ?? 1, alphaTest: m.alphaTest || 0,
+  });
+  return f;
+}
 function applyDisplay() {
   const mode = $('disp').value, op = +$('opac').value, ps = +$('ptsize').value;
   canvas.style.opacity = op;
@@ -1052,9 +1066,12 @@ function applyDisplay() {
   PTS.mono.size = ps;
   if (!scanObj) return render();
   scanObj.traverse(o => {
-    if (o.isMesh) o.material = mode === 'wire' ? MAT.wire : mode === 'solid' ? MAT.solid : o.userData.orig;
+    if (o.isMesh) {
+      if (mode === 'flat' && !o.userData.flat) o.userData.flat = flatOf(o.userData.orig);
+      o.material = mode === 'wire' ? MAT.wire : mode === 'solid' ? MAT.solid : mode === 'flat' ? o.userData.flat : o.userData.orig;
+    }
     if (o.isPoints) {
-      if (mode === 'orig' && o.geometry.attributes.color) {
+      if ((mode === 'orig' || mode === 'flat') && o.geometry.attributes.color) {
         if (!o.userData.colMat) o.userData.colMat = new THREE.PointsMaterial({ size: ps, sizeAttenuation: false, vertexColors: true });
         o.userData.colMat.size = ps; o.material = o.userData.colMat;
       } else o.material = PTS.mono;
@@ -1854,7 +1871,8 @@ $('navp').onchange = () => { navPreset = $('navp').value; lsSet('nav', navPreset
 $('m-nav').onclick = () => setMode('nav');
 $('m-pins').onclick = () => setMode('pins');
 $('m-measure').onclick = () => setMode('measure');
-$('disp').onchange = applyDisplay; $('opac').oninput = applyDisplay; $('ptsize').oninput = applyDisplay;
+$('disp').value = lsGet('disp', 'wire'); if (!$('disp').value) $('disp').value = 'wire';
+$('disp').onchange = () => { lsSet('disp', $('disp').value); applyDisplay(); }; $('opac').oninput = applyDisplay; $('ptsize').oninput = applyDisplay;
 $('grid').onchange = () => { grid.visible = $('grid').checked; render(); };
 
 $('back').onclick = () => { if (st.solved) { cameraFromPose(st.solved); solveLive(false); refreshAll(); } };

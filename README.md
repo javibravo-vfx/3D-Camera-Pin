@@ -9,7 +9,7 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 ## Workflow
 
 It opens with a sample to try the workflow:
-- **Plate**: a hood-mount shot through the windshield of a car, with a driver and a passenger. Alexa Mini LF Open Gate, 24 mm.
+- **Plate**: a hood-mount shot through the windshield of a car on a green screen stage, with a driver and a passenger. Alexa Mini LF Open Gate, 24 mm.
 - **Scan**: the matching empty car interior, in meters.
 
 
@@ -30,6 +30,13 @@ It opens with a sample to try the workflow:
   - The viewer shows the plate desqueezed, and the solve accounts for the squeeze.
   - The film width is the physical, squeezed sensor width. The export writes the desqueezed width (sensor × pixel aspect) plus the pixel aspect: `renderPixelAspect` in Max and `pixel_aspect_x` in Blender. In Nuke, set the format's pixel aspect.
 - **Knob names** follow the **Nav** preset, so the film back reads as Film width (3ds Max), H film aperture (Maya), Aperture (Houdini), Sensor width (Blender) or haperture (Nuke). Maya shows the aperture in inches, so divide by 25.4.
+
+## Chroma key
+
+Turn on **Chroma key** in Plate & camera, or use the **Key** chip or the `K` key, to pull a green or blue screen out of the plate.
+- **Controls**: screen color, threshold, softness, despill, and a Comp / Matte view to check the alpha.
+- **Background**: with the key on, the environment renders behind the plate, so you see the actors inside the car over the avenue. The scan overlay stays on top.
+- **What it keys**: the displayed plate, so EXRs are keyed after the viewer transform. It is a quick color-difference key for checking the match, not a final comp key.
 
 ## Environments
 
@@ -85,6 +92,7 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 | `N` / `P` / `M` | Navigate / Pins / Measure mode |
 | `H` | Show / hide the scan |
 | `E` | Show / hide the environment |
+| `K` | Chroma key on / off |
 | `F` | Fit the plate |
 | `Esc` (Measure) | Clear the measurement |
 | `Delete` | Delete the selected pin |

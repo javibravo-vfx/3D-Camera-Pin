@@ -169,7 +169,7 @@ textarea { height: 150px; resize: vertical; font: 11px/1.5 var(--f-num); white-s
 .stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; box-shadow: 0 0 0 1px #000, 0 12px 40px rgb(0 0 0 / .45); background: #000; }
 .stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; max-width: none; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.stage.pix img, .stage.pix #platecv { image-rendering: pixelated; }
+.stage.pix img, .stage.pix #platecv, .stage.pix #platekey { image-rendering: pixelated; }
 .exr { display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--line); padding-top: 10px; }
 .evrow { display: contents; }
 .evrow span { font-variant-numeric: tabular-nums; color: var(--fg); font-weight: 500; white-space: nowrap; flex: none; text-align: right; }
@@ -188,6 +188,9 @@ svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events
 .erow { display: grid; grid-template-columns: minmax(0, 1fr) 74px; gap: 8px; align-items: center; }
 .erow input[type=range] { width: 100%; min-width: 0; }
 button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
+.keybox { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 10px; }
+.keyopts { display: flex; flex-direction: column; gap: 8px; }
+.keybox .seg { justify-self: start; }
 .mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .mrow .arrow { color: var(--muted); }
 .mono { font: 500 13px var(--f-ui); font-variant-numeric: tabular-nums; }
@@ -280,8 +283,10 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     </nav>
     <main class="vp" id="vp">
       <div class="stage" id="stage">
+        <canvas id="glenv" hidden></canvas>
         <img id="plate" alt="Plate">
         <canvas id="platecv" hidden></canvas>
+        <canvas id="platekey" hidden></canvas>
         <canvas id="gl"></canvas>
       </div>
       <svg class="ov" id="ov"></svg>
@@ -297,6 +302,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         </select>
         <button class="vpchip" id="env-on" aria-pressed="false" disabled title="Show / hide the environment (E)">
           <svg viewBox="0 0 24 24"><path d="M8 3 4 21M16 3l4 18M12 4v3M12 10v3M12 16v4"/></svg>Env
+        </button>
+        <button class="vpchip" id="key-chip" aria-pressed="false" title="Chroma key on / off (K)">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 19c0-3 1.8-5 4-5s4 2 4 5M12 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>Key
         </button>
         <label class="vpchip" for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
         <label class="vpchip" for="ptsize">Point <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2"></label>
@@ -348,6 +356,21 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             <p class="note" id="cs-note"></p>
             <div class="msg ok" id="meta-msg" hidden></div>
             <details class="meta" id="meta"><summary id="meta-sum">Metadata</summary><dl class="kv" id="meta-kv"></dl></details>
+          </div>
+          <div class="keybox">
+            <label class="fld" for="key-on">Chroma key<span class="row"><input id="key-on" type="checkbox"> Key the screen out <span class="note">(K)</span></span></label>
+            <div id="key-opts" class="keyopts" hidden>
+              <div class="knobrow"><span>Screen</span>
+                <div class="seg" role="group" aria-label="Screen color"><button id="key-g" aria-pressed="true">Green</button><button id="key-b" aria-pressed="false">Blue</button></div>
+              </div>
+              <div class="knobrow"><label for="key-thr">Threshold</label><div class="erow"><input type="range" id="key-thr-r" min="0" max="0.5" step="0.005" value="0.06" aria-label="Threshold"><input id="key-thr" type="number" min="0" max="0.5" step="0.005" value="0.06"></div></div>
+              <div class="knobrow"><label for="key-soft">Softness</label><div class="erow"><input type="range" id="key-soft-r" min="0.01" max="0.6" step="0.005" value="0.18" aria-label="Softness"><input id="key-soft" type="number" min="0.01" max="0.6" step="0.005" value="0.18"></div></div>
+              <label class="fld" for="key-despill">Despill<span class="row"><input id="key-despill" type="checkbox" checked> Remove screen spill</span></label>
+              <div class="knobrow"><span>View</span>
+                <div class="seg" role="group" aria-label="Key view"><button id="key-comp" aria-pressed="true">Comp</button><button id="key-matte" aria-pressed="false">Matte</button></div>
+              </div>
+              <p class="note">With the key on, the environment shows behind the plate.</p>
+            </div>
           </div>
           <label class="fld" for="preset">Camera
             <select id="preset"></select>
@@ -963,6 +986,60 @@ const ENV_COMMON = [
   { key: 'rot', label: 'Rotation', type: 'num', min: -180, max: 180, step: 0.5, def: 0, unit: '°' },
 ];
 const envRoot = new THREE.Group(); envRoot.visible = false; scene.add(envRoot);
+// ---------- Chroma key (color-difference keyer on the displayed plate) ----------
+// With the key on: environment renders under the plate (its own canvas), keyed plate in the middle, scan on top.
+const envScene = new THREE.Scene();
+envScene.add(new THREE.HemisphereLight(0xdfe8f2, 0x3a3328, 0.85));
+{ const l = new THREE.DirectionalLight(0xffffff, 0.75); l.position.set(5, 10, 7); envScene.add(l); }
+const envRenderer = new THREE.WebGLRenderer({ canvas: $('glenv'), antialias: true, alpha: true, logarithmicDepthBuffer: true });
+envRenderer.setClearColor(0x000000, 0); envRenderer.outputEncoding = THREE.sRGBEncoding;
+const key = { on: false, screen: 'green', thr: 0.06, soft: 0.18, despill: true, view: 'comp' };
+const keySrc = document.createElement('canvas');
+function keySource() {
+  if (!$('platecv').hidden || exrState) return $('platecv');
+  const img = plateImg;
+  if (!img.complete || !img.naturalWidth) return null;
+  if (keySrc.dataset.src !== img.src) {
+    keySrc.width = img.naturalWidth; keySrc.height = img.naturalHeight;
+    keySrc.getContext('2d').drawImage(img, 0, 0); keySrc.dataset.src = img.src;
+  }
+  return keySrc;
+}
+function applyKey() {
+  const out = $('platekey');
+  placeEnv();
+  if (!key.on) { out.hidden = true; plateImg.style.visibility = ''; $('platecv').style.visibility = ''; render(); return; }
+  const src = keySource(); if (!src) return;
+  const W = src.width, H = src.height;
+  const d = src.getContext('2d').getImageData(0, 0, W, H).data;
+  out.width = W; out.height = H;
+  const ctx = out.getContext('2d'), img = ctx.createImageData(W, H), o = img.data;
+  const g = key.screen === 'green', lo = key.thr * 255, span = Math.max(1, key.soft * 255), matte = key.view === 'matte';
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i], gg = d[i + 1], b = d[i + 2];
+    const scr = g ? gg : b, other = g ? Math.max(r, b) : Math.max(r, gg);
+    const diff = scr - other;
+    let a = 1 - (diff - lo) / span; a = a < 0 ? 0 : a > 1 ? 1 : a;
+    if (key.despill && diff > 0) { if (g) gg = other; else b = other; }
+    if (matte) { const v = a * 255; o[i] = o[i + 1] = o[i + 2] = v; o[i + 3] = 255; }
+    else { o[i] = r; o[i + 1] = gg; o[i + 2] = b; o[i + 3] = a * 255; }
+  }
+  ctx.putImageData(img, 0, 0);
+  out.hidden = false;
+  plateImg.style.visibility = 'hidden'; $('platecv').style.visibility = 'hidden';
+  render();
+}
+let keyTimer = 0;
+function keyLater() { clearTimeout(keyTimer); keyTimer = setTimeout(applyKey, 30); }
+function placeEnv() {
+  const under = key.on && key.view !== 'matte';
+  const parent = under ? envScene : scene;
+  if (envRoot.parent !== parent) parent.add(envRoot);
+  $('glenv').hidden = !under;
+  // sky behind the keyed plate when an environment is on
+  envRenderer.setClearColor(0xb4c3cf, envRoot.visible ? 1 : 0);
+}
+
 const env = { id: 'none', on: false, seed: 7, vals: {}, display: 'solid' };
 function envDefaults(id) { const o = {}; [...ENV_COMMON, ...(ENV_MODULES[id]?.params || [])].forEach(p => o[p.key] = p.def); return o; }
 function envSave() { lsSet('env', { id: env.id, on: env.on, seed: env.seed, vals: env.vals, display: env.display }); }
@@ -978,6 +1055,7 @@ function envRebuild() {
     envRoot.add(obj);
   }
   envRoot.visible = !!mod && env.on;
+  if (typeof placeEnv === 'function') placeEnv();
   if (envRoot.visible && camera.far < 3000) { camera.far = 3000; camera.updateProjectionMatrix(); }
   const chip = $('env-on');
   chip.disabled = !mod; chip.setAttribute('aria-pressed', String(!!mod && env.on));
@@ -1011,7 +1089,10 @@ function envSelect(id) {
 }
 function toggleEnv() { if (!ENV_MODULES[env.id]) return; env.on = !env.on; envSave(); envRebuild(); }
 
-function render() { renderer.render(scene, camera); }
+function render() {
+  renderer.render(scene, camera);
+  if (!$('glenv').hidden) envRenderer.render(envScene, camera);
+}
 
 // ---------- Intrinsics / pose conversion ----------
 function focalUsed() { return st.focal * (st.freeF ? st.fScale : 1); }
@@ -1327,10 +1408,11 @@ function applyDisplay() {
   render(); drawOverlay();
 }
 
+
 // ---------- Plate ----------
 function setPlate(url, W, H, name, sample) {
   st.plate = { W, H, name, sample };
-  if (url) { plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
+  if (url) { plateImg.onload = () => { if (key.on) keyLater(); }; plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
   else { plateImg.hidden = true; $('platecv').hidden = false; }
   if (url) {
     $('exr-box').hidden = true; exrState = null;
@@ -1607,6 +1689,7 @@ async function loadExrFile(file) {
     $('cs').value = cs; $('ev').value = 0; $('ev-v').textContent = '+0.00 EV';
     const dims = drawExr();
     setPlate(null, dims.W, dims.H, file.name, false);
+    if (key.on) keyLater();
     $('exr-box').hidden = false;
     resetPinsForNewPlate();
     showExrMeta(h);
@@ -1626,7 +1709,7 @@ function drawExr() {
 function redrawExr() {
   if (!exrState) return;
   setBusy(true, 'Applying color…');
-  setTimeout(() => { drawExr(); setBusy(false); }, 20);
+  setTimeout(() => { drawExr(); if (key.on) applyKey(); setBusy(false); }, 20);
 }
 function showExrMeta(h) {
   const hint = EXR.lensHints(h);
@@ -1680,6 +1763,7 @@ function applyView() {
   const pr = Math.min(dpr * v.zoom, 4096 / v.baseW, 4096 / v.baseH, 4);
   renderer.setPixelRatio(pr);
   renderer.setSize(v.baseW, v.baseH, false);
+  envRenderer.setPixelRatio(pr); envRenderer.setSize(v.baseW, v.baseH, false);
   render(); drawOverlay();
 }
 // plate pixel <-> viewport css coords
@@ -2069,6 +2153,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'f') layoutStage(true);
   else if (k === 'h') toggleScan();
   else if (k === 'e') toggleEnv();
+  else if (k === 'k') toggleKey();
   else if (k === 'escape' && st.mode === 'measure') clearMeasure();
   else if ((k === 'delete' || k === 'backspace') && st.sel >= 0) { st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
 });
@@ -2239,6 +2324,31 @@ $('copy').onclick = () => {
   } catch (err) { ta.focus(); ta.select(); done(false); }
 };
 
+// ---------- Chroma key UI ----------
+function keyUI() {
+  $('key-on').checked = key.on; $('key-opts').hidden = !key.on;
+  $('key-chip').setAttribute('aria-pressed', String(key.on));
+  $('key-g').setAttribute('aria-pressed', String(key.screen === 'green')); $('key-b').setAttribute('aria-pressed', String(key.screen === 'blue'));
+  $('key-comp').setAttribute('aria-pressed', String(key.view === 'comp')); $('key-matte').setAttribute('aria-pressed', String(key.view === 'matte'));
+  for (const k of ['thr', 'soft']) { $('key-' + k).value = key[k]; $('key-' + k + '-r').value = key[k]; }
+  $('key-despill').checked = key.despill;
+  lsSet('key', { screen: key.screen, thr: key.thr, soft: key.soft, despill: key.despill });
+}
+function setKey(patch) { Object.assign(key, patch); keyUI(); keyLater(); }
+function toggleKey() { setKey({ on: !key.on }); }
+{ const k = lsGet('key', null); if (k) Object.assign(key, k); keyUI(); }
+$('key-on').onchange = () => setKey({ on: $('key-on').checked });
+$('key-chip').onclick = toggleKey;
+$('key-chip').addEventListener('pointerdown', e => e.stopPropagation());
+$('key-g').onclick = () => setKey({ screen: 'green' });
+$('key-b').onclick = () => setKey({ screen: 'blue' });
+$('key-comp').onclick = () => setKey({ view: 'comp' });
+$('key-matte').onclick = () => setKey({ view: 'matte' });
+$('key-despill').onchange = () => setKey({ despill: $('key-despill').checked });
+for (const k of ['thr', 'soft']) {
+  $('key-' + k).oninput = () => { const v = +$('key-' + k).value; if (Number.isFinite(v)) setKey({ [k]: v }); };
+  $('key-' + k + '-r').oninput = () => setKey({ [k]: +$('key-' + k + '-r').value });
+}
 // ---------- Environment UI ----------
 $('env-mod').innerHTML = '<option value="none">None</option>' + Object.entries(ENV_MODULES).map(([k, m]) => `<option value="${k}">${m.name}</option>`).join('');
 $('env-mod').onchange = () => envSelect($('env-mod').value);
@@ -2357,21 +2467,16 @@ function buildSample() {
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   r.setSize(W, H, false); r.setPixelRatio(1); r.outputEncoding = THREE.sRGBEncoding;
   const sc = new THREE.Scene();
-  sc.background = new THREE.Color(0xb8c6d2); sc.fog = new THREE.Fog(0xb8c6d2, 20, 90);
+  sc.background = new THREE.Color(0x1fa64a); // green screen behind the car
   sc.add(new THREE.HemisphereLight(0xeef3f8, 0x55504a, 0.8));
   const s2 = new THREE.DirectionalLight(0xfff1dc, 0.85); s2.position.set(-6, 10, -8); sc.add(s2);
   sc.add(sampleGeometry(true, true));
-  // street behind the car
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x4b4c4f })); sc.add(ground);
-  const bm = new THREE.MeshLambertMaterial({ color: 0x9a948a });
-  for (let i = 0; i < 14; i++) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(8, 10 + (i * 7) % 18, 10), bm);
-    b.position.set((i % 2 ? 1 : -1) * (12 + (i * 3) % 6), b.geometry.parameters.height / 2, 6 + i * 6); sc.add(b);
-  }
+  // green stage floor
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1fa64a })); sc.add(ground);
   const cam = new THREE.PerspectiveCamera(2 * Math.atan((H / 2) / (f / sw * W)) * 180 / Math.PI, W / H, 0.02, 500);
   cam.position.set(0.08, 1.36, -1.62); cam.lookAt(-0.02, 1.04, 0.4); cam.rotateZ(-0.012);
   r.render(sc, cam);
-  const url = r.domElement.toDataURL('image/jpeg', 0.9);
+  const url = r.domElement.toDataURL('image/png');
   r.dispose();
   return { url, W, H, f };
 }

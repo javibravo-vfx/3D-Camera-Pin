@@ -21,7 +21,9 @@ The panel header also has **Open**, **Save**, **Demo** and **Reset all**.
    - Type its real length in meters and press Enter. The scan is scaled so that line matches.
    - Everything works in meters.
 3. **Pins**: in Pins mode, click the scan to drop a pin, then drag it to its spot on the plate. The pose solves live. 4 to 6 pins spread in depth are enough.
-4. **Export**: copy the camera script for 3ds Max (Physical or Free Camera), Nuke (Camera2) or Blender (Python).
+4. **Export**: copy the camera script for 3ds Max (Physical or Free Camera), Nuke (Camera2), Maya (Python), Houdini (Python) or Blender (Python).
+   - **Maya** creates a camera with focal length and film back (in inches, as Maya wants), the world matrix converted from meters to the scene's linear unit, and the render resolution and pixel aspect.
+   - **Houdini** creates an `/obj` camera with the world transform in meters, resolution, pixel aspect, focal length and horizontal aperture in mm.
    - By default the camera uses the plate format.
    - With **Use mask format** checked, it uses the mask crop instead. The crop is centered, the focal stays the same, and the film back and resolution are reduced to the crop.
 
@@ -30,7 +32,7 @@ The panel header also has **Open**, **Save**, **Demo** and **Reset all**.
 - **Film back height** is computed from the width and the plate proportions by default. Untick **auto** to type it in; the solve keeps using the width as the reference, and the manual height goes into the export.
 - **Pixel aspect** defaults to 1. Set it to the squeeze for anamorphic plates (1.3, 1.5, 1.8, 2, …), or let it come from the EXR's `pixelAspectRatio`.
   - The viewer shows the plate desqueezed, and the solve accounts for the squeeze.
-  - The film width is the physical, squeezed sensor width. The export writes the desqueezed width (sensor × pixel aspect) plus the pixel aspect: `renderPixelAspect` in Max and `pixel_aspect_x` in Blender. In Nuke, set the format's pixel aspect.
+  - The film width is the physical, squeezed sensor width. The export writes the desqueezed width (sensor × pixel aspect) plus the pixel aspect: `renderPixelAspect` in Max, `defaultResolution.pixelAspect` in Maya, `aspect` in Houdini and `pixel_aspect_x` in Blender. In Nuke, set the format's pixel aspect.
 - **Knob names** follow the **Nav** preset, so the film back reads as Film width (3ds Max), H film aperture (Maya), Aperture (Houdini), Sensor width (Blender) or haperture (Nuke). Maya shows the aperture in inches, so divide by 25.4.
 
 ## Camera height, scan offset and orientation
@@ -86,6 +88,7 @@ The top bar has two locks for the solve (padlock buttons):
 - Scan units, axis, scale and height offset.
 - Pins, the measurement, the camera and the solved camera.
 - Locks, mask, export settings, chroma key and environment.
+- On open, the saved lens and camera are applied right away, and they stay put while you re-link the plate and the scan (in either order). Loading the scan no longer reframes the view.
 
 The plate and the scan are not stored in the file, only their names. When you **Open** a project, a card lists the files it needs. Load them with Load plate and Load scan, or drop them on the viewer, and the project restores itself. Demo projects restore directly. You can also drop a `.json` project on the viewer.
 
@@ -136,7 +139,7 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 
 ## Scan orientation and scale
 
-- **File up axis** says how the file was written: Y up, Z up, or Y down (COLMAP). The app always works Y-up internally, and the export converts to Z-up for 3ds Max and Blender (Nuke stays Y-up), so this setting never changes how you work in Max.
+- **File up axis** says how the file was written: Y up, Z up, or Y down (COLMAP). The app always works Y-up internally, and the export converts to Z-up for 3ds Max and Blender (Nuke, Maya and Houdini stay Y-up), so this setting never changes how you work in Max.
 - **Rotation** X / Y / Z (degrees) and **Flip** (180° on X) fix a scan that came in upside down or turned. The export note tells you the matching rotation to apply to the imported scan in your DCC, already converted to Z-up for 3ds Max and Blender.
 - **Scale** shows the factor from the last measurement. Click it to type a different factor by hand.
 
@@ -190,7 +193,8 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 | `B` | Show / hide the plate |
 | `E` | Show / hide the environment |
 | `K` | Chroma key on / off |
-| `F` | Fit the plate |
+| `F` (Maya, Houdini, Nuke, Simple, Game) · `Z` (3ds Max) · `Home` or numpad `.` (Blender) | **Frame the scan in 3D**: keeps the view direction and backs the camera up until the scan fits, like Maya's F or Max's Z. **Solved cam** takes you back to the match. Also on the tool rail. |
+| `Shift+F` | Fit the plate in the viewport |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo pin edits |
 | `Esc` (Measure) | Clear the measurement |
 | `Delete` | Delete the selected pin |

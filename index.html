@@ -436,7 +436,10 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <svg viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="1" transform="rotate(-30 12 12)"/><path d="m7.3 13.9-1-1.7M10.3 12.2l-1.5-2.6M13.3 10.4l-1-1.7M16.3 8.7l-1.5-2.6"/></svg><kbd>M</kbd>
       </button>
       <span class="tsep"></span>
-      <button class="tool" id="t-fit" title="Fit the plate (F)" aria-label="Fit the plate">
+      <button class="tool" id="t-fit3d" title="Frame the scan in 3D (F)" aria-label="Frame the scan in 3D">
+        <svg viewBox="0 0 24 24"><path d="M12 7.5 16 9.8v4.4L12 16.5 8 14.2V9.8z"/><path d="M8 9.8l4 2.3 4-2.3M12 12.1v4.4"/><path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></svg><kbd id="fit3d-k">F</kbd>
+      </button>
+      <button class="tool" id="t-fit" title="Fit the plate in the viewport (Shift+F)" aria-label="Fit the plate">
         <svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
       </button>
       <span class="tsep"></span>
@@ -692,6 +695,8 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
               <option value="max-phys">3ds Max · Physical Camera</option>
               <option value="max-free">3ds Max · Free Camera</option>
               <option value="nuke">Nuke · Camera</option>
+              <option value="maya">Maya · Python</option>
+              <option value="houdini">Houdini · Python</option>
               <option value="blender">Blender · Python</option>
             </select>
           </label>
@@ -1056,6 +1061,25 @@ const NAV = {
     map: (b) => b === 2 ? 'look' : b === 1 ? 'pan' : null },
 };
 let navPreset = 'maya';
+// "frame / zoom extents" key of each DCC (Max: Z, Blender: Home or numpad period, the rest: F)
+const FIT_KEYS = { maya: ['f'], max: ['z'], houdini: ['f'], blender: ['home', 'NumpadDecimal'], nuke: ['f'], simple: ['f'], game: ['f'] };
+const FIT_LABEL = { maya: 'F', max: 'Z', houdini: 'F', blender: 'Home', nuke: 'F', simple: 'F', game: 'F' };
+// frame the scan (or the environment) keeping the current view direction, like Maya's F / Max's Z
+function fit3D() {
+  const box = new THREE.Box3();
+  if (scanObj && scanRoot.visible) box.setFromObject(scanRoot);
+  if (box.isEmpty() && envRoot.visible) box.setFromObject(envRoot);
+  if (box.isEmpty()) { toast('Nothing to frame: load a scan first'); return; }
+  const c = box.getCenter(new THREE.Vector3()), r = box.getSize(new THREE.Vector3()).length() / 2;
+  camera.updateMatrixWorld();
+  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const vf = camera.fov * Math.PI / 180, hf = 2 * Math.atan(Math.tan(vf / 2) * camera.aspect);
+  const d = r / Math.sin(Math.min(vf, hf) / 2) * 1.05;
+  camera.position.copy(c).addScaledVector(dir, -d); nav.target.copy(c);
+  camera.near = Math.max(r / 2500, 0.01); camera.far = Math.max(d + r * 50, envRoot.visible ? 3000 : 0);
+  applyIntrinsics(); navChanged(); refreshAll();
+  if (st.solved) toast('Framed the scan · "Solved cam" brings the match back');
+}
 function navChanged() { camera.updateMatrixWorld(); render(); drawOverlay(); }
 function navOrbit(dx, dy) {
   const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -dx * 0.005);
@@ -1660,7 +1684,10 @@ function finishScan(obj, name, kind, fileType) {
   st.pins = []; st.sel = -1; st.solved = null; st.rms = null;
   st.measure = { a: null, b: null }; updateMeasureGeo();
   applyDisplay();
-  frameScan();
+  if (st.pendingProject && st.pendingProject.camera) { // keep the project's camera; only fit the clip planes
+    const s = new THREE.Box3().setFromObject(scanRoot).getSize(new THREE.Vector3()).length();
+    camera.near = Math.max(s / 5000, 0.01); camera.far = Math.max(s * 50, envRoot.visible ? 3000 : 0); applyIntrinsics();
+  } else frameScan();
   $('scan-name').textContent = name;
   $('tag').textContent = st.plate.W + ' × ' + st.plate.H;
   const kv = [];
@@ -2781,6 +2808,32 @@ function updateExport() {
       + ` focal ${n6(d.f)}\n haperture ${n6(d.sw)}\n vaperture ${n6(d.sh)}\n`
       + (d.p !== 1 ? ` label "anamorphic ${d.p}: use a format with pixel aspect ${d.p}"\n` : '')
       + ` name ${name}\n}\n`;
+  } else if (t === 'maya') {
+    // Maya: Y up like the app; xform -matrix is row-vector order (translation in the last row); film back in inches
+    const m = [...d.X, 0, ...d.Y, 0, ...d.Z, 0].map(n6).join(', ');
+    out = `# ${header}\n# ${scaleNote}\n# Meters, Y up. Paste into the Script Editor (Python tab) and run it.\nimport maya.cmds as cmds\n`
+      + `k = {'mm': 1000.0, 'cm': 100.0, 'm': 1.0, 'km': 0.001, 'in': 39.37007874, 'ft': 3.280839895, 'yd': 1.093613298}.get(cmds.currentUnit(q=True, linear=True), 100.0)  # meters -> scene units\n`
+      + `cam, shape = cmds.camera(name='${name}')\n`
+      + `cmds.setAttr(shape + '.focalLength', ${n6(d.f)})\n`
+      + `cmds.setAttr(shape + '.horizontalFilmAperture', ${n6(d.sw / 25.4)})  # ${fmt(d.sw, 3)} mm\n`
+      + `cmds.setAttr(shape + '.verticalFilmAperture', ${n6(d.sh / 25.4)})  # ${fmt(d.sh, 3)} mm\n`
+      + `cmds.setAttr(shape + '.filmFit', 1)  # horizontal\n`
+      + `cmds.setAttr(shape + '.nearClipPlane', 0.01 * k)\ncmds.setAttr(shape + '.farClipPlane', 10000 * k)\n`
+      + `cmds.xform(cam, worldSpace=True, matrix=[${m}, ${n6(d.C[0])} * k, ${n6(d.C[1])} * k, ${n6(d.C[2])} * k, 1])\n`
+      + `cmds.setAttr('defaultResolution.width', ${d.W})\ncmds.setAttr('defaultResolution.height', ${d.H})\n`
+      + `cmds.setAttr('defaultResolution.pixelAspect', ${n6(d.p)})\ncmds.setAttr('defaultResolution.deviceAspectRatio', ${n6(d.W * d.p / d.H)})\n`
+      + `cmds.select(cam)\n# Image plane: select the camera > Create > Image Plane, pick ${st.plate.sample ? 'your plate' : st.plate.name}\n`;
+  } else if (t === 'houdini') {
+    // Houdini: Y up, meters; hou.Matrix4 is row-vector order like Maya; aperture in mm
+    const row = (v, w) => `(${v.map(n6).join(', ')}, ${w})`;
+    out = `# ${header}\n# ${scaleNote}\n# Meters, Y up. Paste into the Python Shell (Windows > Python Shell) or a shelf tool.\nimport hou\n`
+      + `cam = hou.node('/obj').createNode('cam', '${name}')\n`
+      + `cam.setWorldTransform(hou.Matrix4((${row(d.X, 0)}, ${row(d.Y, 0)}, ${row(d.Z, 0)}, (${d.C.map(n6).join(', ')}, 1))))\n`
+      + `cam.parmTuple('res').set((${d.W}, ${d.H}))\ncam.parm('aspect').set(${n6(d.p)})\n`
+      + `cam.parm('focal').set(${n6(d.f)})\ncam.parm('aperture').set(${n6(d.sw)})  # horizontal, mm\n`
+      + `try:\n    cam.parm('focalunits').set('mm')\nexcept Exception:\n    pass\n`
+      + `cam.setDisplayFlag(True)\ncam.setSelected(True, clear_all_selected=True)\n`
+      + `# Plate: on the camera, View tab > Background Image: ${st.plate.sample ? 'your plate' : st.plate.name}\n`;
   } else {
     const rows = [0, 1, 2].map(i => `(${n6(d.Xm[i])}, ${n6(d.Ym[i])}, ${n6(d.Zm[i])}, ${n6(d.Cm[i])})`);
     out = `# ${header}\n# ${scaleNote}\n# Meters, Z up. Paste into Blender's Text Editor and run it.\nimport bpy\nfrom mathutils import Matrix\n`
@@ -2800,7 +2853,7 @@ function updateExport() {
     const Rz = P.clone().multiply(R).multiply(P.clone().transpose());
     const ez = new THREE.Euler().setFromRotationMatrix(Rz, 'XYZ');
     const f1 = (v) => fmt(v / d2r, 2) + '°';
-    rotNote = (t === 'nuke' ? `Scan rotation: rotate the scan X ${f1(st.rot[0] * d2r)}, Y ${f1(st.rot[1] * d2r)}, Z ${f1(st.rot[2] * d2r)} (XYZ order). `
+    rotNote = (t === 'nuke' || t === 'maya' || t === 'houdini' ? `Scan rotation: rotate the scan X ${f1(st.rot[0] * d2r)}, Y ${f1(st.rot[1] * d2r)}, Z ${f1(st.rot[2] * d2r)} (XYZ order). `
       : `Scan rotation: in ${t === 'blender' ? 'Blender' : '3ds Max'} rotate the imported scan X ${f1(ez.x)}, Y ${f1(ez.y)}, Z ${f1(ez.z)} (XYZ, Z up), around the origin. `);
   }
   $('export-note').innerHTML = rotNote + (Math.abs(yo) > 1e-6 ? `Scan height offset: move the scan <b>${yo > 0 ? 'up' : 'down'} ${fmt(Math.abs(yo), 3)} m</b> in your DCC (after any scale). ` : '') + (Math.abs(sf - 1) > 1e-6 || st.up !== 'y'
@@ -2954,7 +3007,8 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Alt') e.preventDefault();
   const k = e.key.toLowerCase();
   if (k === 'n') setMode('nav'); else if (k === 'p') setMode('pins'); else if (k === 'm') setMode('measure');
-  else if (k === 'f') layoutStage(true);
+  else if (e.shiftKey && k === 'f') layoutStage(true);
+  else if ((FIT_KEYS[navPreset] || ['f']).some(x => x === k || x === e.code) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); fit3D(); }
   else if (k === 'h') toggleScan();
   else if (k === 'b') togglePlate();
   else if (k === 'e') toggleEnv();
@@ -3036,11 +3090,14 @@ function maskChanged() {
 $('mask').onchange = maskChanged; $('mask-c').oninput = maskChanged;
 $('exp-crop').onchange = updateExport;
 $('t-fit').onclick = () => layoutStage(true);
+$('t-fit3d').onclick = fit3D;
+function fitKeyUI() { const l = FIT_LABEL[navPreset] || 'F'; $('fit3d-k').textContent = l.length > 1 ? '⇱' : l; $('t-fit3d').title = `Frame the scan in 3D (${l}, as in ${$('navp').selectedOptions[0]?.textContent || 'your DCC'})`; }
 try { $('scan-more').open = !!lsGet('scanMore', false); } catch (e) {}
 $('scan-more').addEventListener('toggle', () => lsSet('scanMore', $('scan-more').open));
 navPreset = lsGet('nav', 'maya'); if (!NAV[navPreset]) navPreset = 'maya';
 $('navp').value = navPreset;
-$('navp').onchange = () => { navPreset = $('navp').value; lsSet('nav', navPreset); applyKnobNames(); refreshAll(); };
+$('navp').onchange = () => { navPreset = $('navp').value; lsSet('nav', navPreset); applyKnobNames(); fitKeyUI(); refreshAll(); };
+setTimeout(fitKeyUI, 0);
 $('m-nav').onclick = () => setMode('nav');
 $('m-pins').onclick = () => setMode('pins');
 $('m-measure').onclick = () => setMode('measure');
@@ -3332,6 +3389,23 @@ function projectState() {
     env: { id: env.id, on: env.on, seed: env.seed, vals: env.vals, display: env.display },
   };
 }
+// lens + camera only: used as soon as a project opens and after each re-linked file, so the view never jumps
+function applyProjectCamera(p) {
+  const L = p.lens || {};
+  st.preset = L.preset || 'custom'; pre.value = st.preset;
+  st.sw = L.sw || st.sw; $('sw').value = st.sw;
+  st.shAuto = L.shAuto !== false; $('sh-auto').checked = st.shAuto; $('sh').disabled = st.shAuto;
+  if (!st.shAuto && L.sh) { st.sh = L.sh; $('sh').value = L.sh; }
+  st.focal = L.focal || st.focal; $('focal').value = st.focal; st.fScale = L.fScale || 1;
+  st.freeF = !!L.freeF; $('free').checked = st.freeF;
+  st.par = L.par || 1; $('par').value = st.par; setPar(st.par);
+  if (p.camera) {
+    camera.position.fromArray(p.camera.pos); camera.quaternion.fromArray(p.camera.quat); nav.target.fromArray(p.camera.target);
+    camera.up.set(0, 1, 0); camera.updateMatrixWorld(true);
+  }
+  st.lockTR = !!p.lockTR; $('lock-tr').checked = st.lockTR;
+  applyIntrinsics();
+}
 function applyProjectState(p) {
   const V = (a) => new THREE.Vector3(...a);
   // lens
@@ -3398,6 +3472,7 @@ function projectAfterLoad(kind) {
   p._got[kind] = true;
   const ok = (!p.plate || p._got.plate) && (!p.scan || p._got.scan);
   if (ok) { st.pendingProject = null; $('relink').hidden = true; applyProjectState(p); toast('Project restored'); }
+  else { applyProjectCamera(p); refreshAll(); }
 }
 function openProject(p) {
   if (!p || p.app !== 'Camera Pin') { toast('That file is not a Camera Pin project', true); return; }
@@ -3406,6 +3481,7 @@ function openProject(p) {
   if (p.demo) { loadDemo(); applyProjectState(p); toast('Project restored'); return; }
   if (!p.plate && !p.scan) { applyProjectState(p); toast('Project restored'); return; }
   st.pendingProject = p; showRelink(p);
+  applyProjectCamera(p); refreshAll();
 }
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 async function saveProject() {

@@ -707,6 +707,14 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         </div>
       </section>
 
+      <section class="step" id="s6">
+        <h2 tabindex="0"><span class="n">4</span>Motion<span class="st" id="mo-st">–</span></h2>
+        <div class="body">
+          <div class="eparams" id="motion-params"></div>
+          <p class="note" id="mo-note">Speed simulation for the environment. Play it with the timeline under the viewport (Space): the camera stays, the set moves past it.</p>
+        </div>
+      </section>
+
       <section class="step" id="s3" data-state="warn">
         <h2 tabindex="0"><span class="n">3</span>Pins<span class="st" id="s3st">0 pins</span></h2>
         <div class="body">
@@ -1075,7 +1083,7 @@ measPts.renderOrder = 999; measPts.visible = false; scene.add(measPts);
 // ---------- 3D navigation with DCC presets ----------
 const nav = { target: new THREE.Vector3() };
 const controls = nav; // pivot shared with the rest of the code
-let spaceDown = false;
+let spaceDown = false, spaceTap = 0; // Space toggles play/pause; if it is held for a drag (navigation), the toggle is undone
 const NAV = {
   max: { hint: 'MMB: pan · Alt+MMB: orbit · Ctrl+Alt+MMB or wheel: zoom',
     map: (b, e) => b !== 1 ? null : e.ctrlKey && e.altKey ? 'dolly' : e.altKey ? 'orbit' : 'pan' },
@@ -1455,16 +1463,16 @@ const ENV_MODULES = {
             const clen = models ? models[model].L : CAR_TYPES[type].L * k;
             const cz = z + clen / 2, cx = ln.x + (rng() - 0.5) * 0.3;
             if (Math.hypot(cx - origin.x, cz - origin.z) > p.clear + clen / 2) {
-              cars.push({ x: cx, y: crownY(cx), roll: Math.atan(crownS(cx)), z: cz, dir: ln.dir, type, k, model, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
+              cars.push({ lane: lanes.indexOf(ln), x: cx, y: crownY(cx), roll: Math.atan(crownS(cx)), z: cz, dir: ln.dir, type, k, model, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
             }
             z += clen + 2 + (1 - p.density) * (8 + rng() * 40) + rng() * 4;
           }
         }
-        for (const fl of [1, -1]) { // flow 1 drives toward −Z, −1 toward +Z; the timeline moves each group along its way
-          const sub = cars.filter(c => (c.dir > 0 ? 1 : -1) === fl); if (!sub.length) continue;
+        lanes.forEach((ln, li) => { // one group per lane: flow 1 drives toward −Z, −1 toward +Z; vk = this lane's speed difference (−1..1)
+          const sub = cars.filter(c => c.lane === li); if (!sub.length) return;
           const cg = models ? buildUserCars(sub, models === packList ? false : p.flipcars, models) : buildCars(sub);
-          cg.userData.flow = fl; g.add(cg);
-        }
+          cg.userData.flow = ln.dir > 0 ? 1 : -1; cg.userData.vk = rng() * 2 - 1; g.add(cg);
+        });
       }
       return g;
     },
@@ -1565,17 +1573,19 @@ const ENV_MODULES = {
         const tot = n * cl + (n - 1) * gap, dir = p.tdir === 'same' ? -1 : 1; // front of the train toward -Z (same way) or +Z
         const T = [];
         trains.forEach(x => { for (let i = 0; i < n; i++) T.push({ x, z: p.trainZ - tot / 2 + cl / 2 + i * (cl + gap), first: dir < 0 ? i === 0 : i === n - 1 }); });
-        const tg = new THREE.Group(); tg.userData.flow = dir < 0 ? 1 : -1; g.add(tg);
+        const tgs = new Map(trains.map(x => { const t = new THREE.Group(); t.userData.flow = dir < 0 ? 1 : -1; t.userData.vk = rng() * 2 - 1; g.add(t); return [x, t]; }));
         const parts = [
           [TRAIN.body, M.train], [TRAIN.band, M.window], [TRAIN.stripe, M.stripe], [TRAIN.under, M.under], [TRAIN.doors, M.door], [TRAIN.roof, M.trainRoof],
         ];
         parts.forEach(([geo, mat]) => {
-          const im = new THREE.InstancedMesh(geo, mat, T.length);
-          T.forEach((c, i) => { m.compose(v.set(c.x, 0, c.z), q.identity(), s3.set(W / 3, H / 4.1, 1)); im.setMatrixAt(i, m); });
-          tg.add(im);
+          trains.forEach(x => {
+            const TT = T.filter(c => c.x === x), im = new THREE.InstancedMesh(geo, mat, TT.length);
+            TT.forEach((c, i) => { m.compose(v.set(c.x, 0, c.z), q.identity(), s3.set(W / 3, H / 4.1, 1)); im.setMatrixAt(i, m); });
+            tgs.get(x).add(im);
+          });
         });
         // cab windscreen on the leading car
-        T.filter(c => c.first).forEach(c => tg.add(boxAt(W * 0.8, 1.0, 0.05, c.x, (floor + 1.35) * H / 4.1, c.z + dir * (cl / 2 + 0.02), M.window)));
+        T.filter(c => c.first).forEach(c => tgs.get(c.x).add(boxAt(W * 0.8, 1.0, 0.05, c.x, (floor + 1.35) * H / 4.1, c.z + dir * (cl / 2 + 0.02), M.window)));
       }
       return g;
     },
@@ -1622,6 +1632,7 @@ const ENV_MOTION = [
   { key: 'speed', label: 'Speed', type: 'num', min: 0, max: 300, step: 1, def: 50, unit: 'km/h', tip: 'Speed of the shot\'s vehicle. On play the camera stays still and the environment moves past it.' },
   { key: 'mdir', label: 'Travel', type: 'select', options: [['fwd', 'Forward (−Z)'], ['back', 'Backward (+Z)']], def: 'fwd' },
   { key: 'tspeed', label: 'Other vehicles', type: 'num', min: 0, max: 200, step: 1, def: 40, unit: 'km/h', tip: 'Constant speed of the other cars / trains along their own direction (0 = parked).' },
+  { key: 'tvar', label: 'Speed variation', type: 'num', min: 0, max: 15, step: 0.5, def: 3, unit: '±km/h', tip: 'Each lane (each train) gets its own small random difference around Other vehicles. Cars in the same lane share it, so they never run into each other.' },
   { key: 'mprof', label: 'Speed curve', type: 'select', options: [['const', 'Constant'], ['accel', 'Start from 0 (ease in)'], ['decel', 'Stop to 0 (ease out)'], ['inout', 'From 0 and back to 0']], def: 'const' },
 ];
 const ENV_COMMON = [
@@ -1711,17 +1722,19 @@ function applyMotion() {
   // travelling forward (toward the env's −Z) = the world slides toward +Z
   const r = (v.rot || 0) * Math.PI / 180;
   envRoot.position.set(v.x + Math.sin(r) * d, v.y, v.z + Math.cos(r) * d);
-  const dt = (v.tspeed || 0) / 3.6 * (tl.frame - tl.start) / tl.fps; // other vehicles along their own direction
-  envRoot.traverse(o => { if (o.userData.flow) o.position.z = -o.userData.flow * dt; });
+  const t = (tl.frame - tl.start) / tl.fps; // other vehicles along their own direction, each lane/train with its small difference
+  envRoot.traverse(o => { if (o.userData.flow) o.position.z = -o.userData.flow * Math.max(0, (v.tspeed || 0) + (o.userData.vk || 0) * (v.tvar || 0)) / 3.6 * t; });
   envRoot.updateMatrixWorld(true);
 }
 function tlUI() {
   $('tl-f').value = tl.frame; $('tl-s').min = tl.start; $('tl-s').max = tl.end; $('tl-s').value = tl.frame;
-  $('tl-play').setAttribute('aria-pressed', String(tl.playing)); $('tl-play').innerHTML = tl.playing ? TL_ICON.pause : TL_ICON.play;
+  { const b = $('tl-play'), st_ = String(tl.playing);
+    if (b.getAttribute('aria-pressed') !== st_ || !b.firstChild) { b.setAttribute('aria-pressed', st_); b.innerHTML = tl.playing ? TL_ICON.pause : TL_ICON.play; b.title = tl.playing ? 'Pause (Space)' : 'Play (Space)'; } }
   const m = motionAt(tlU()), on = !!ENV_MODULES[env.id];
   $('tl-kmh').textContent = on ? `${((env.vals.speed || 0) * m.k).toFixed(1)} km/h` : 'no environment';
   $('tl-dist').textContent = on ? `${m.d.toFixed(1)} m` : '';
   $('tl-time').textContent = `${((tl.frame - tl.start) / tl.fps).toFixed(2)} s`;
+  $('mo-st').textContent = on ? `${env.vals.speed || 0} km/h` : '–';
 }
 function tlSet(f) {
   tl.frame = Math.round(Math.min(Math.max(f, tl.start), tl.end));
@@ -1748,7 +1761,7 @@ function envRebuild() {
     const v = env.vals;
     envRoot.position.set(v.x, v.y, v.z); envRoot.rotation.set(0, v.rot * Math.PI / 180, 0); envRoot.updateMatrixWorld(true);
     const origin = envRoot.worldToLocal(new THREE.Vector3(0, 0, 0));
-    const need = 2 * (Math.abs(motionDist(1)) + (v.tspeed || 0) / 3.6 * (tl.end - tl.start) / tl.fps + 150); // long enough to drive the whole range without running off
+    const need = 2 * (Math.abs(motionDist(1)) + ((v.tspeed || 0) + (v.tvar || 0)) / 3.6 * (tl.end - tl.start) / tl.fps + 150); // long enough to drive the whole range without running off
     const obj = mod.build(need > v.length ? Object.assign({}, v, { length: Math.min(need, 6000) }) : v, mulberry32(env.seed), origin);
     if (env.display === 'wire') obj.traverse(o => { if (o.isMesh) { o.material = MAT.wire; } });
     envRoot.add(obj);
@@ -1765,7 +1778,7 @@ function envRebuild() {
 }
 function envRenderParams() {
   const mod = ENV_MODULES[env.id], box = $('env-params');
-  if (!mod) { box.innerHTML = ''; $('env-extra').hidden = true; return; }
+  if (!mod) { box.innerHTML = ''; $('env-extra').hidden = true; $('motion-params').innerHTML = '<p class="note">Pick an environment first.</p>'; return; }
   $('env-extra').hidden = false;
   $('env-carfiles').hidden = $('env-credit').hidden = env.id !== 'avenue';
   const row = (p) => {
@@ -1775,13 +1788,15 @@ function envRenderParams() {
     if (p.type === 'select') return `<label class="fld" for="${id}">${p.label}<select id="${id}" data-k="${p.key}">${p.options.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
     return `<div class="knobrow"><label for="${id}"${p.tip ? ` title="${p.tip}"` : ''}>${p.label}</label><div class="erow"><input type="range" data-k="${p.key}" data-def="${p.def}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}" aria-label="${p.label}"><input id="${id}" type="number" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}"${p.unit ? ` data-unit="${p.unit}"` : ''}></div></div>`;
   };
-  box.innerHTML = mod.params.map(row).join('') + '<div class="sub">Placement</div>' + ENV_COMMON.map(row).join('') + '<div class="sub">Motion (timeline)</div>' + ENV_MOTION.map(row).join('');
+  box.innerHTML = mod.params.map(row).join('') + '<div class="sub">Placement</div>' + ENV_COMMON.map(row).join('');
+  $('motion-params').innerHTML = ENV_MOTION.map(row).join('');
+  enhanceNumbers($('motion-params'));
   enhanceNumbers(box);
 }
 function envSet(k, val) {
   env.vals[k] = val;
   if (typeof tlUI === 'function') setTimeout(tlUI, 0);
-  $('env-params').querySelectorAll(`[data-k="${k}"]`).forEach(el => { if (el.type === 'checkbox') el.checked = !!val; else if (document.activeElement !== el) el.value = val; });
+  document.querySelectorAll(`#env-params [data-k="${k}"], #motion-params [data-k="${k}"]`).forEach(el => { if (el.type === 'checkbox') el.checked = !!val; else if (document.activeElement !== el) el.value = val; });
   envSave(); envRebuild();
 }
 function envSelect(id) {
@@ -3147,6 +3162,7 @@ function setMode(m) {
 }
 vp.addEventListener('contextmenu', e => e.preventDefault());
 vp.addEventListener('pointerdown', e => {
+  if (spaceDown && spaceTap) { spaceTap = 0; tlPlay(); } // Space is being held to navigate: undo the play/pause it toggled
   const [x, y] = evVp(e);
   { const ae = document.activeElement; if (ae && ae !== document.body && ae.matches('input, select, textarea, button')) ae.blur(); }
   const panBtn = e.button === 1 || (e.button === 0 && (spaceDown || e.altKey));
@@ -3252,7 +3268,9 @@ window.addEventListener('keydown', e => {
   if (e.target.matches('textarea, select, input:not([type=checkbox]):not([type=range]):not([type=radio]):not([type=file])')) return;
   if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
   if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
-  if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
+  if (e.code === 'Space') { const onCtl = !!e.target.closest('button, label'); if (!spaceDown && !e.repeat) { spaceDown = true; if (!onCtl) { spaceTap = 1; tlPlay(); } } if (!onCtl) e.preventDefault(); }
+  if ((e.key === ',' || e.key === '<') && !e.ctrlKey && !e.metaKey) { e.preventDefault(); tlPlay(false); tlSet(e.shiftKey ? tl.start : tl.frame - 1); return; }
+  if ((e.key === '.' || e.key === '>') && e.code !== 'NumpadDecimal' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); tlPlay(false); tlSet(e.shiftKey ? tl.end : tl.frame + 1); return; }
   if (e.key === 'Alt') e.preventDefault();
   const k = e.key.toLowerCase();
   if (k === 'n') setMode('nav'); else if (k === 'p') setMode('pins'); else if (k === 'm') setMode('measure');
@@ -3265,7 +3283,8 @@ window.addEventListener('keydown', e => {
   else if (k === 'escape' && st.mode === 'measure') clearMeasure();
   else if ((k === 'delete' || k === 'backspace') && st.sel >= 0 && st.pins[st.sel] && !st.pins[st.sel].baked) { pushHistory(); st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
 });
-window.addEventListener('keyup', e => { game.keys.delete(e.code); if (e.code === 'Space') spaceDown = false; if (e.key === 'Alt') e.preventDefault(); });
+window.addEventListener('keyup', e => {
+  game.keys.delete(e.code); if (e.code === 'Space') { spaceDown = false; spaceTap = 0; } if (e.key === 'Alt') e.preventDefault(); });
 window.addEventListener('blur', () => { spaceDown = false; game.keys.clear(); });
 vp.addEventListener('auxclick', e => e.preventDefault());
 new ResizeObserver(() => layoutStage(st.view.zoom === 1)).observe(vp);
@@ -3837,13 +3856,13 @@ $('env-mod').innerHTML = '<option value="none">None</option>' + Object.entries(E
 $('env-mod').onchange = () => envSelect($('env-mod').value);
 $('env-on').onclick = toggleEnv;
 $('env-disp').onchange = () => { env.display = $('env-disp').value; envSave(); envRebuild(); };
-$('env-params').addEventListener('input', e => {
+['env-params', 'motion-params'].forEach(id => $(id).addEventListener('input', e => {
   const k = e.target.dataset.k; if (!k) return;
   const v = e.target.type === 'checkbox' ? e.target.checked : e.target.tagName === 'SELECT' ? e.target.value : +e.target.value;
   if (e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT' && !Number.isFinite(v)) return;
   envSet(k, v);
   lsSet('env.vals.' + env.id, env.vals);
-});
+}));
 const TL_ICON = {
   first: '<svg viewBox="0 0 24 24"><path d="M6 5v14M18 5 9 12l9 7z"/></svg>', prev: '<svg viewBox="0 0 24 24"><path d="M16 5 8 12l8 7z"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>', pause: '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>',

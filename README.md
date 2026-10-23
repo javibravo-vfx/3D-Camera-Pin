@@ -156,11 +156,12 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 **Speed simulation (timeline)**
 - A timeline sits under the viewport. It has first / previous / play / next / last buttons, loop, a scrub bar, the current frame, **In / Out** (default 1001–1100) and **FPS**. FPS is taken from the EXR's `framesPerSecond` when the plate has it.
 - On play the camera does not move; the environment slides past it.
-- **Environment → Motion** settings:
+- **Motion** panel (its own section, under Environment) settings:
   - **Speed** in km/h.
   - **Travel**: forward along the set's −Z or backward.
   - **Speed curve**: constant, start from 0 (ease in), stop to 0 (ease out), or from 0 and back to 0.
   - **Other vehicles** speed: cars and trains move along their own direction at that speed; 0 parks them.
+  - **Speed variation** (± km/h, default 3): each lane, and each train, gets its own small random difference. Cars in the same lane share it, so they never run into each other.
 - The timeline shows the current speed in km/h, the distance travelled and the time.
 - The set is lengthened automatically so the whole range never runs off its end.
 - The range and FPS are saved with the project.
@@ -223,6 +224,8 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 | `K` | Chroma key on / off |
 | `F` (Maya, Houdini, Nuke, Simple, Game) · `Z` (3ds Max) · `Home` or numpad `.` (Blender) | **Frame the scan in 3D**: keeps the view direction and backs the camera up until the scan fits, like Maya's F or Max's Z. **Solved cam** takes you back to the match. Also on the tool rail. |
 | `Shift+F` | Fit the plate in the viewport |
+| `Space` | Play / pause the timeline. Holding Space to navigate (Houdini preset, 2D pan) doesn't toggle it. |
+| `,` / `.` | Previous / next frame (`Shift`: first / last) |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo pin edits |
 | `Esc` (Measure) | Clear the measurement |
 | `Delete` | Delete the selected pin |

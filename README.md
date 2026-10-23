@@ -126,6 +126,7 @@ Modular 3D set pieces you can turn on behind or around the scan to check a match
   - **Built-in** gives real-size procedural sedans, hatchbacks and SUVs.
   - **My models** uses car files you load (GLB/GLTF, including Draco/meshopt-compressed, FBX, OBJ). Each one is turned so its length runs along the road, sat on the ground, and kept at its own size if it is already 2.5–8 m long; otherwise it is scaled to a 4.6 m car.
   - **Flip model front** turns them around if they drive backwards.
+- **Road crown**: how much lower the road is at the curb than at the centre line (0 = flat, as before). **Crown curve** sets the profile: 1 is a straight slope, higher values keep the middle flatter and curve down harder near the curb. With a median, each carriageway falls from the median edge. Lane lines, sidewalks and posts follow it, and the cars sit on it and lean with the slope.
 - **Traffic flow**: Two-way, or One-way with every car facing the same way. One-way drops the double yellow centre line for a plain lane line. **Reverse direction** turns the flow around.
 - The **Measure** tool also picks the environment (cars, road, posts), so you can compare a traffic car against your scan. A measurement with an end on the environment is a size check only and never rescales the scan.
   - Loaded models last for the session.

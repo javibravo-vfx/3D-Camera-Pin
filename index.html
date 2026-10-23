@@ -1180,7 +1180,8 @@ function buildCars(cars) {
     const W = new THREE.Matrix4(), L = new THREE.Matrix4();
     list.forEach((c, i) => {
       q.setFromAxisAngle(up, c.dir > 0 ? 0 : Math.PI);
-      W.compose(v.set(c.x, 0, c.z), q, s.set(c.k, c.k, c.k));
+      if (c.roll) q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), c.roll));
+      W.compose(v.set(c.x, c.y || 0, c.z), q, s.set(c.k, c.k, c.k));
       body.setMatrixAt(i, W); roof.setMatrixAt(i, W); cab.setMatrixAt(i, W);
       body.setColorAt(i, col.setHex(c.color)); roof.setColorAt(i, col.setHex(c.color));
       const hw = t.W / 2 - 0.12, hb = t.wheelbase / 2, zc = (t.lower[0][0] + t.lower[t.lower.length - 1][0]) / 2;
@@ -1237,7 +1238,8 @@ function buildUserCars(cars, flip) {
       const im = new THREE.InstancedMesh(pt.geometry, pt.material, list.length);
       list.forEach((c, i) => {
         q.setFromAxisAngle(up, (c.dir > 0 ? 0 : Math.PI) + (flip ? Math.PI : 0));
-        W.compose(v.set(c.x, 0, c.z), q, one);
+        if (c.roll) q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), c.roll));
+        W.compose(v.set(c.x, c.y || 0, c.z), q, one);
         im.setMatrixAt(i, m.multiplyMatrices(W, pt.matrix));
       });
       g.add(im);
@@ -1258,6 +1260,8 @@ const ENV_MODULES = {
       { key: 'laneW', label: 'Lane width', type: 'num', min: 2.5, max: 5, step: 0.05, def: 3.5, unit: 'm' },
       { key: 'median', label: 'Median', type: 'num', min: 0, max: 20, step: 0.5, def: 2, unit: 'm' },
       { key: 'walk', label: 'Sidewalk', type: 'num', min: 0, max: 12, step: 0.5, def: 4, unit: 'm' },
+      { key: 'crown', label: 'Road crown', type: 'num', min: 0, max: 0.6, step: 0.01, def: 0, unit: 'm', tip: 'How much lower the road is at the curb than at the centre line (0 = flat). Cars sitting on it lean with it.' },
+      { key: 'crownP', label: 'Crown curve', type: 'num', min: 1, max: 4, step: 0.1, def: 2, tip: '1 = straight slope; higher = flatter in the middle and curving down harder near the curb.' },
       { key: 'length', label: 'Length', type: 'num', min: 50, max: 1000, step: 10, def: 300, unit: 'm' },
       { key: 'flow', label: 'Traffic flow', type: 'select', options: [['two', 'Two-way'], ['one', 'One-way']], def: 'two' },
       { key: 'reverse', label: 'Reverse direction', type: 'bool', def: false },
@@ -1274,7 +1278,14 @@ const ENV_MODULES = {
       const L = Math.round(p.lanes), lw = p.laneW, med = p.median, len = p.length;
       const leftN = Math.floor(L / 2), rightN = L - leftN; // right side (+X) drives toward -Z
       const roadW = L * lw + med, half = roadW / 2;
-      const road = new THREE.Mesh(new THREE.PlaneGeometry(roadW, len).rotateX(-Math.PI / 2), ENV_MAT.asphalt); g.add(road);
+      // road crown: each carriageway falls from the median edge (or centre line) to the curb
+      const cr = p.crown || 0, cp = p.crownP || 2, D = Math.max(half - med / 2, 1e-3);
+      const crownY = (x) => { const d = Math.min(Math.max(Math.abs(x) - med / 2, 0), D); return -cr * Math.pow(d / D, cp); };
+      const crownS = (x) => { const d = Math.min(Math.max(Math.abs(x) - med / 2, 0), D); return d <= 0 ? 0 : -Math.sign(x) * cr * cp * Math.pow(d / D, cp - 1) / D; };
+      const edgeY = crownY(half);
+      const roadGeo = new THREE.PlaneGeometry(roadW, len, cr > 0 ? 96 : 1, 1).rotateX(-Math.PI / 2);
+      if (cr > 0) { const pa = roadGeo.attributes.position; for (let i = 0; i < pa.count; i++) pa.setY(i, crownY(pa.getX(i))); pa.needsUpdate = true; roadGeo.computeVertexNormals(); }
+      const road = new THREE.Mesh(roadGeo, ENV_MAT.asphalt); g.add(road);
       // lane x centres
       const lanes = [];
       const oneWay = p.flow === 'one', rev = p.reverse ? -1 : 1;
@@ -1290,10 +1301,11 @@ const ENV_MODULES = {
       if (dashes.length && nD) {
         const dm = new THREE.InstancedMesh(new THREE.PlaneGeometry(lineW, dashLen).rotateX(-Math.PI / 2), ENV_MAT.paintW, dashes.length * nD);
         const m = new THREE.Matrix4(); let k = 0;
-        for (const x of dashes) for (let j = 0; j < nD; j++) { m.makeTranslation(x, 0.005, -len / 2 + (j + 0.5) * (dashLen + gap)); dm.setMatrixAt(k++, m); }
+        const dq = new THREE.Quaternion(), dv = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), zA = new THREE.Vector3(0, 0, 1);
+        for (const x of dashes) { dq.setFromAxisAngle(zA, Math.atan(crownS(x))); for (let j = 0; j < nD; j++) { m.compose(dv.set(x, crownY(x) + 0.005, -len / 2 + (j + 0.5) * (dashLen + gap)), dq, one); dm.setMatrixAt(k++, m); } }
         g.add(dm);
       }
-      const solid = (x, mat) => { const l = new THREE.Mesh(new THREE.PlaneGeometry(lineW * 1.2, len).rotateX(-Math.PI / 2), mat); l.position.set(x, 0.005, 0); g.add(l); };
+      const solid = (x, mat) => { const l = new THREE.Mesh(new THREE.PlaneGeometry(lineW * 1.2, len).rotateX(-Math.PI / 2), mat); l.position.set(x, crownY(x) + 0.005, 0); l.rotation.z = Math.atan(crownS(x)); g.add(l); };
       solid(half - 0.3, ENV_MAT.paintW); solid(-half + 0.3, ENV_MAT.paintW);
       if (med >= 0.6) {
         const md = boxAt(med, 0.18, len, 0, 0.09, 0, ENV_MAT.median); g.add(md);
@@ -1302,15 +1314,15 @@ const ENV_MODULES = {
       } else if (leftN && rightN && !oneWay) { solid(0.1, ENV_MAT.paintY); solid(-0.1, ENV_MAT.paintY); }
       // sidewalks with curb
       if (p.walk > 0) {
-        g.add(boxAt(p.walk, 0.15, len, half + p.walk / 2, 0.075, 0, ENV_MAT.walk));
-        g.add(boxAt(p.walk, 0.15, len, -half - p.walk / 2, 0.075, 0, ENV_MAT.walk));
+        g.add(boxAt(p.walk, 0.15, len, half + p.walk / 2, 0.075 + edgeY, 0, ENV_MAT.walk));
+        g.add(boxAt(p.walk, 0.15, len, -half - p.walk / 2, 0.075 + edgeY, 0, ENV_MAT.walk));
       }
       // street lights
       if (p.lights) {
         const step = 30, x = half + Math.min(p.walk, 1.2) * 0.5 + 0.3;
         for (let z = -len / 2 + 10; z < len / 2; z += step) for (const sgn of [1, -1]) {
-          g.add(boxAt(0.18, 8, 0.18, sgn * x, 4, z, ENV_MAT.pole));
-          g.add(boxAt(2.2, 0.15, 0.25, sgn * (x - 1.1), 8, z, ENV_MAT.pole));
+          g.add(boxAt(0.18, 8, 0.18, sgn * x, 4 + edgeY + 0.15, z, ENV_MAT.pole));
+          g.add(boxAt(2.2, 0.15, 0.25, sgn * (x - 1.1), 8 + edgeY + 0.15, z, ENV_MAT.pole));
         }
       }
       // buildings
@@ -1322,7 +1334,7 @@ const ENV_MODULES = {
           let z = -len / 2;
           while (z < len / 2 && k < 400) {
             const w = 10 + rng() * 18, d = 12 + rng() * 10, h = 8 + rng() * 34;
-            m.compose(v.set(sgn * (half + p.walk + d / 2 + 0.5), h / 2, z + w / 2), q, s.set(d, h, w - 0.6));
+            m.compose(v.set(sgn * (half + p.walk + d / 2 + 0.5), h / 2 + edgeY, z + w / 2), q, s.set(d, h, w - 0.6));
             bm.setMatrixAt(k, m); const gv = 0.42 + rng() * 0.3; bm.setColorAt(k, c.setRGB(gv, gv * 0.98, gv * 0.94)); k++;
             z += w;
           }
@@ -1340,7 +1352,7 @@ const ENV_MODULES = {
             const clen = custom ? userCars[model].L : CAR_TYPES[type].L * k;
             const cz = z + clen / 2, cx = ln.x + (rng() - 0.5) * 0.3;
             if (Math.hypot(cx - origin.x, cz - origin.z) > p.clear + clen / 2) {
-              cars.push({ x: cx, z: cz, dir: ln.dir, type, k, model, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
+              cars.push({ x: cx, y: crownY(cx), roll: Math.atan(crownS(cx)), z: cz, dir: ln.dir, type, k, model, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
             }
             z += clen + 2 + (1 - p.density) * (8 + rng() * 40) + rng() * 4;
           }
@@ -1440,10 +1452,11 @@ function envRenderParams() {
   if (!mod) { box.innerHTML = ''; $('env-extra').hidden = true; return; }
   $('env-extra').hidden = false;
   const row = (p) => {
+    if (env.vals[p.key] === undefined) env.vals[p.key] = p.def;
     const id = 'envp-' + p.key, v = env.vals[p.key];
     if (p.type === 'bool') return `<label class="fld" for="${id}">${p.label}<span class="row"><input id="${id}" type="checkbox" data-k="${p.key}" ${v ? 'checked' : ''}></span></label>`;
     if (p.type === 'select') return `<label class="fld" for="${id}">${p.label}<select id="${id}" data-k="${p.key}">${p.options.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
-    return `<div class="knobrow"><label for="${id}">${p.label}</label><div class="erow"><input type="range" data-k="${p.key}" data-def="${p.def}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}" aria-label="${p.label}"><input id="${id}" type="number" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}"${p.unit ? ` data-unit="${p.unit}"` : ''}></div></div>`;
+    return `<div class="knobrow"><label for="${id}"${p.tip ? ` title="${p.tip}"` : ''}>${p.label}</label><div class="erow"><input type="range" data-k="${p.key}" data-def="${p.def}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}" aria-label="${p.label}"><input id="${id}" type="number" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}"${p.unit ? ` data-unit="${p.unit}"` : ''}></div></div>`;
   };
   box.innerHTML = mod.params.map(row).join('') + '<div class="sub">Placement</div>' + ENV_COMMON.map(row).join('');
   enhanceNumbers(box);

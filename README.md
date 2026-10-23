@@ -34,14 +34,25 @@ It opens with a sample to try the workflow:
 ## Camera height, scan offset and orientation
 
 - **Ground**: world y = 0, shown by the 1 m grid.
-- **Camera height**: the info bar under the viewport always shows the camera height above the ground, plus its tilt, roll and yaw.
-  - Editing the height moves the scan and the camera up or down together, so the match holds and only the distance to the ground changes.
-- **Height offset** (Scan & scale): the same vertical shift, typed in directly. **Sit on ground** puts the lowest point of the scan at y = 0. In both cases the 3D camera follows.
+- **Camera height**: the info bar under the viewport always shows the camera height above the ground, plus its tilt, roll and yaw. It is a readout only.
+- **Height offset** (Scan & scale): moves the scan and the camera up or down together, so the match holds and only the distance to the ground changes. **Sit on ground** puts the lowest point of the scan at y = 0. In both cases the 3D camera follows.
   - The environment's **Ground to scan** respects the offset.
   - The export notes tell you how far to move the scan in your DCC.
 - **Orientation from EXR metadata**: tilt, roll and yaw are read from vendor attributes such as `CameraTilt`, `CameraRoll` or `Pan`/`Yaw`.
   - They are applied on load (**Apply on load**, on by default). **Apply** sets them again if the camera drifts after adjustments.
   - The camera position is kept, and values missing from the file keep the current ones.
+
+## Solve locks
+
+The top bar has two locks for the solve:
+- **Lock focal** (on by default) keeps the focal length shown next to it fixed. Untick it to let the pins estimate the focal: 6 pins, or 4 with tilt/roll locked.
+- **Lock tilt/roll** keeps the camera's current tilt and roll, for example the ones read from the EXR, so the pins only adjust yaw and position. Two pins are enough.
+
+**Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
+
+## Scan texture
+
+**Texture → Apply image** (Scan & scale) maps an image onto every mesh of the scan, for scans that came without a texture or whose texture isn't embedded. It uses the mesh UVs and switches the view to **Flat (unlit)**. **Remove** goes back to the file's own materials.
 
 ## Chroma key
 
@@ -121,7 +132,12 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 - JPG and PNG.
 
 **EXR metadata**
-- Focal length from `nominalFocalLength`, `pinholeFocalLength` or `effectiveFocalLength`.
+- Focal length is read from, in order:
+  - `nominalFocalLength`, `pinholeFocalLength` or `effectiveFocalLength`.
+  - Any attribute whose name contains `focal` (values in mm, meters or microns, as numbers, strings like "35mm", or rationals).
+  - A "Focal length: 35 mm" text inside an attribute.
+  - The number in the lens name (e.g. "Signature Prime 47").
+- If none is found, click a value in the metadata list to use it as the focal.
 - Film back from `sensorAcquisitionRectangle` × `sensorPhotositePitch`.
 - Camera and lens make/model.
 - Vendor keys containing `focal` or `sensor`.

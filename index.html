@@ -180,6 +180,8 @@ details.meta summary:hover { color: var(--fg); }
 details.meta .kv { margin-top: 8px; max-height: 260px; overflow: auto; grid-template-columns: auto 1fr; font-size: 12px; }
 details.meta dd { word-break: break-word; text-align: left; }
 details.meta dt { font-family: var(--f-num); font-size: 11px; }
+details.meta dd.pickf { cursor: pointer; text-decoration: underline dotted var(--muted); }
+details.meta dd.pickf:hover { color: var(--accent-fg); }
 svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .drop { position: absolute; inset: 10px; display: grid; place-items: center; background: rgb(18 18 18 / .85); border: 2px dashed var(--accent-hi); border-radius: 12px; font-size: 15px; font-weight: 600; text-align: center; padding: 16px; }
 .eparams { display: flex; flex-direction: column; gap: 8px; }
@@ -191,6 +193,10 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .keybox { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 10px; }
 .keyopts { display: flex; flex-direction: column; gap: 8px; }
 .keybox .seg { justify-self: start; }
+.lockc { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
+.lockc b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
+.lockc:has(input:checked) b { color: var(--accent-fg); }
+.camh b { color: var(--fg); font: 500 12px var(--f-ui); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .camh { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; }
 .camh input { width: 78px; height: 24px; padding: 2px 7px; font-size: 12px; letter-spacing: 0; }
 #cam-ang small { color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; margin-right: 4px; }
@@ -265,6 +271,14 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       </label>
       <input id="mask-c" type="number" step="0.01" min="0.1" max="10" value="2.00" style="width:68px" aria-label="Custom mask aspect" hidden>
       <span class="sep"></span>
+      <label class="lockc" for="lock-f" title="Keep the focal length fixed while solving. Untick to let the pins estimate it (needs 6 pins, 4 with tilt/roll locked).">
+        <input id="lock-f" type="checkbox" checked> Lock focal <b id="lock-f-v">–</b>
+      </label>
+      <label class="lockc" for="lock-tr" title="Keep the current tilt and roll; the pins only adjust yaw and position (2 pins are enough)">
+        <input id="lock-tr" type="checkbox"> Lock tilt/roll <b id="lock-tr-v"></b>
+      </label>
+      <span class="sep"></span>
+      <button class="btn" id="tb-clear" title="Delete every pin and keep the camera where it is">Clear pins</button>
       <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button>
       <span class="fmt" id="tag">SAMPLE</span>
     </div>
@@ -329,7 +343,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     <div class="ibar">
       <span>x <b id="cx">–</b> y <b id="cy">–</b></span>
       <span id="badge"></span>
-      <label class="camh" for="cam-h" title="Camera height above the ground (y = 0). Changing it moves the scan and the camera together, so the match holds.">CAM HEIGHT <input id="cam-h" type="number" step="0.01"> m</label>
+      <span class="camh" title="Camera height above the ground (y = 0). To change it, use Height offset in Scan & scale.">CAM HEIGHT <b id="cam-h">–</b> m</span>
       <span id="cam-ang"></span>
       <span class="hint" id="hint"></span>
     </div>
@@ -422,6 +436,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
               <option value="-y">Y down (COLMAP)</option>
             </select>
           </label>
+          <div class="knobrow"><span>Texture</span>
+            <div class="row"><span class="file btn">Apply image<input id="f-tex" type="file" accept="image/*"></span><span class="note" id="tex-name">from file</span><button class="btn ghost" id="tex-clear" hidden>Remove</button></div>
+          </div>
           <div class="knobrow"><label for="scan-y">Height offset (m)</label>
             <div class="row nowrap"><input id="scan-y" type="number" step="0.01" value="0"><button class="btn" id="scan-sit" title="Move the scan so its lowest point sits on the ground (y = 0); the camera follows">Sit on ground</button></div>
           </div>
@@ -592,14 +609,15 @@ const Solver = (() => {
   // mode: 'rot' keeps C fixed, 'full' solves both. Returns new pose + rms.
   function refine(pose, K, pins, opt = {}) {
     const mode = opt.mode || 'full', freeF = !!opt.freeFocal, iters = opt.iters || 30;
-    const sc = opt.sceneScale || 1;
-    const n = (mode === 'rot' ? 3 : 6) + (freeF ? 1 : 0);
+    const sc = opt.sceneScale || 1, lockTR = !!opt.lockTR;
+    const rc = lockTR ? 1 : 3; // rotation params: yaw only (about world up) or full
+    const n = rc + (mode === 'rot' ? 0 : 3) + (freeF ? 1 : 0);
     let R = pose.R.slice(), C = pose.C.slice(), f = pose.f || 1;
     const m = pins.length * 2;
     if (!m) return { R, C, f, rms: 0 };
     const apply = (p) => {
-      const R2 = orthonormalize(mul3(rodrigues([p[0], p[1], p[2]]), R));
-      const C2 = mode === 'rot' ? C : [C[0] + p[3] * sc, C[1] + p[4] * sc, C[2] + p[5] * sc];
+      const R2 = lockTR ? orthonormalize(mul3(R, rodrigues([0, p[0], 0]))) : orthonormalize(mul3(rodrigues([p[0], p[1], p[2]]), R));
+      const C2 = mode === 'rot' ? C : [C[0] + p[rc] * sc, C[1] + p[rc + 1] * sc, C[2] + p[rc + 2] * sc];
       const f2 = freeF ? f * Math.exp(p[n - 1]) : f;
       return [R2, C2, f2];
     };
@@ -1209,6 +1227,7 @@ function clearScan() {
 }
 function finishScan(obj, name, kind, fileType) {
   clearScan();
+  st.scanFmt = fileType; $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true;
   // compute raw bbox with identity root
   scanRoot.position.set(0, 0, 0); scanRoot.quaternion.identity(); scanRoot.scale.set(1, 1, 1); scanRoot.updateMatrixWorld(true);
   scanRoot.add(obj); scanObj = obj;
@@ -1559,14 +1578,29 @@ const EXR = (() => {
 
   // camera/lens hints from metadata (OpenEXR 3.2+ standard names first, then vendor keys)
   function lensHints(h) {
-    const num = (v) => typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v.replace(',', '.')) : NaN;
+    const num = (v) => typeof v === 'number' ? v
+      : typeof v === 'string' ? parseFloat(v.replace(',', '.'))
+      : Array.isArray(v) && v.length === 2 && typeof v[0] === 'number' && v[1] ? v[0] / v[1] : NaN; // rational
+    // focal values may come in mm, meters or microns
+    const toMM = (v) => !Number.isFinite(v) || v <= 0 ? NaN : v < 0.5 ? (v >= 0.004 ? v * 1000 : NaN) : v > 2000 ? (v / 1000 >= 1 && v / 1000 < 2000 ? v / 1000 : NaN) : v;
     const out = {};
     for (const k of ['pinholeFocalLength', 'effectiveFocalLength', 'nominalFocalLength']) {
-      const v = num(h.get(k)); if (v > 0.5 && v < 2000) { out.focal = v; out.focalKey = k; break; }
+      const v = toMM(num(h.get(k))); if (v >= 1 && v < 2000) { out.focal = v; out.focalKey = k; break; }
     }
     if (!out.focal) {
-      const a = h.attrs.find(x => /focal/i.test(x.name) && !/distance|ratio|pixel|px/i.test(x.name) && num(x.value) > 0.5 && num(x.value) < 2000);
-      if (a) { out.focal = num(a.value); out.focalKey = a.name; }
+      const a = h.attrs.find(x => /focal|lens.?length/i.test(x.name) && !/distance|ratio|pixel|px|equiv|35mm|plane/i.test(x.name) && toMM(num(x.value)) >= 1 && toMM(num(x.value)) < 2000);
+      if (a) { out.focal = toMM(num(a.value)); out.focalKey = a.name; }
+    }
+    if (!out.focal) { // "Focal Length: 35 mm" inside a text attribute
+      for (const a of h.attrs) {
+        if (typeof a.value !== 'string') continue;
+        const m = a.value.match(/focal[\s_-]*length[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*mm/i);
+        if (m) { out.focal = parseFloat(m[1].replace(',', '.')); out.focalKey = a.name; break; }
+      }
+    }
+    if (!out.focal) { // lens model like "Signature Prime 32mm" / "Ultra Prime 50"
+      const a = h.attrs.find(x => /lens/i.test(x.name) && typeof x.value === 'string' && /(\d{1,3}(?:[.,]\d)?)\s*mm\b|\b(\d{2,3})\s*$/i.test(x.value));
+      if (a) { const m = a.value.match(/(\d{1,3}(?:[.,]\d)?)\s*mm\b|\b(\d{2,3})\s*$/i); const v = parseFloat((m[1] || m[2]).replace(',', '.')); if (v >= 4 && v < 1500) { out.focal = v; out.focalKey = a.name + ' (lens name)'; } }
     }
     const rect = h.get('sensorAcquisitionRectangle'), pitch = num(h.get('sensorPhotositePitch'));
     if (rect && pitch > 0) {
@@ -1765,7 +1799,12 @@ function showExrMeta(h) {
   const first = ['cameraMake', 'cameraModel', 'lensMake', 'lensModel', 'nominalFocalLength', 'pinholeFocalLength', 'effectiveFocalLength', 'focus', 'aperture', 'tStop', 'sensorAcquisitionRectangle', 'sensorPhotositePitch', 'timeCode', 'framesPerSecond', 'chromaticities', 'acesImageContainerFlag', 'displayWindow', 'dataWindow', 'pixelAspectRatio', 'compression', 'channels'];
   const sorted = [...h.attrs].sort((a, b) => { const ia = first.indexOf(a.name), ib = first.indexOf(b.name); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.name.localeCompare(b.name); });
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  $('meta-kv').innerHTML = sorted.map(a => `<dt>${esc(a.name)}</dt><dd>${esc(EXR.fmtVal(a)).slice(0, 300)}</dd>`).join('');
+  $('meta-kv').innerHTML = sorted.map(a => {
+    const n = typeof a.value === 'number' ? a.value : typeof a.value === 'string' ? parseFloat(a.value) : NaN;
+    const pick = Number.isFinite(n) && n >= 1 && n < 2000;
+    return `<dt>${esc(a.name)}</dt><dd${pick ? ` class="pickf" data-f="${n}" title="Use ${n} mm as the focal length"` : ''}>${esc(EXR.fmtVal(a)).slice(0, 300)}</dd>`;
+  }).join('') + '<dt></dt><dd class="note">Click a numeric value to use it as the focal length.</dd>';
+  if (!hint.focal) lines.push('No focal length found: pick it from the metadata list or type it in.');
   $('meta-sum').textContent = `EXR metadata (${h.attrs.length} attributes)`;
 }
 $('cs').onchange = () => { if (exrState) { exrState.cs = $('cs').value; exrState.why = 'set by hand'; } redrawExr(); };
@@ -1842,10 +1881,11 @@ function solveLive(full) {
   let pose = poseFromCamera();
   const k = K();
   const sc = sceneSize() * 0.1;
-  const freeF = st.freeF && pins.length >= 6;
-  const mode = pins.length >= 3 ? 'full' : 'rot';
-  let best = Solver.refine(pose, k, pins, { mode, freeFocal: freeF, iters: full ? 200 : 25, sceneScale: sc });
-  if (full && pins.length >= 6) {
+  const lock = !!st.lockTR;
+  const freeF = st.freeF && pins.length >= (lock ? 4 : 6);
+  const mode = pins.length >= (lock ? 2 : 3) ? 'full' : 'rot';
+  let best = Solver.refine(pose, k, pins, { mode, freeFocal: freeF, lockTR: lock, iters: full ? 200 : 25, sceneScale: sc });
+  if (full && !lock && pins.length >= 6) {
     const d = Solver.dlt(k, pose.f, pins);
     if (d) {
       const r2 = Solver.refine({ ...d, f: pose.f }, k, pins, { mode: 'full', freeFocal: freeF, iters: 200, sceneScale: sc });
@@ -1859,7 +1899,7 @@ function solveLive(full) {
   st.pins.filter(p => !p.on).forEach(p => {
     const q = projectWorld(pinWorld(p)); p.err = q.front ? Math.hypot(q.u - p.uv[0], q.v - p.uv[1]) : Infinity;
   });
-  if (pins.length >= 3) { st.solved = { R: best.R, C: best.C, f: best.f }; $('back').disabled = false; }
+  if (pins.length >= (lock ? 2 : 3)) { st.solved = { R: best.R, C: best.C, f: best.f }; $('back').disabled = false; }
 }
 function errClass(e) { return !Number.isFinite(e) ? 'e-bad' : e < 1 ? 'e-ok' : e < 3 ? 'e-warn' : 'e-bad'; }
 
@@ -1946,9 +1986,11 @@ function camAngles() {
   return { tilt: e.x * d, yaw: e.y * d, roll: e.z * d };
 }
 function updateCamInfo() {
-  const hEl = $('cam-h');
-  if (document.activeElement !== hEl) hEl.value = camera.position.y.toFixed(3);
+  $('cam-h').textContent = camera.position.y.toFixed(3);
   const a = camAngles();
+  $('lock-f-v').textContent = fmt(focalUsed(), 2) + ' mm';
+  $('lock-f').checked = !st.freeF;
+  $('lock-tr-v').textContent = `${fmt(a.tilt, 1)}° / ${fmt(a.roll, 1)}°`;
   $('cam-ang').innerHTML = `<span><small>TILT</small>${fmt(a.tilt, 2)}°</span><span><small>ROLL</small>${fmt(a.roll, 2)}°</span><span><small>YAW</small>${fmt(a.yaw, 2)}°</span>`;
 }
 // set camera orientation (degrees); missing values keep the current ones
@@ -2375,8 +2417,13 @@ function applyKnobNames() {
 }
 $('focal').onchange = () => { const v = +$('focal').value; if (v > 0) { st.focal = v; st.fScale = 1; lsSet('focal', v); applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll(); } };
 $('free').onchange = () => { st.freeF = $('free').checked; st.fScale = 1; applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll(); };
+$('lock-f').onchange = () => { $('free').checked = !$('lock-f').checked; $('free').onchange(); };
+$('lock-tr').onchange = () => { st.lockTR = $('lock-tr').checked; lsSet('lockTR', st.lockTR); if (st.pins.length) solveLive(true); refreshAll(); };
+$('lock-tr').checked = st.lockTR = !!lsGet('lockTR', false);
+function clearPinsKeepCam() { st.pins = []; st.sel = -1; st.rms = null; refreshAll(); }
+$('tb-clear').onclick = clearPinsKeepCam;
 $('solve').onclick = () => { solveLive(true); refreshAll(); };
-$('clear-pins').onclick = () => { st.pins = []; st.sel = -1; st.rms = null; refreshAll(); };
+$('clear-pins').onclick = () => clearPinsKeepCam();
 $('pinlist').addEventListener('click', e => {
   const li = e.target.closest('li[data-i]'); if (!li) return;
   const i = +li.dataset.i;
@@ -2396,13 +2443,43 @@ $('copy').onclick = () => {
 };
 
 // ---------- Camera height / scan offset / orientation ----------
-$('cam-h').addEventListener('change', () => { const v = +$('cam-h').value; if (Number.isFinite(v)) shiftVertical(v - camera.position.y); });
-$('cam-h').addEventListener('keydown', e => { if (e.key === 'Enter') $('cam-h').blur(); e.stopPropagation(); });
 $('scan-y').addEventListener('change', () => { const v = +$('scan-y').value; if (Number.isFinite(v)) shiftVertical(v - (st.scanY || 0)); });
 $('scan-sit').onclick = () => { const b = new THREE.Box3().setFromObject(scanRoot); if (!b.isEmpty()) shiftVertical(-b.min.y); };
 $('orient-apply').onclick = () => applyOrientation(st.metaOrient);
+$('meta-kv').addEventListener('click', e => {
+  const dd = e.target.closest('dd.pickf'); if (!dd) return;
+  const v = +dd.dataset.f; st.focal = v; st.fScale = 1; $('focal').value = v; lsSet('focal', v);
+  applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll();
+});
 $('orient-auto').checked = lsGet('orientAuto', true);
 $('orient-auto').onchange = () => lsSet('orientAuto', $('orient-auto').checked);
+// ---------- Scan texture from an image ----------
+function applyTextureFile(file) {
+  if (!scanObj) return;
+  const url = URL.createObjectURL(file);
+  new THREE.TextureLoader().load(url, tex => {
+    tex.encoding = THREE.sRGBEncoding;
+    tex.flipY = !(st.scanFmt === 'glb' || st.scanFmt === 'gltf');
+    let meshes = 0, withUV = 0;
+    scanObj.traverse(o => {
+      if (!o.isMesh) return;
+      meshes++; if (o.geometry.attributes.uv) withUV++;
+      if (!o.userData.origBackup) o.userData.origBackup = o.userData.orig;
+      o.userData.orig = new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide });
+      o.userData.flat = null;
+    });
+    $('tex-name').textContent = file.name; $('tex-clear').hidden = false;
+    if (!meshes) showMsg('unit-msg', 'Textures only apply to meshes; this scan is a point cloud.', 'msg');
+    else if (withUV < meshes) showMsg('unit-msg', `${meshes - withUV} of ${meshes} meshes have no UVs, so the image cannot map onto them.`, 'msg bad');
+    if ($('disp').value === 'wire' || $('disp').value === 'solid') { $('disp').value = 'flat'; lsSet('disp', 'flat'); }
+    applyDisplay();
+  }, undefined, () => showMsg('unit-msg', 'Could not read ' + file.name + ' as an image.', 'msg bad'));
+}
+$('f-tex').onchange = e => { const f = e.target.files[0]; if (f) applyTextureFile(f); e.target.value = ''; };
+$('tex-clear').onclick = () => {
+  scanObj && scanObj.traverse(o => { if (o.isMesh && o.userData.origBackup) { o.userData.orig = o.userData.origBackup; o.userData.origBackup = null; o.userData.flat = null; } });
+  $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true; applyDisplay();
+};
 // ---------- Chroma key UI ----------
 function keyUI() {
   $('key-on').checked = key.on; $('key-opts').hidden = !key.on;

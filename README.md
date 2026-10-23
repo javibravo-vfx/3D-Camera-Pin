@@ -46,9 +46,20 @@ It opens with a sample to try the workflow:
 
 The top bar has two locks for the solve:
 - **Lock focal** (on by default) keeps the focal length shown next to it fixed. Untick it to let the pins estimate the focal: 6 pins, or 4 with tilt/roll locked.
-- **Lock tilt/roll** keeps the camera's current tilt and roll, for example the ones read from the EXR, so the pins only adjust yaw and position. Two pins are enough.
+- **Lock tilt/roll** freezes the camera's current tilt and roll everywhere: the pins only adjust yaw and position (two pins are enough), and navigation only turns in yaw and moves.
+- **Apply T/R** sets tilt and roll from the EXR metadata.
+- In the info bar, the **TILT / ROLL / YAW** values can be dragged left or right to fine-tune them. Hold Shift for finer steps. Tilt and roll are disabled while locked.
 
 **Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
+
+## Reset all
+
+**Reset all**, in the panel header, asks for a second click and then:
+- Removes the plate and the scan, including the sample.
+- Clears pins, measurements, mask, key and environment.
+- Sets the camera values back to their defaults.
+
+Use it to start from an empty project. UI preferences are kept: navigation preset, viewer transform and panel width.
 
 ## Scan texture
 
@@ -103,6 +114,9 @@ The properties panel can be resized by dragging the handle between it and the vi
 | Blender | MMB | Shift+MMB | Ctrl+MMB, wheel |
 | Nuke | Alt+RMB, Ctrl+LMB | Alt+LMB | Alt+MMB, wheel |
 | Simple mouse | LMB | RMB | MMB, wheel |
+| Game (fly) | Hold RMB and move the mouse to look | MMB | WASD (Q/E down/up, Shift fast) while holding RMB; wheel moves forward |
+
+The **Game** preset is a first-person fly mode: it lets you go inside objects, such as a car's cabin. While RMB is held, the wheel changes the fly speed.
 
 In Pins mode the camera is driven by the pins. The mouse works on the plate instead:
 - Wheel zooms.

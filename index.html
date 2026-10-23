@@ -91,7 +91,9 @@ aside.props { --lbl-w: clamp(84px, 34%, 150px); min-height: 0; min-width: 0; dis
 .node { display: flex; align-items: center; gap: 10px; margin: 10px 10px 2px; padding: 9px 12px; border: 1px solid var(--accent); border-radius: 9px; background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
 .node .chip { width: 10px; height: 10px; border-radius: 3px; background: var(--accent-hi); }
 .node b { font-weight: 600; font-size: 13.5px; }
-.node span { color: var(--muted); font-size: 12px; margin-left: auto; }
+.node span { color: var(--muted); font-size: 12px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.node .btn { height: 26px; padding: 2px 10px; flex: none; }
+#reset-all.armed { background: var(--bad); color: #fff; }
 .scroll { overflow-y: auto; min-height: 0; flex: 1; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 section.step { background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
 .step h2 { margin: 0; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 9px; padding: 11px 12px; cursor: pointer; user-select: none; border-radius: 10px; }
@@ -196,6 +198,12 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .lockc { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
 .lockc b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
 .lockc:has(input:checked) b { color: var(--accent-fg); }
+#cam-ang .scrub { cursor: ew-resize; padding: 2px 4px; border-radius: 4px; }
+#cam-ang .scrub:hover { background: var(--panel-2); color: var(--fg); }
+#cam-ang .scrub.locked { cursor: not-allowed; opacity: .55; }
+#cam-ang .scrub.locked:hover { background: none; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; pointer-events: none; }
+.empty b { color: var(--fg); font-size: 15px; font-weight: 600; }
 .camh b { color: var(--fg); font: 500 12px var(--f-ui); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .camh { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; }
 .camh input { width: 78px; height: 24px; padding: 2px 7px; font-size: 12px; letter-spacing: 0; }
@@ -241,6 +249,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
           <option value="blender">Blender</option>
           <option value="nuke">Nuke</option>
           <option value="simple">Simple mouse</option>
+          <option value="game">Game (fly / WASD)</option>
         </select>
       </label>
       <span class="sep"></span>
@@ -274,6 +283,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       <label class="lockc" for="lock-f" title="Keep the focal length fixed while solving. Untick to let the pins estimate it (needs 6 pins, 4 with tilt/roll locked).">
         <input id="lock-f" type="checkbox" checked> Lock focal <b id="lock-f-v">–</b>
       </label>
+      <button class="btn" id="tb-apply-tr" disabled>Apply T/R</button>
       <label class="lockc" for="lock-tr" title="Keep the current tilt and roll; the pins only adjust yaw and position (2 pins are enough)">
         <input id="lock-tr" type="checkbox"> Lock tilt/roll <b id="lock-tr-v"></b>
       </label>
@@ -337,6 +347,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       </div>
       <div class="drop" id="drop" hidden>Drop the scan (OBJ, PLY, GLB, FBX) or the plate (EXR, JPG, PNG)</div>
       <div class="busy" id="busy" hidden>Loading…</div>
+      <div class="empty" id="empty" hidden><div><b>No plate, no scan</b><br>Drop a plate (EXR, JPG, PNG) and a scan (OBJ, PLY, GLB, FBX) here,<br>or use Load plate and Load scan in the panel.</div></div>
     </main>
     </div>
 
@@ -351,7 +362,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 
   <div class="split" id="split" role="separator" aria-orientation="vertical" aria-label="Resize the properties panel" tabindex="0" title="Drag to resize · double-click to reset"></div>
   <aside class="props" aria-label="Properties">
-    <div class="node"><span class="chip"></span><b>CameraPin1</b><span>camera match on a scan</span></div>
+    <div class="node"><span class="chip"></span><b>CameraPin1</b><span>camera match on a scan</span><button class="btn ghost" id="reset-all" title="Remove the plate and the scan and reset every value to its default">Reset all</button></div>
     <div class="scroll">
       <section class="step" id="s2" data-state="warn">
         <h2 tabindex="0"><span class="n">1</span>Plate &amp; camera<span class="st" id="s2st">sample</span></h2>
@@ -844,18 +855,51 @@ const NAV = {
     map: (b, e) => (b === 0 && e.ctrlKey && !e.altKey) ? 'orbit' : !e.altKey ? null : b === 0 ? 'pan' : b === 1 ? 'dolly' : b === 2 ? 'orbit' : null },
   simple: { hint: 'LMB: orbit · RMB: pan · MMB or wheel: zoom',
     map: (b) => b === 0 ? 'orbit' : b === 2 ? 'pan' : b === 1 ? 'dolly' : null },
+  game: { hint: 'Hold RMB: look + WASD move, Q/E down/up, Shift fast, wheel = speed · MMB: pan · wheel: forward',
+    map: (b) => b === 2 ? 'look' : b === 1 ? 'pan' : null },
 };
 let navPreset = 'maya';
 function navChanged() { camera.updateMatrixWorld(); render(); drawOverlay(); }
 function navOrbit(dx, dy) {
   const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -dx * 0.005);
   const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-  const qPitch = new THREE.Quaternion().setFromAxisAngle(right, -dy * 0.005);
+  const qPitch = new THREE.Quaternion().setFromAxisAngle(right, st.lockTR ? 0 : -dy * 0.005); // locked tilt/roll: yaw only
   const q = qYaw.multiply(qPitch);
   const off = camera.position.clone().sub(nav.target).applyQuaternion(q);
   camera.position.copy(nav.target).add(off);
   camera.quaternion.premultiply(q);
   navChanged();
+}
+// keep the orbit pivot in front of the camera
+function navRetarget() {
+  const dist = Math.max(camera.position.distanceTo(nav.target), 0.5);
+  nav.target.copy(camera.position).addScaledVector(new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion), dist);
+}
+// first-person look: yaw about world up, pitch about the camera's own X (pitch off when tilt/roll is locked)
+function navLook(dx, dy) {
+  camera.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -dx * 0.0035));
+  if (!st.lockTR) {
+    const q2 = camera.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -dy * 0.0035));
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q2);
+    if (Math.abs(fwd.y) < 0.995) camera.quaternion.copy(q2);
+  }
+  navRetarget(); navChanged();
+}
+const game = { keys: new Set(), speed: 1.5, raf: 0, last: 0 };
+function gameLoop(t) {
+  if (!drag || drag.action !== 'look') { game.raf = 0; return; }
+  const dt = Math.min(0.05, (t - (game.last || t)) / 1000); game.last = t;
+  const k = game.keys, v = new THREE.Vector3();
+  if (k.has('KeyW')) v.z -= 1; if (k.has('KeyS')) v.z += 1;
+  if (k.has('KeyA')) v.x -= 1; if (k.has('KeyD')) v.x += 1;
+  const up = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
+  if (v.lengthSq() || up) {
+    const sp = game.speed * (k.has('ShiftLeft') || k.has('ShiftRight') ? 4 : 1) * dt;
+    if (v.lengthSq()) { v.normalize().applyQuaternion(camera.quaternion).multiplyScalar(sp); }
+    v.y += up * sp;
+    camera.position.add(v); nav.target.add(v); navChanged();
+  }
+  game.raf = requestAnimationFrame(gameLoop);
 }
 function navPan(dx, dy) {
   const dist = camera.position.distanceTo(nav.target);
@@ -1227,6 +1271,7 @@ function clearScan() {
 }
 function finishScan(obj, name, kind, fileType) {
   clearScan();
+  $('empty').hidden = true;
   st.scanFmt = fileType; $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true;
   // compute raw bbox with identity root
   scanRoot.position.set(0, 0, 0); scanRoot.quaternion.identity(); scanRoot.scale.set(1, 1, 1); scanRoot.updateMatrixWorld(true);
@@ -1445,6 +1490,7 @@ function applyDisplay() {
 // ---------- Plate ----------
 function setPlate(url, W, H, name, sample) {
   st.plate = { W, H, name, sample };
+  $('empty').hidden = true;
   if (url) { plateImg.onload = () => { if (key.on) keyLater(); }; plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
   else { plateImg.hidden = true; $('platecv').hidden = false; }
   if (url) {
@@ -1991,7 +2037,11 @@ function updateCamInfo() {
   $('lock-f-v').textContent = fmt(focalUsed(), 2) + ' mm';
   $('lock-f').checked = !st.freeF;
   $('lock-tr-v').textContent = `${fmt(a.tilt, 1)}° / ${fmt(a.roll, 1)}°`;
-  $('cam-ang').innerHTML = `<span><small>TILT</small>${fmt(a.tilt, 2)}°</span><span><small>ROLL</small>${fmt(a.roll, 2)}°</span><span><small>YAW</small>${fmt(a.yaw, 2)}°</span>`;
+  const sc = (k, label, v) => `<span class="scrub${st.lockTR && k !== 'yaw' ? ' locked' : ''}" data-a="${k}" title="${st.lockTR && k !== 'yaw' ? 'Locked' : 'Drag left/right to adjust · Shift: fine'}"><small>${label}</small>${fmt(v, 2)}°</span>`;
+  $('cam-ang').innerHTML = sc('tilt', 'TILT', a.tilt) + sc('roll', 'ROLL', a.roll) + sc('yaw', 'YAW', a.yaw);
+  const o = st.metaOrient, hasTR = !!(o && (o.tilt || o.roll));
+  $('tb-apply-tr').disabled = !hasTR;
+  $('tb-apply-tr').title = hasTR ? 'Set tilt and roll from the EXR metadata: ' + $('orient-txt').textContent : 'No tilt/roll in the plate metadata';
 }
 // set camera orientation (degrees); missing values keep the current ones
 function applyOrientation(o) {
@@ -2035,7 +2085,7 @@ function refreshAll() {
   if (st.freeF) kv.push(['Estimated focal', st.pins.filter(p => p.on).length >= 6 ? fmt(focalUsed(), 2) + ' mm' : 'needs 6 pins']);
   $('cam-kv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   $('s2').dataset.state = st.plate.sample ? 'warn' : 'ok';
-  $('s2st').textContent = st.plate.sample ? 'sample' : 'loaded';
+  $('s2st').textContent = st.plate.empty ? 'no plate' : st.plate.sample ? 'sample' : 'loaded';
   // step 3
   const on = st.pins.filter(p => p.on).length;
   $('s3').dataset.state = on >= 4 && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
@@ -2202,6 +2252,8 @@ vp.addEventListener('pointerdown', e => {
     const plain = e.button === 0 && !e.altKey && !e.ctrlKey && !e.shiftKey && !spaceDown;
     if (action) {
       drag = { type: 'nav', action, x, y, lx: x, ly: y, click: st.mode === 'measure' && plain };
+      if (action === 'look' && document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+      if (action === 'look' && !game.raf) { game.last = 0; game.raf = requestAnimationFrame(gameLoop); }
       vp.setPointerCapture(e.pointerId); e.preventDefault();
     } else if (st.mode === 'measure' && plain) drag = { type: 'click', x, y };
     if (e.button === 1) e.preventDefault();
@@ -2220,7 +2272,8 @@ vp.addEventListener('pointermove', e => {
   else if (drag.type === 'nav') {
     const dx = x - drag.lx, dy = y - drag.ly; drag.lx = x; drag.ly = y;
     if (drag.click && Math.hypot(x - drag.x, y - drag.y) < 4) return;
-    if (drag.action === 'orbit') navOrbit(dx, dy);
+    if (drag.action === 'look') navLook(dx, dy);
+    else if (drag.action === 'orbit') navOrbit(dx, dy);
     else if (drag.action === 'pan') navPan(dx, dy);
     else navDolly(Math.exp((dy - dx) * 0.004));
   }
@@ -2250,7 +2303,11 @@ vp.addEventListener('pointerup', e => {
 });
 vp.addEventListener('wheel', e => {
   e.preventDefault();
-  if (st.mode !== 'pins') { navDolly(Math.exp(e.deltaY * 0.0012)); return; }
+  if (st.mode !== 'pins') {
+    if (drag && drag.action === 'look') { game.speed = Math.min(50, Math.max(0.1, game.speed * Math.exp(-e.deltaY * 0.002))); setBusy(true, `Fly speed ${game.speed.toFixed(2)} m/s`); clearTimeout(game.t); game.t = setTimeout(() => setBusy(false), 700); return; }
+    if (navPreset === 'game') { const d = -e.deltaY * 0.002 * Math.max(0.3, game.speed); const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).multiplyScalar(d); camera.position.add(f); nav.target.add(f); navChanged(); return; }
+    navDolly(Math.exp(e.deltaY * 0.0012)); return;
+  }
   const [x, y] = evVp(e);
   const v = st.view, z0 = v.zoom;
   const z = Math.min(32, Math.max(0.25, z0 * Math.exp(-e.deltaY * 0.0015)));
@@ -2258,7 +2315,10 @@ vp.addEventListener('wheel', e => {
   applyView();
 }, { passive: false });
 window.addEventListener('keydown', e => {
+  game.keys.add(e.code);
+  if (drag && drag.action === 'look') { e.preventDefault(); return; }
   if (e.target.matches('input, textarea, select')) return;
+  if (drag && drag.action === 'look') { e.preventDefault(); return; } // flying: WASD/QE don't trigger shortcuts
   if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
   if (e.key === 'Alt') e.preventDefault();
   const k = e.key.toLowerCase();
@@ -2270,8 +2330,8 @@ window.addEventListener('keydown', e => {
   else if (k === 'escape' && st.mode === 'measure') clearMeasure();
   else if ((k === 'delete' || k === 'backspace') && st.sel >= 0) { st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
 });
-window.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; if (e.key === 'Alt') e.preventDefault(); });
-window.addEventListener('blur', () => { spaceDown = false; });
+window.addEventListener('keyup', e => { game.keys.delete(e.code); if (e.code === 'Space') spaceDown = false; if (e.key === 'Alt') e.preventDefault(); });
+window.addEventListener('blur', () => { spaceDown = false; game.keys.clear(); });
 vp.addEventListener('auxclick', e => e.preventDefault());
 new ResizeObserver(() => layoutStage(st.view.zoom === 1)).observe(vp);
 
@@ -2409,6 +2469,7 @@ const KNOB_NAMES = {
   blender: ['Sensor width (mm)', 'Sensor height (mm)', 'Focal length (mm)', 'Aspect X'],
   nuke: ['haperture (mm)', 'vaperture (mm)', 'focal (mm)', 'pixel aspect'],
   simple: ['Film back width (mm)', 'Film back height (mm)', 'Focal (mm)', 'Pixel aspect'],
+  game: ['Film back width (mm)', 'Film back height (mm)', 'Focal (mm)', 'Pixel aspect'],
 };
 function applyKnobNames() {
   const n = KNOB_NAMES[navPreset] || KNOB_NAMES.nuke;
@@ -2453,6 +2514,68 @@ $('meta-kv').addEventListener('click', e => {
 });
 $('orient-auto').checked = lsGet('orientAuto', true);
 $('orient-auto').onchange = () => lsSet('orientAuto', $('orient-auto').checked);
+// ---------- Apply T/R, angle scrub, reset all ----------
+$('tb-apply-tr').onclick = () => { const o = st.metaOrient; if (o) applyOrientation({ tilt: o.tilt, roll: o.roll }); };
+{
+  let sx = null, key = null;
+  const box = $('cam-ang');
+  box.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.scrub'); if (!el || el.classList.contains('locked')) return;
+    key = el.dataset.a; sx = e.clientX; box.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  box.addEventListener('pointermove', e => {
+    if (sx === null) return;
+    const d = (e.clientX - sx) * (e.shiftKey ? 0.01 : 0.05); sx = e.clientX;
+    const a = camAngles(); a[key] += d;
+    const r = Math.PI / 180;
+    camera.quaternion.setFromEuler(new THREE.Euler(a.tilt * r, a.yaw * r, a.roll * r, 'YXZ'));
+    navRetarget(); navChanged();
+  });
+  const end = () => { if (sx === null) return; sx = null; refreshAll(); };
+  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+}
+function resetAll() {
+  // pins, measure, solve
+  st.pins = []; st.sel = -1; st.rms = null; st.solved = null; $('back').disabled = true; st.nextId = 1;
+  st.measure = { a: null, b: null }; updateMeasureGeo();
+  // plate
+  exrState = null; st.metaOrient = null;
+  plateImg.removeAttribute('src'); plateImg.hidden = true; $('platecv').hidden = true;
+  setKey({ on: false });
+  $('exr-box').hidden = true; $('orient-row').hidden = true; $('orient-auto-row').hidden = true; $('meta-msg').hidden = true; $('aspect-msg').hidden = true;
+  $('cs').value = 'disp'; $('cs').disabled = true;
+  st.plate = { W: 1920, H: 1080, name: '', sample: false, empty: true };
+  // camera defaults
+  st.preset = 'alexa-lf-og'; pre.value = st.preset; st.sw = 36.70; st.sh = 25.54; st.shAuto = true; $('sh-auto').checked = true; $('sh').disabled = true;
+  $('sw').value = st.sw; st.focal = 35; st.fScale = 1; $('focal').value = 35;
+  st.freeF = false; $('free').checked = false; st.lockTR = false; $('lock-tr').checked = false; lsSet('lockTR', false);
+  st.par = 1; $('par').value = 1; $('par-note').textContent = 'square';
+  lsSet('sensor', null); lsSet('focal', null); st._saved = null;
+  // scan
+  clearScan(); st.scanName = ''; st.scanFmt = null; st.sample = false;
+  st.scanY = 0; $('scan-y').value = 0; st.scaleOk = false; $('real').value = '';
+  $('unit').value = '1'; $('up').value = 'y'; st.unit = 1; st.userScale = 1; st.up = 'y';
+  scanRoot.position.set(0, 0, 0); scanRoot.quaternion.identity(); scanRoot.scale.set(1, 1, 1); scanRoot.updateMatrixWorld(true);
+  $('scan-name').textContent = 'No scan'; $('scan-kv').innerHTML = ''; $('unit-msg').hidden = true;
+  ['dx', 'dy', 'dz'].forEach(id => $(id).textContent = '–'); $('scan-sum').textContent = 'Size, measure & scale';
+  $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true;
+  // view
+  $('mask').value = '0'; $('exp-crop').checked = false; maskChanged();
+  envSelect('none');
+  $('plate-name').textContent = 'No plate';
+  $('tag').textContent = 'NO PLATE';
+  camera.position.set(4, 2.2, 6); camera.lookAt(0, 0.8, 0); nav.target.set(0, 0.8, 0);
+  layoutStage(true); applyIntrinsics(); checkAspect();
+  $('empty').hidden = false;
+  refreshAll();
+}
+{
+  const b = $('reset-all'); let t = 0;
+  b.onclick = () => {
+    if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to clear'; t = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Reset all'; }, 3000); return; }
+    clearTimeout(t); b.classList.remove('armed'); b.textContent = 'Reset all'; resetAll();
+  };
+}
 // ---------- Scan texture from an image ----------
 function applyTextureFile(file) {
   if (!scanObj) return;

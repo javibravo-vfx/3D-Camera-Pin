@@ -137,6 +137,22 @@ Modular 3D set pieces you can turn on behind or around the scan to check a match
 
 New modules plug into `ENV_MODULES` in `index.html`. Each one declares its parameters (numbers and toggles) and a `build(params, rng, origin)` function that returns a three.js group. The panel builds its controls from that list, so adding a module needs no UI work.
 
+**Railway / station** (for shots inside a train)
+- The top of the rail is the module's ground (y = 0), and the shot's own track runs along Z at x = 0. The train itself is your scan.
+- **Car floor height** (default 1.15 m): with this module, **Ground to scan** puts the rails this far below the lowest point of the scan, which is usually the train's floor.
+- **Track gauge**: broad 1676 mm (Argentina, default), standard 1435 mm or metre gauge. **Tracks left / right** adds extra tracks beside the own one, and **Track spacing** sets centre to centre. Each track has ballast bed, sleepers and rails.
+- **Platform**: right, left, both sides or none. It goes beside the outermost track on that side. You can set:
+  - **Platform height** above the rail: 1.1 m for Buenos Aires suburban, 0.55 / 0.76 m in Europe, 0.915 m in the UK.
+  - **Platform depth**, **Platform edge** (from the track centre), **Platform length** and **Platform position** along the track.
+  - **Canopy** with columns, and a **Back wall**.
+  - The platform also gets an edge strip and a yellow safety line.
+- **People**: on/off and **Crowd** (how busy the platform is). They are simple real-height figures (1.55–1.90 m) in varied clothes and skin tones, standing back from the safety line facing the tracks. **Shuffle** rearranges them.
+- **Other trains**:
+  - **Train on left / right track** puts a train on the track next to the own one.
+  - **Other trains face** sets same way or opposite way.
+  - You can also set **Cars per train**, **Train position** along the track, **Train height** and **Train width**.
+  - The cars are 20 m long, with window band, doors, stripe, underframe and a cab windscreen on the leading car.
+
 ## Scan orientation and scale
 
 - **File up axis** says how the file was written: Y up, Z up, or Y down (COLMAP). The app always works Y-up internally, and the export converts to Z-up for 3ds Max and Blender (Nuke, Maya and Houdini stay Y-up), so this setting never changes how you work in Max.

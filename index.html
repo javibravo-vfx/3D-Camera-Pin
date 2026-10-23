@@ -662,10 +662,10 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             <label class="fld" for="env-disp">Display
               <select id="env-disp"><option value="solid">Solid</option><option value="wire">Wireframe</option></select>
             </label>
-            <div class="knobrow"><span>Car files</span>
+            <div class="knobrow" id="env-carfiles"><span>Car files</span>
               <div class="row"><span class="file btn">Load car models<input id="f-cars" type="file" accept=".glb,.gltf,.fbx,.obj" multiple></span><span class="note" id="cars-n">none</span></div>
             </div>
-            <p class="note credit">Car pack: <a href="https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5" target="_blank" rel="noopener">“Generic passenger car pack”</a> by Comrade1280, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (converted, sports car left out).</p>
+            <p class="note credit" id="env-credit">Car pack: <a href="https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5" target="_blank" rel="noopener">“Generic passenger car pack”</a> by Comrade1280, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (converted, sports car left out).</p>
             <div class="row k">
               <button class="btn" id="env-shuffle" title="New random traffic and buildings">Shuffle</button>
               <button class="btn" id="env-ground" title="Put the environment ground at the lowest point of the scan">Ground to scan</button>
@@ -1434,7 +1434,154 @@ const ENV_MODULES = {
       return g;
     },
   },
+  rail: {
+    name: 'Railway / station',
+    params: [
+      { key: 'floorH', label: 'Car floor height', type: 'num', min: 0.3, max: 1.6, step: 0.01, def: 1.15, unit: 'm', tip: 'Floor of the shot\'s train above the top of the rail. Ground to scan uses it: it puts the rails this far below the lowest point of the scan.' },
+      { key: 'gauge', label: 'Track gauge', type: 'select', options: [['1.676', 'Broad 1676 mm (AR)'], ['1.435', 'Standard 1435 mm'], ['1.000', 'Metre 1000 mm']], def: '1.676' },
+      { key: 'tracksL', label: 'Tracks left', type: 'num', min: 0, max: 6, step: 1, def: 1, tip: 'Extra tracks on the left of the shot\'s own track (the own track is at the centre, x = 0).' },
+      { key: 'tracksR', label: 'Tracks right', type: 'num', min: 0, max: 6, step: 1, def: 0 },
+      { key: 'spacing', label: 'Track spacing', type: 'num', min: 3.5, max: 8, step: 0.05, def: 4.2, unit: 'm', tip: 'Centre to centre between tracks.' },
+      { key: 'length', label: 'Length', type: 'num', min: 50, max: 1000, step: 10, def: 300, unit: 'm' },
+      { key: 'plat', label: 'Platform', type: 'select', options: [['right', 'Right'], ['left', 'Left'], ['both', 'Both sides'], ['none', 'None']], def: 'right' },
+      { key: 'pH', label: 'Platform height', type: 'num', min: 0.2, max: 1.5, step: 0.01, def: 1.1, unit: 'm', tip: 'Above the top of the rail. Buenos Aires suburban ~1.1 m, Europe 0.55 / 0.76 m, UK 0.915 m.' },
+      { key: 'pD', label: 'Platform depth', type: 'num', min: 1.5, max: 20, step: 0.1, def: 6, unit: 'm' },
+      { key: 'pEdge', label: 'Platform edge', type: 'num', min: 1.4, max: 2.5, step: 0.01, def: 1.65, unit: 'm', tip: 'From the centre of the next track to the platform edge.' },
+      { key: 'pLen', label: 'Platform length', type: 'num', min: 20, max: 600, step: 5, def: 200, unit: 'm' },
+      { key: 'pZ', label: 'Platform position', type: 'num', min: -300, max: 300, step: 1, def: 0, unit: 'm', tip: 'Slides the platform along the track.' },
+      { key: 'canopy', label: 'Canopy', type: 'bool', def: true },
+      { key: 'wall', label: 'Back wall', type: 'bool', def: false },
+      { key: 'people', label: 'People', type: 'bool', def: true },
+      { key: 'crowd', label: 'Crowd', type: 'num', min: 0.02, max: 1, step: 0.02, def: 0.25, tip: 'How busy the platform is.' },
+      { key: 'trainL', label: 'Train on left track', type: 'bool', def: false },
+      { key: 'trainR', label: 'Train on right track', type: 'bool', def: false },
+      { key: 'tdir', label: 'Other trains face', type: 'select', options: [['same', 'Same way'], ['opp', 'Opposite way']], def: 'opp' },
+      { key: 'cars', label: 'Cars per train', type: 'num', min: 1, max: 12, step: 1, def: 6 },
+      { key: 'trainZ', label: 'Train position', type: 'num', min: -300, max: 300, step: 1, def: 0, unit: 'm', tip: 'Slides the other trains along the track.' },
+      { key: 'carH', label: 'Train height', type: 'num', min: 3, max: 4.8, step: 0.05, def: 4.1, unit: 'm', tip: 'Roof above the top of the rail.' },
+      { key: 'carW', label: 'Train width', type: 'num', min: 2.6, max: 3.4, step: 0.02, def: 3.0, unit: 'm' },
+    ],
+    // top of rail is y = 0; the shot's own track runs along Z at x = 0
+    build(p, rng, origin) {
+      const g = new THREE.Group(), len = p.length, gauge = +p.gauge || 1.676, sp = p.spacing;
+      const nL = Math.round(p.tracksL), nR = Math.round(p.tracksR);
+      const xs = []; for (let i = -nL; i <= nR; i++) xs.push(i * sp);
+      const M = RAIL_MAT, m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s3 = new THREE.Vector3(), col = new THREE.Color();
+      // ground and ballast beds
+      const xmin = xs[0] - 30, xmax = xs[xs.length - 1] + 30;
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(xmax - xmin, len).rotateX(-Math.PI / 2), M.ground); ground.position.set((xmin + xmax) / 2, -0.62, 0); g.add(ground);
+      const bed = new THREE.Shape(); const bw = gauge + 2.2;
+      bed.moveTo(-bw / 2 - 0.9, -0.62); bed.lineTo(bw / 2 + 0.9, -0.62); bed.lineTo(bw / 2, -0.18); bed.lineTo(-bw / 2, -0.18); bed.closePath();
+      const bedGeo = new THREE.ExtrudeGeometry(bed, { depth: len, bevelEnabled: false }).translate(0, 0, -len / 2);
+      // rails and sleepers
+      const railGeo = new THREE.BoxGeometry(0.075, 0.16, len), sleeperGeo = new THREE.BoxGeometry(gauge + 1.0, 0.2, 0.26);
+      const nS = Math.floor(len / 0.6);
+      const sl = new THREE.InstancedMesh(sleeperGeo, M.sleeper, nS * xs.length); let k = 0;
+      xs.forEach(x => {
+        const b = new THREE.Mesh(bedGeo, M.ballast); b.position.x = x; g.add(b);
+        for (const sx of [-1, 1]) { const r = new THREE.Mesh(railGeo, M.rail); r.position.set(x + sx * (gauge / 2 + 0.035), -0.08, 0); g.add(r); }
+        for (let i = 0; i < nS; i++) { m.makeTranslation(x, -0.26, -len / 2 + (i + 0.5) * 0.6); sl.setMatrixAt(k++, m); }
+      });
+      g.add(sl);
+      // platforms: next to the outermost track on that side
+      const sides = p.plat === 'both' ? [-1, 1] : p.plat === 'left' ? [-1] : p.plat === 'right' ? [1] : [];
+      const pl = p.pLen, pz = p.pZ, pH = p.pH, pD = p.pD;
+      const platforms = [];
+      sides.forEach(sg => {
+        const edge = (sg < 0 ? xs[0] : xs[xs.length - 1]) + sg * p.pEdge, cx = edge + sg * pD / 2;
+        g.add(boxAt(pD, pH + 0.62, pl, cx, (pH - 0.62) / 2, pz, M.platform));
+        g.add(boxAt(0.6, 0.012, pl, edge + sg * 0.3, pH + 0.006, pz, M.edge));           // edge strip
+        g.add(boxAt(0.12, 0.01, pl, edge + sg * 0.9, pH + 0.006, pz, M.tactile));        // safety line
+        platforms.push({ sg, edge, cx });
+        if (p.canopy) {
+          const ch = 3.6, cols = Math.max(2, Math.floor(pl / 9));
+          for (let i = 0; i <= cols; i++) g.add(boxAt(0.2, ch, 0.2, edge + sg * pD * 0.62, pH + ch / 2, pz - pl / 2 + 2 + i * (pl - 4) / cols, M.pole));
+          g.add(boxAt(pD * 0.92, 0.18, pl * 0.94, edge + sg * pD * 0.5, pH + ch + 0.09, pz, M.roof));
+        }
+        if (p.wall) g.add(boxAt(0.25, 2.6, pl, edge + sg * (pD - 0.125), pH + 1.3, pz, M.wall));
+      });
+      // people on the platforms
+      if (p.people && platforms.length) {
+        const per = [];
+        platforms.forEach(P => {
+          const n = Math.round(p.crowd * pl * (pD - 1.4) * 0.45);
+          for (let i = 0; i < n; i++) {
+            const d = 1.15 + rng() * Math.max(0.2, pD - 1.6), z = pz - pl / 2 + 1 + rng() * (pl - 2);
+            per.push({ x: P.edge + P.sg * d, z, h: 1.55 + rng() * 0.35, face: P.sg < 0 ? Math.PI / 2 : -Math.PI / 2, jit: (rng() - 0.5) * 1.6, c: PEOPLE_COLORS[Math.floor(rng() * PEOPLE_COLORS.length)], sk: SKIN[Math.floor(rng() * SKIN.length)] });
+          }
+        });
+        if (per.length) {
+          const body = new THREE.InstancedMesh(PERSON.body, M.person, per.length), legs = new THREE.InstancedMesh(PERSON.legs, M.person, per.length), head = new THREE.InstancedMesh(PERSON.head, M.person, per.length);
+          per.forEach((o, i) => {
+            const sc = o.h / 1.75; q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), o.face + o.jit);
+            m.compose(v.set(o.x, pH, o.z), q, s3.set(sc, sc, sc));
+            body.setMatrixAt(i, m); legs.setMatrixAt(i, m); head.setMatrixAt(i, m);
+            body.setColorAt(i, col.setHex(o.c)); legs.setColorAt(i, col.setHex(rng() < 0.6 ? 0x23262d : 0x3a3f4a)); head.setColorAt(i, col.setHex(o.sk));
+          });
+          [body, legs, head].forEach(x => { x.instanceColor.needsUpdate = true; g.add(x); });
+        }
+      }
+      // other trains on the tracks next to the own one
+      const trains = [];
+      if (p.trainL && nL > 0) trains.push(xs[nL - 1]);
+      if (p.trainR && nR > 0) trains.push(xs[nL + 1]);
+      if (trains.length) {
+        const n = Math.round(p.cars), cl = 20, gap = 0.9, W = p.carW, H = p.carH, floor = 1.15;
+        const tot = n * cl + (n - 1) * gap, dir = p.tdir === 'same' ? -1 : 1; // front of the train toward -Z (same way) or +Z
+        const T = [];
+        trains.forEach(x => { for (let i = 0; i < n; i++) T.push({ x, z: p.trainZ - tot / 2 + cl / 2 + i * (cl + gap), first: dir < 0 ? i === 0 : i === n - 1 }); });
+        const parts = [
+          [TRAIN.body, M.train], [TRAIN.band, M.window], [TRAIN.stripe, M.stripe], [TRAIN.under, M.under], [TRAIN.doors, M.door], [TRAIN.roof, M.trainRoof],
+        ];
+        parts.forEach(([geo, mat]) => {
+          const im = new THREE.InstancedMesh(geo, mat, T.length);
+          T.forEach((c, i) => { m.compose(v.set(c.x, 0, c.z), q.identity(), s3.set(W / 3, H / 4.1, 1)); im.setMatrixAt(i, m); });
+          g.add(im);
+        });
+        // cab windscreen on the leading car
+        T.filter(c => c.first).forEach(c => g.add(boxAt(W * 0.8, 1.0, 0.05, c.x, (floor + 1.35) * H / 4.1, c.z + dir * (cl / 2 + 0.02), M.window)));
+      }
+      return g;
+    },
+  },
 };
+// railway materials and shared geometry (train car: 20 m long, 3.0 m wide, 4.1 m roof, floor 1.15 m above the rail)
+const RAIL_MAT = {
+  ground: new THREE.MeshLambertMaterial({ color: 0x5b5a4c }), ballast: new THREE.MeshLambertMaterial({ color: 0x77736a }),
+  sleeper: new THREE.MeshLambertMaterial({ color: 0x8d8a84 }), rail: new THREE.MeshPhongMaterial({ color: 0x8a8c90, shininess: 80, specular: 0x777777 }),
+  platform: new THREE.MeshLambertMaterial({ color: 0x9c9890 }), edge: new THREE.MeshBasicMaterial({ color: 0xc9c5bb, polygonOffset: true, polygonOffsetFactor: -2 }),
+  tactile: new THREE.MeshBasicMaterial({ color: 0xe0b437, polygonOffset: true, polygonOffsetFactor: -2 }),
+  pole: new THREE.MeshLambertMaterial({ color: 0x4f5357 }), roof: new THREE.MeshLambertMaterial({ color: 0x6d7074, side: THREE.DoubleSide }), wall: new THREE.MeshLambertMaterial({ color: 0xb7aea0 }),
+  person: new THREE.MeshLambertMaterial({ color: 0xffffff }),
+  train: new THREE.MeshPhongMaterial({ color: 0xc9ccd0, shininess: 60, specular: 0x444444 }), window: new THREE.MeshPhongMaterial({ color: 0x14191e, shininess: 90, specular: 0x666666 }),
+  stripe: new THREE.MeshLambertMaterial({ color: 0x1f4f8c }), under: new THREE.MeshLambertMaterial({ color: 0x1b1c1e }), door: new THREE.MeshLambertMaterial({ color: 0x8f959c }),
+  trainRoof: new THREE.MeshLambertMaterial({ color: 0x9a9da1 }),
+};
+// merge simple geometries (position + normal) into one non-indexed geometry
+function mergeGeos(list) {
+  const geos = list.map(g => g.index ? g.toNonIndexed() : g);
+  const n = geos.reduce((a, g) => a + g.attributes.position.count, 0), P = new Float32Array(n * 3), N = new Float32Array(n * 3);
+  let o = 0; geos.forEach(g => { P.set(g.attributes.position.array, o * 3); N.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; });
+  const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.BufferAttribute(P, 3)); out.setAttribute('normal', new THREE.BufferAttribute(N, 3)); return out;
+}
+const PEOPLE_COLORS = [0x2b2f38, 0x3d4655, 0x6b6f75, 0x8c2f2f, 0x2f5a8c, 0xc9c3b6, 0x4f6b3f, 0x1c1c1e, 0x7d5a3c, 0xb8b8bc];
+const SKIN = [0xe2b99a, 0xc89a76, 0x9c6b4c, 0x6e4a33, 0xf0cdb3];
+const PERSON = (() => {
+  const body = new THREE.CapsuleGeometry(0.19, 0.42, 4, 10).scale(1, 1, 0.62).translate(0, 1.18, 0);
+  const legs = mergeGeos([-0.09, 0.09].map(x => new THREE.CapsuleGeometry(0.075, 0.72, 3, 8).translate(x, 0.47, 0)));
+  const head = new THREE.SphereGeometry(0.105, 14, 10).scale(1, 1.15, 1).translate(0, 1.63, 0);
+  return { body, legs, head };
+})();
+const TRAIN = (() => {
+  const L = 20, W = 3.0, fl = 1.15, top = 4.1, B = (w, h, d, y, x = 0) => new THREE.BoxGeometry(w, h, d).translate(x, y, 0);
+  const body = B(W, top - fl - 0.25, L, fl + (top - fl - 0.25) / 2);
+  const roof = B(W * 0.9, 0.25, L, top - 0.125);
+  const band = B(W + 0.02, 0.95, L * 0.9, fl + 1.35);
+  const stripe = B(W + 0.025, 0.18, L, fl + 0.55);
+  const under = B(W * 0.86, 0.75, L * 0.92, 0.42);
+  const doors = mergeGeos([-L * 0.3, L * 0.3].flatMap(z => [-1, 1].map(sx => new THREE.BoxGeometry(0.03, 1.95, 1.3).translate(sx * (W / 2 + 0.01), fl + 0.98, z))));
+  return { body, roof, band, stripe, under, doors };
+})();
 const ENV_COMMON = [
   { key: 'x', label: 'Offset X', type: 'num', min: -500, max: 500, step: 0.1, def: 0, unit: 'm' },
   { key: 'z', label: 'Offset Z', type: 'num', min: -500, max: 500, step: 0.1, def: 0, unit: 'm' },
@@ -1523,6 +1670,7 @@ function envRenderParams() {
   const mod = ENV_MODULES[env.id], box = $('env-params');
   if (!mod) { box.innerHTML = ''; $('env-extra').hidden = true; return; }
   $('env-extra').hidden = false;
+  $('env-carfiles').hidden = $('env-credit').hidden = env.id !== 'avenue';
   const row = (p) => {
     if (env.vals[p.key] === undefined) env.vals[p.key] = p.def;
     const id = 'envp-' + p.key, v = env.vals[p.key];
@@ -3598,7 +3746,7 @@ $('f-cars').onchange = e => { const fs = [...e.target.files]; e.target.value = '
 $('env-shuffle').onclick = () => { env.seed = (env.seed * 9301 + 49297) % 233280 + 1; envSave(); envRebuild(); };
 $('env-ground').onclick = () => {
   const b = new THREE.Box3().setFromObject(scanRoot);
-  if (!b.isEmpty()) { envSet('y', +b.min.y.toFixed(3)); lsSet('env.vals.' + env.id, env.vals); }
+  if (!b.isEmpty()) { envSet('y', +(b.min.y - (env.id === 'rail' ? env.vals.floorH || 0 : 0)).toFixed(3)); lsSet('env.vals.' + env.id, env.vals); }
 };
 $('env-reset').onclick = () => { env.vals = envDefaults(env.id); lsSet('env.vals.' + env.id, null); envRenderParams(); envSave(); envRebuild(); };
 {

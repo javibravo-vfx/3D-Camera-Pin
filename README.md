@@ -48,13 +48,19 @@ The panel header also has **Open**, **Save**, **Demo** and **Reset all**.
 
 The top bar always shows the camera in use: sensor preset, film back and focal length. If the plate metadata names a different camera than the current preset, the badge turns amber, and hovering it shows what the file says.
 
+## Layout
+
+- **Top bar**: viewer LUT, mask, pin actions (Clear / Bake / Solved cam) and the camera badge.
+- **Info bar** (under the viewport), first row: FOCAL with its Lock and **EXR** button, CAM HEIGHT, TILT / ROLL with their Lock and **EXR** button, and YAW.
+- **Info bar**, second row: cursor x/y, plate resolution, RMS and zoom, the hint, and **Nav** (navigation preset) at the bottom right.
+
 ## Solve locks
 
-The top bar has two locks for the solve:
+The info bar has two locks for the solve:
 - **Lock focal** (on by default) keeps the focal length fixed; its field shows dashed while locked. Untick it to type or drag the focal right there and let the pins refine it: 6 pins, or 4 with tilt/roll locked.
-- **Apply focal** sets the focal length from the EXR metadata.
+- **EXR** next to the focal sets it from the EXR metadata.
 - **Lock tilt/roll** freezes the camera's current tilt and roll everywhere: the pins only adjust yaw and position (two pins are enough), and navigation only turns in yaw and moves.
-- **Apply T/R** sets tilt and roll from the EXR metadata.
+- **EXR** next to tilt/roll sets them from the EXR metadata.
 - In the info bar, **CAM HEIGHT / TILT / ROLL / YAW** are fields: drag them or click and type. Tilt and roll are disabled while locked.
 
 **Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
@@ -119,6 +125,7 @@ Modular 3D set pieces you can turn on behind or around the scan to check a match
   - **Built-in** gives real-size procedural sedans, hatchbacks and SUVs.
   - **My models** uses car files you load (GLB/GLTF, including Draco/meshopt-compressed, FBX, OBJ). Each one is turned so its length runs along the road, sat on the ground, and kept at its own size if it is already 2.5–8 m long; otherwise it is scaled to a 4.6 m car.
   - **Flip model front** turns them around if they drive backwards.
+- **Traffic flow**: Two-way, or One-way with every car facing the same way. One-way drops the double yellow centre line for a plain lane line. **Reverse direction** turns the flow around.
 - The **Measure** tool also picks the environment (cars, road, posts), so you can compare a traffic car against your scan. A measurement with an end on the environment is a size check only and never rescales the scan.
   - Loaded models last for the session.
 

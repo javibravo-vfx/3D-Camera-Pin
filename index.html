@@ -47,10 +47,10 @@ body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-s
 .split::after { content: ""; position: absolute; top: 50%; left: 50%; width: 3px; height: 36px; transform: translate(-50%, -50%); border-radius: 3px; background: var(--line); transition: background .12s, height .12s; }
 .split:hover::after, .split.drag::after, .split:focus-visible::after { background: var(--accent-hi); height: 64px; }
 .split:focus-visible { outline: none; }
-.vbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.vbar { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: 0; padding: 7px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .vbar .sep { width: 1px; align-self: stretch; margin-block: 4px; background: var(--line); }
 .vbar label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; }
-.tbcam { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: transparent; border: 1px solid var(--line); color: var(--muted); font: 500 12px var(--f-ui); white-space: nowrap; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.tbcam { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: transparent; border: 1px solid var(--line); color: var(--muted); font: 500 12px var(--f-ui); white-space: nowrap; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
 .tbcam.warn { background: color-mix(in srgb, var(--warn) 22%, var(--card)); color: var(--warn); }
 .tbcam + .fmt { margin-left: 0; }
 .vbar .fmt { margin-left: auto; font: 500 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -84,19 +84,28 @@ details.more[open] summary::before { content: "▾  "; }
 details.more summary:hover { color: var(--fg); }
 details.more .more-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 main.vp { position: relative; overflow: hidden; background: var(--bg); min-height: 0; touch-action: none; user-select: none; }
-.ibar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 7px 12px; border-top: 1px solid var(--line); font: 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ibar { display: flex; flex-direction: column; gap: 6px; padding: 7px 12px; border-top: 1px solid var(--line); font: 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
 .ibar b { color: var(--fg); font-weight: 500; }
-.ibar .hint { font: 12px var(--f-ui); color: var(--muted); margin-left: auto; min-width: 0; }
+.ibar .hint { font: 12px var(--f-ui); color: var(--muted); margin-left: auto; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ibar .hint b { font-weight: 600; }
 #badge { display: flex; gap: 16px; }
 .ibar .xy { display: inline-flex; gap: 4px; margin-right: 26px; }
 .ibar .xy b { display: inline-block; min-width: 4.5ch; text-align: right; }
 .ibar .ro { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; }
 .ibar .ro b { display: inline-block; min-width: 8.5ch; font: 500 12px var(--f-ui); letter-spacing: 0; color: var(--fg); }
-.ibar .grp { display: inline-flex; align-items: center; gap: 14px; }
+.ibar .grp { display: inline-flex; align-items: center; gap: 10px; }
+.ibrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
+.ibar .fmt { font: 500 11.5px var(--f-ui); color: var(--muted); }
+.ibar .navz { display: inline-flex; align-items: center; flex: none; }
+.ibrow:last-child { flex-wrap: nowrap; }
+.ibar .navz label { display: flex; align-items: center; gap: 7px; color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; text-transform: uppercase; }
+.ibar .navz select { height: 26px; font-size: 12px; letter-spacing: 0; text-transform: none; }
+.btn.sm { height: 26px; padding: 0 9px; font-size: 12px; }
+.vbar > .btn, .vbar > label, .vbar > .sep { flex: none; white-space: nowrap; }
+.ibar .fmt, .ibar .xy, .ibar .camh, .ibar .lockc { flex: none; white-space: nowrap; }
 .ibar .sep { width: 1px; height: 16px; background: var(--line); }
 /* editable numbers outside the panel: a small field, drag to scrub, click to type */
-.num:has(> input.mini) { display: inline-block; flex: none; width: 98px; }
+.num:has(> input.mini) { display: inline-block; flex: none; width: 84px; }
 input.mini { height: 26px; font-size: 12px; padding: 2px 7px; }
 .num:has(> input.mini).has-u > input { padding-right: 32px; }
 .num:has(> input.mini) .u { right: 8px; font-size: 11px; }
@@ -315,18 +324,6 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 <div class="app">
   <div class="viewer">
     <div class="vbar">
-      <label for="navp">Nav
-        <select id="navp" style="width:auto">
-          <option value="maya">Maya</option>
-          <option value="max">3ds Max</option>
-          <option value="houdini">Houdini</option>
-          <option value="blender">Blender</option>
-          <option value="nuke">Nuke</option>
-          <option value="simple">Simple mouse</option>
-          <option value="game">Game (fly / WASD)</option>
-        </select>
-      </label>
-      <span class="sep"></span>
       <label class="vlut" for="view">Viewer
         <select id="view" style="width:auto">
           <option value="aces709">ACES 1.0 · Rec.709</option>
@@ -354,21 +351,10 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       </label>
       <input id="mask-c" type="number" step="0.01" min="0.1" max="10" value="2.00" style="width:68px" aria-label="Custom mask aspect" hidden>
       <span class="sep"></span>
-      <button class="btn" id="tb-apply-f" disabled>Apply focal</button>
-      <label class="lockc" for="lock-f" title="Keep the focal length fixed while solving. Untick to edit it here and let the pins refine it (needs 6 pins, 4 with tilt/roll locked).">
-        <input id="lock-f" type="checkbox" checked> Lock focal
-      </label>
-      <input id="tb-focal" class="mini" type="number" step="0.1" min="1" data-unit="mm" aria-label="Focal length" disabled>
-      <button class="btn" id="tb-apply-tr" disabled>Apply T/R</button>
-      <label class="lockc" for="lock-tr" title="Keep the current tilt and roll; the pins only adjust yaw and position (2 pins are enough)">
-        <input id="lock-tr" type="checkbox"> Lock tilt/roll <b id="lock-tr-v"></b>
-      </label>
-      <span class="sep"></span>
       <button class="btn" id="tb-clear" title="Delete every pin and keep the camera where it is">Clear pins</button>
       <button class="btn" id="tb-bake">Bake pins</button>
       <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button>
       <span class="tbcam" id="tb-cam" title="Camera and lens used for the solve"></span>
-      <span class="fmt" id="tag">SAMPLE</span>
     </div>
 
     <div class="vmid">
@@ -449,18 +435,42 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     </div>
 
     <div class="ibar">
-      <span class="xy" title="Cursor position on the plate (pixels)">x <b id="cx">–</b> y <b id="cy">–</b></span>
-      <span class="ro" title="Focal length used">FOCAL <b id="ib-focal">–</b></span>
-      <span class="sep"></span>
-      <span class="grp" id="cam-ang">
+      <div class="ibrow">
+        <span class="grp" title="Focal length. Locked: fixed while solving (dashed). Unlocked: type or drag it, and the pins refine it (6 pins, 4 with tilt/roll locked).">
+          <label class="camh" for="tb-focal">FOCAL</label><input id="tb-focal" class="mini" type="number" step="0.1" min="1" data-unit="mm" aria-label="Focal length" disabled>
+          <label class="lockc" for="lock-f"><input id="lock-f" type="checkbox" checked> Lock</label>
+          <button class="btn sm" id="tb-apply-f" disabled>EXR</button>
+        </span>
+        <span class="sep"></span>
         <label class="camh" title="Camera height above the ground (y = 0). Moves only the camera: drag or type.">CAM HEIGHT <input id="cam-h" class="mini" type="number" step="0.01" data-unit="m"></label>
-        <label class="camh">TILT <input id="ang-tilt" class="mini" type="number" step="0.05" data-unit="°"></label>
-        <label class="camh">ROLL <input id="ang-roll" class="mini" type="number" step="0.05" data-unit="°"></label>
-        <label class="camh">YAW <input id="ang-yaw" class="mini" type="number" step="0.05" data-unit="°"></label>
-      </span>
-      <span class="sep"></span>
-      <span id="badge"></span>
-      <span class="hint" id="hint"></span>
+        <span class="sep"></span>
+        <span class="grp" id="cam-ang">
+          <label class="camh">TILT <input id="ang-tilt" class="mini" type="number" step="0.05" data-unit="°"></label>
+          <label class="camh">ROLL <input id="ang-roll" class="mini" type="number" step="0.05" data-unit="°"></label>
+          <label class="lockc" for="lock-tr" title="Keep the current tilt and roll; the pins only adjust yaw and position (2 pins are enough)"><input id="lock-tr" type="checkbox"> Lock</label>
+          <button class="btn sm" id="tb-apply-tr" disabled>EXR</button>
+          <span class="sep"></span>
+          <label class="camh">YAW <input id="ang-yaw" class="mini" type="number" step="0.05" data-unit="°"></label>
+        </span>
+
+      </div>
+      <div class="ibrow">
+        <span class="xy" title="Cursor position on the plate (pixels)">x <b id="cx">–</b> y <b id="cy">–</b></span>
+        <span class="fmt" id="tag" title="Plate resolution">SAMPLE</span>
+        <span id="badge"></span>
+        <span class="hint" id="hint"></span>
+        <span class="navz">      <label for="navp">Nav
+          <select id="navp" style="width:auto">
+            <option value="maya">Maya</option>
+            <option value="max">3ds Max</option>
+            <option value="houdini">Houdini</option>
+            <option value="blender">Blender</option>
+            <option value="nuke">Nuke</option>
+            <option value="simple">Simple mouse</option>
+            <option value="game">Game (fly / WASD)</option>
+          </select>
+        </label></span>
+      </div>
     </div>
   </div>
 
@@ -1207,6 +1217,8 @@ const ENV_MODULES = {
       { key: 'median', label: 'Median', type: 'num', min: 0, max: 20, step: 0.5, def: 2, unit: 'm' },
       { key: 'walk', label: 'Sidewalk', type: 'num', min: 0, max: 12, step: 0.5, def: 4, unit: 'm' },
       { key: 'length', label: 'Length', type: 'num', min: 50, max: 1000, step: 10, def: 300, unit: 'm' },
+      { key: 'flow', label: 'Traffic flow', type: 'select', options: [['two', 'Two-way'], ['one', 'One-way']], def: 'two' },
+      { key: 'reverse', label: 'Reverse direction', type: 'bool', def: false },
       { key: 'cars', label: 'Cars', type: 'bool', def: true },
       { key: 'carsrc', label: 'Car models', type: 'select', options: [['procedural', 'Built-in'], ['custom', 'My models']], def: 'procedural' },
       { key: 'flipcars', label: 'Flip model front', type: 'bool', def: false },
@@ -1223,13 +1235,15 @@ const ENV_MODULES = {
       const road = new THREE.Mesh(new THREE.PlaneGeometry(roadW, len).rotateX(-Math.PI / 2), ENV_MAT.asphalt); g.add(road);
       // lane x centres
       const lanes = [];
-      for (let i = 0; i < rightN; i++) lanes.push({ x: med / 2 + lw * (i + 0.5), dir: 1 });
-      for (let i = 0; i < leftN; i++) lanes.push({ x: -(med / 2 + lw * (i + 0.5)), dir: -1 });
+      const oneWay = p.flow === 'one', rev = p.reverse ? -1 : 1;
+      for (let i = 0; i < rightN; i++) lanes.push({ x: med / 2 + lw * (i + 0.5), dir: rev });
+      for (let i = 0; i < leftN; i++) lanes.push({ x: -(med / 2 + lw * (i + 0.5)), dir: (oneWay ? 1 : -1) * rev });
       // markings
       const dashLen = 3, gap = 9, lineW = 0.12;
       const dashes = [];
       const sideLines = (n, sign) => { for (let i = 1; i < n; i++) dashes.push(sign * (med / 2 + lw * i)); };
       sideLines(rightN, 1); sideLines(leftN, -1);
+      if (oneWay && med < 0.6 && leftN && rightN) dashes.push(0); // one-way: plain lane line in the middle, no double yellow
       const nD = Math.floor(len / (dashLen + gap));
       if (dashes.length && nD) {
         const dm = new THREE.InstancedMesh(new THREE.PlaneGeometry(lineW, dashLen).rotateX(-Math.PI / 2), ENV_MAT.paintW, dashes.length * nD);
@@ -1241,8 +1255,9 @@ const ENV_MODULES = {
       solid(half - 0.3, ENV_MAT.paintW); solid(-half + 0.3, ENV_MAT.paintW);
       if (med >= 0.6) {
         const md = boxAt(med, 0.18, len, 0, 0.09, 0, ENV_MAT.median); g.add(md);
-        solid(med / 2 + 0.25, ENV_MAT.paintY); solid(-med / 2 - 0.25, ENV_MAT.paintY);
-      } else if (leftN && rightN) { solid(0.1, ENV_MAT.paintY); solid(-0.1, ENV_MAT.paintY); }
+        const mc = oneWay ? ENV_MAT.paintW : ENV_MAT.paintY;
+        solid(med / 2 + 0.25, mc); solid(-med / 2 - 0.25, mc);
+      } else if (leftN && rightN && !oneWay) { solid(0.1, ENV_MAT.paintY); solid(-0.1, ENV_MAT.paintY); }
       // sidewalks with curb
       if (p.walk > 0) {
         g.add(boxAt(p.walk, 0.15, len, half + p.walk / 2, 0.075, 0, ENV_MAT.walk));
@@ -2517,7 +2532,6 @@ function updateCamInfo() {
   $('ang-tilt').title = $('ang-roll').title = st.lockTR ? 'Locked (Lock tilt/roll is on)' : 'Drag to adjust (Shift: fine) or click to type';
   setF('tb-focal', focalUsed(), 2); $('tb-focal').disabled = !st.freeF;
   $('tb-focal').title = st.freeF ? 'Focal length: drag or type. The pins refine it once there are enough.' : 'Locked. Untick Lock focal to edit it here.';
-  $('ib-focal').textContent = fmt(focalUsed(), 2) + ' mm';
   $('tb-apply-f').disabled = !st.metaFocal;
   $('tb-apply-f').title = st.metaFocal ? `Set the focal length from the EXR metadata: ${fmt(st.metaFocal, 2)} mm` : 'No focal length in the plate metadata';
   { const pr = PRESETS.find(p => p[0] === st.preset);
@@ -2529,7 +2543,6 @@ function updateCamInfo() {
     tc.classList.toggle('warn', mismatch);
     tc.title = mismatch ? `The plate metadata says "${st.metaCamera}", which doesn't match this sensor. Check the camera preset.` : (st.metaCamera ? `Matches the plate metadata: ${st.metaCamera}` : 'Camera and lens used for the solve'); }
   $('lock-f').checked = !st.freeF;
-  $('lock-tr-v').textContent = `${fmt(a.tilt, 1)}° / ${fmt(a.roll, 1)}°`;
   const o = st.metaOrient, hasTR = !!(o && (o.tilt || o.roll));
   $('tb-apply-tr').disabled = !hasTR;
   $('tb-apply-tr').title = hasTR ? 'Set tilt and roll from the EXR metadata: ' + $('orient-txt').textContent : 'No tilt/roll in the plate metadata';

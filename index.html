@@ -495,9 +495,10 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       <div class="drop" id="drop" hidden>Drop the scan (OBJ, PLY, GLB, FBX), the plate (EXR, JPG, PNG) or a project (.json)</div>
       <div class="busy" id="busy" hidden>Loading…</div>
       <div class="relink" id="relink" hidden>
-        <div class="relink-h"><b>Re-link the project files</b><button class="btn ghost" id="relink-x" aria-label="Cancel">×</button></div>
-        <p class="note">The project keeps settings, pins and the camera. Load these files with Load plate / Load scan (or drop them here) and it restores itself:</p>
+        <div class="relink-h"><b>Re-link the project files</b><button class="btn ghost" id="relink-x" aria-label="Hide" title="Hide this note (the project keeps waiting for its files)">×</button></div>
+        <p class="note">The project keeps settings, pins and the camera. Load these files (or drop them here) and it restores itself. You can hide this note: it keeps waiting.</p>
         <ul id="relink-list"></ul>
+        <div class="row"><button class="btn sm" id="relink-plate">Load plate</button><button class="btn sm" id="relink-scan">Load scan</button><button class="btn ghost sm" id="relink-drop" title="Forget the project and keep what is loaded">Discard project</button></div>
       </div>
       <div class="toast" id="toast" hidden></div>
       <div class="empty" id="empty" hidden><div><b>No plate, no scan</b><br>Drop a plate (EXR, JPG, PNG) and a scan (OBJ, PLY, GLB, FBX) here,<br>or use Load plate and Load scan in the panel.</div></div>
@@ -3461,8 +3462,10 @@ function applyProjectState(p) {
 // relink flow: the project names its plate and scan; once the user loads them the state is applied
 function showRelink(p) {
   const need = [];
-  if (p.plate && !p.demo) need.push(`<b>Plate</b>: ${esc(p.plate.name)} (${p.plate.W} × ${p.plate.H})`);
-  if (p.scan && !p.demo) need.push(`<b>Scan</b>: ${esc(p.scan.name)}`);
+  const got = p._got || {}, mark = (k) => got[k] ? '<span style="color:var(--ok)">✓</span> ' : '';
+  if (p.plate && !p.demo) need.push(`${mark('plate')}<b>Plate</b>: ${esc(p.plate.name)} (${p.plate.W} × ${p.plate.H})`);
+  if (p.scan && !p.demo) need.push(`${mark('scan')}<b>Scan</b>: ${esc(p.scan.name)}`);
+  $('relink-plate').hidden = !p.plate || !!got.plate; $('relink-scan').hidden = !p.scan || !!got.scan;
   $('relink-list').innerHTML = need.map(x => `<li>${x}</li>`).join('');
   $('relink').hidden = !need.length;
 }
@@ -3472,7 +3475,7 @@ function projectAfterLoad(kind) {
   p._got[kind] = true;
   const ok = (!p.plate || p._got.plate) && (!p.scan || p._got.scan);
   if (ok) { st.pendingProject = null; $('relink').hidden = true; applyProjectState(p); toast('Project restored'); }
-  else { applyProjectCamera(p); refreshAll(); }
+  else { applyProjectCamera(p); refreshAll(); showRelink(p); }
 }
 function openProject(p) {
   if (!p || p.app !== 'Camera Pin') { toast('That file is not a Camera Pin project', true); return; }
@@ -3520,7 +3523,10 @@ $('demo-no').onclick = () => { $('demo-ask').hidden = true; };
 $('demo-yes').onclick = () => { $('demo-ask').hidden = true; resetAll(true); loadDemo(); };
 $('demo-save').onclick = () => { $('pj-save').click(); };
 $('demo-ask').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); $('demo-ask').hidden = true; } });
-$('relink-x').onclick = () => { st.pendingProject = null; $('relink').hidden = true; };
+$('relink-x').onclick = () => { $('relink').hidden = true; if (st.pendingProject) toast('Still waiting for the project files: load them and it restores itself'); };
+$('relink-drop').onclick = () => { st.pendingProject = null; $('relink').hidden = true; };
+$('relink-plate').onclick = () => $('f-plate').click();
+$('relink-scan').onclick = () => $('f-scan').click();
 ['pointerdown', 'wheel'].forEach(t => $('relink').addEventListener(t, e => e.stopPropagation()));
 window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('start').hidden) closeStart(); });
 

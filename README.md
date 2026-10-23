@@ -88,7 +88,7 @@ The top bar has two locks for the solve (padlock buttons):
 - Scan units, axis, scale and height offset.
 - Pins, the measurement, the camera and the solved camera.
 - Locks, mask, export settings, chroma key and environment.
-- On open, the saved lens and camera are applied right away, and they stay put while you re-link the plate and the scan (in either order). Loading the scan no longer reframes the view.
+- On open, the saved lens and camera are applied right away, and they stay put while you re-link the plate and the scan (in either order). Loading the scan no longer reframes the view. The re-link note can be hidden with × and the project keeps waiting; it shows a ✓ for each file already loaded, has Load plate / Load scan buttons, and **Discard project** to drop it.
 
 The plate and the scan are not stored in the file, only their names. When you **Open** a project, a card lists the files it needs. Load them with Load plate and Load scan, or drop them on the viewer, and the project restores itself. Demo projects restore directly. You can also drop a `.json` project on the viewer.
 

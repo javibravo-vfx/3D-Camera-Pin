@@ -4000,32 +4000,61 @@ async function playblast() {
   let encoder = null;
   try {
     await loadMuxer();
-    // H.264 first; if this browser has no H.264 encoder, VP9 in the same MP4 container (plays in browsers, VLC, Resolve; not QuickTime)
-    let codec = null, mux = 'avc';
-    for (const [c, m] of [['avc1.640034', 'avc'], ['avc1.640033', 'avc'], ['avc1.4d0034', 'avc'], ['avc1.42003e', 'avc'], ['vp09.00.50.08', 'vp9'], ['vp09.00.41.08', 'vp9']]) {
-      const r = await VideoEncoder.isConfigSupported({ codec: c, width: W, height: H, bitrate: 8e6, framerate: fps }).catch(() => null);
-      if (r && r.supported) { codec = c; mux = m; break; }
-    }
-    if (!codec) throw new Error(`no video encoder for ${W} × ${H} here: try Half size`);
-    if (mux !== 'avc') toast('No H.264 encoder in this browser: the MP4 uses VP9 (plays in browsers, VLC and Resolve, not QuickTime)');
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: Object.assign({ codec: mux, width: W, height: H }, Number.isInteger(fps) ? { frameRate: fps } : {}), fastStart: 'in-memory' });
-    let encErr = null;
-    encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { encErr = e; } });
-    encoder.configure({ codec, width: W, height: H, bitrate: Math.min(60e6, Math.max(4e6, W * H * fps * 0.12)), framerate: fps, latencyMode: 'quality' });
+    // H.264 first; if this browser has no usable H.264 encoder, VP9 in the same MP4 container (plays in browsers, VLC, Resolve; not QuickTime).
+    // Some browsers (Firefox) hand back chunks without a decoder config: VP9 then gets one built here; H.264 without its avcC falls back to VP9.
+    const CANDS = [['avc1.640034', 'avc'], ['avc1.640033', 'avc'], ['avc1.4d0034', 'avc'], ['avc1.42003e', 'avc'], ['vp09.00.50.08', 'vp9'], ['vp09.00.41.08', 'vp9']];
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
-    for (let i = 0; i < n; i++) {
-      if (pb.cancel) throw new Error('cancelled');
-      if (encErr) throw encErr;
-      tl.frame = tl.start + i; applyMotion();
-      pbComposite(ctx, W, H);
-      const vf = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
-      encoder.encode(vf, { keyFrame: i % Math.max(1, Math.round(fps)) === 0 }); vf.close();
-      while (encoder.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
-      $('pb-bar').style.width = ((i + 1) / n * 100).toFixed(1) + '%'; $('pb-t').textContent = `Playblast ${i + 1} / ${n}`;
-      if (i % 4 === 3) await new Promise(r => setTimeout(r, 0)); // let the progress paint
+    const CS = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false };
+    let muxer = null, lastErr = null, usedVp9 = false;
+    for (const [codec, mux] of CANDS) {
+      const sup = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate: 8e6, framerate: fps }).catch(() => null);
+      if (!sup || !sup.supported) continue;
+      if (mux === 'avc' && lastErr && lastErr.fallback === 'vp9') continue; // this browser's H.264 gave no avcC: go straight to VP9
+      try {
+        muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: Object.assign({ codec: mux, width: W, height: H }, Number.isInteger(fps) ? { frameRate: fps } : {}), fastStart: 'in-memory' });
+        let encErr = null, first = true;
+        encoder = new VideoEncoder({
+          output: (chunk, meta) => {
+            if (encErr) return;
+            try {
+              if (first) {
+                first = false; meta = meta || {};
+                const dc = meta.decoderConfig;
+                if (mux === 'avc' && !(dc && dc.description)) { const e = new Error('H.264 without decoder description'); e.fallback = 'vp9'; throw e; }
+                meta = { ...meta, decoderConfig: { codec, codedWidth: W, codedHeight: H, ...(dc || {}), colorSpace: (dc && dc.colorSpace && dc.colorSpace.primaries) ? dc.colorSpace : CS } };
+              }
+              muxer.addVideoChunk(chunk, meta);
+            } catch (e) { encErr = e; }
+          },
+          error: e => { encErr = encErr || e; },
+        });
+        encoder.configure(Object.assign({ codec, width: W, height: H, bitrate: Math.min(60e6, Math.max(4e6, W * H * fps * 0.12)), framerate: fps }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
+        for (let i = 0; i < n; i++) {
+          if (pb.cancel) throw new Error('cancelled');
+          if (encErr) throw encErr;
+          tl.frame = tl.start + i; applyMotion();
+          pbComposite(ctx, W, H);
+          const vf = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
+          encoder.encode(vf, { keyFrame: i % Math.max(1, Math.round(fps)) === 0 }); vf.close();
+          while (encoder.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
+          if (encErr) throw encErr;
+          $('pb-bar').style.width = ((i + 1) / n * 100).toFixed(1) + '%'; $('pb-t').textContent = `Playblast ${i + 1} / ${n}`;
+          if (i % 4 === 3) await new Promise(r => setTimeout(r, 0)); // let the progress paint
+        }
+        await encoder.flush();
+        if (encErr) throw encErr;
+        muxer.finalize();
+        usedVp9 = mux === 'vp9'; lastErr = null;
+        break;
+      } catch (e) {
+        try { if (encoder && encoder.state !== 'closed') encoder.close(); } catch (_) {}
+        if (e && e.message === 'cancelled') throw e;
+        console.warn('playblast encoder', codec, e); lastErr = e; muxer = null;
+      }
     }
-    await encoder.flush(); muxer.finalize();
-    const base = ((st.plate.empty ? '' : st.plate.name) || 'playblast').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
+    if (!muxer) throw lastErr || new Error(`no video encoder for ${W} × ${H} here: try Half size`);
+    if (usedVp9) toast('This browser has no usable H.264 encoder: the MP4 uses VP9 (plays in browsers, VLC and Resolve, not QuickTime)');
+    const base = ((st.plate.empty ? '' : st.plate.name) || 'camerapin').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
     // keep the result: preview it right here, save it where you want
     if (pb.url) URL.revokeObjectURL(pb.url);
     pb.blob = new Blob([muxer.target.buffer], { type: 'video/mp4' }); pb.name = `${base}_playblast_${tl.start}-${tl.end}.mp4`; pb.url = URL.createObjectURL(pb.blob);

@@ -87,6 +87,8 @@ main.vp { position: relative; overflow: hidden; background: var(--bg); min-heigh
 .tlbar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--line); font: 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
 .tlbar .tlbtns { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .tool.sm { width: 28px; height: 26px; }
+#pb-video { width: 100%; max-height: 50vh; background: #000; border-radius: 8px; display: block; }
+#pb-dlg .start-card { width: min(720px, 100%); }
 .pbprog { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
 .pbprog > div { height: 100%; width: 0; background: var(--accent-hi); transition: width .1s; }
 .knobrow.dim, .fld.dim { opacity: .45; }
@@ -393,8 +395,14 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     <label class="fld" for="pb-burn"><span>Burn-in</span><span class="row"><input id="pb-burn" type="checkbox" checked> Frame, speed and camera</span></label>
     <label class="fld" for="pb-mask"><span>Mask</span><span class="row"><input id="pb-mask" type="checkbox" checked> Darken outside the mask (when one is set)</span></label>
     <div class="pbprog" id="pb-prog" hidden><div id="pb-bar"></div></div>
+    <div id="pb-done" hidden>
+      <video id="pb-video" controls loop muted playsinline></video>
+      <p class="note" id="pb-file"></p>
+    </div>
     <div class="start-btns">
       <button class="btn primary" id="pb-go">Render MP4</button>
+      <button class="btn primary" id="pb-save" hidden>Save MP4…</button>
+      <button class="btn" id="pb-again" hidden>Render again</button>
       <button class="btn ghost" id="pb-cancel">Cancel</button>
     </div>
   </div>
@@ -3954,14 +3962,27 @@ function pbComposite(ctx, W, H) {
     ctx.fillStyle = '#e8e8e8'; ctx.textAlign = 'left'; ctx.fillText(left, pad, H - pad); ctx.textAlign = 'right'; ctx.fillText(right, W - pad, H - pad);
   }
 }
+// save: a folder picker where the browser allows it (Chrome / Edge, opened directly), else the viewer's download
 async function pbSave(blob, filename) {
+  if (window.showSaveFilePicker && window.self === window.top) {
+    try {
+      const h = await window.showSaveFilePicker({ suggestedName: filename, startIn: 'downloads', types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }] });
+      const w = await h.createWritable(); await w.write(blob); await w.close();
+      $('pb-file').innerHTML = `Saved as <b>${esc(h.name)}</b> in the folder you picked.`; toast('Playblast saved'); return;
+    } catch (e) { if (e && e.name === 'AbortError') return; /* not allowed here: fall through */ }
+  }
   try {
     const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-    if (dl) { await dl.save({ filename, data: blob }); toast('Playblast saved'); return; }
+    if (dl) { await dl.save({ filename, data: blob }); $('pb-file').innerHTML = `Saved as <b>${esc(filename)}</b> in your <b>Downloads</b> folder (or where your browser saves downloads).`; toast('Playblast saved to Downloads'); return; }
   } catch (e) { if (e && e.code === 'declined') return; if (e && e.code === 'too_large') { toast('Too large for this view: try Half size', true); return; } }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-  toast('Playblast saved');
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  $('pb-file').innerHTML = `Saved as <b>${esc(filename)}</b> in your <b>Downloads</b> folder (or where your browser saves downloads).`; toast('Playblast saved to Downloads');
+}
+function pbMode(done) {
+  $('pb-done').hidden = !done; $('pb-save').hidden = !done; $('pb-again').hidden = !done; $('pb-go').hidden = done;
+  ['pb-size', 'pb-burn', 'pb-mask'].forEach(id => $(id).closest('.fld').hidden = done); $('pb-info').hidden = done;
+  $('pb-cancel').textContent = done ? 'Close' : 'Cancel';
 }
 async function playblast() {
   if (pb.busy) return;
@@ -3998,8 +4019,11 @@ async function playblast() {
     }
     await encoder.flush(); muxer.finalize();
     const base = ((st.plate.empty ? '' : st.plate.name) || 'playblast').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
-    $('pb-dlg').hidden = true;
-    await pbSave(new Blob([muxer.target.buffer], { type: 'video/mp4' }), `${base}_playblast_${tl.start}-${tl.end}.mp4`);
+    // keep the result: preview it right here, save it where you want
+    if (pb.url) URL.revokeObjectURL(pb.url);
+    pb.blob = new Blob([muxer.target.buffer], { type: 'video/mp4' }); pb.name = `${base}_playblast_${tl.start}-${tl.end}.mp4`; pb.url = URL.createObjectURL(pb.blob);
+    $('pb-video').src = pb.url; $('pb-file').innerHTML = `<b>${esc(pb.name)}</b> · ${(pb.blob.size / 1048576).toFixed(1)} MB · not saved yet`;
+    pbMode(true); $('pb-video').play().catch(() => {});
   } catch (e) {
     if (e && e.message !== 'cancelled') { console.error(e); toast('Playblast failed: ' + (e.message || e), true); }
   } finally {
@@ -4008,10 +4032,12 @@ async function playblast() {
     tl.frame = keep; applyMotion(); applyView(); tlUI();
   }
 }
-$('pb-open').onclick = () => { pbInfo(); $('pb-dlg').hidden = false; };
+$('pb-open').onclick = () => { pbInfo(); pbMode(false); $('pb-dlg').hidden = false; };
+$('pb-save').onclick = () => { if (pb.blob) pbSave(pb.blob, pb.name); };
+$('pb-again').onclick = () => { $('pb-video').pause(); pbInfo(); pbMode(false); };
 $('pb-size').onchange = pbInfo;
 $('pb-go').onclick = playblast;
-$('pb-cancel').onclick = () => { if (pb.busy) pb.cancel = true; else $('pb-dlg').hidden = true; };
+$('pb-cancel').onclick = () => { if (pb.busy) pb.cancel = true; else { $('pb-video').pause(); $('pb-dlg').hidden = true; } };
 $('pb-dlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); $('pb-cancel').click(); } });
 $('f-cars').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) loadCarFiles(fs); };
 $('env-shuffle').onclick = () => { env.seed = (env.seed * 9301 + 49297) % 233280 + 1; envSave(); envRebuild(); };

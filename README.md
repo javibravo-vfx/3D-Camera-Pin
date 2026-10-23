@@ -157,6 +157,7 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 - A timeline sits under the viewport. It has first / previous / play / next / last buttons, loop, a scrub bar, the current frame, **In / Out** (default 1001–1100) and **FPS**. FPS is taken from the EXR's `framesPerSecond` when the plate has it.
 - On play the camera does not move; the environment slides past it.
 - **Motion** panel (its own section, under Environment) settings:
+  - **Motion on** (off by default): when off, the set stays still on every frame, whatever the speeds. **Reset** puts every motion setting back to its default.
   - **Speed** in km/h.
   - **Travel**: forward along the set's −Z or backward.
   - **Speed curve**: constant, start from 0 (ease in), stop to 0 (ease out), or from 0 and back to 0.

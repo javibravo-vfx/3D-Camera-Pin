@@ -87,6 +87,7 @@ main.vp { position: relative; overflow: hidden; background: var(--bg); min-heigh
 .tlbar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--line); font: 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
 .tlbar .tlbtns { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .tool.sm { width: 28px; height: 26px; }
+.knobrow.dim, .fld.dim { opacity: .45; }
 .tool.sm svg { width: 15px; height: 15px; }
 .tlbar input[type=range] { flex: 1 1 auto; min-width: 80px; width: auto; }
 .tlbar .tlnums { display: inline-flex; align-items: center; gap: 10px; flex: none; }
@@ -711,6 +712,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <h2 tabindex="0"><span class="n">4</span>Motion<span class="st" id="mo-st">–</span></h2>
         <div class="body">
           <div class="eparams" id="motion-params"></div>
+          <div class="row k"><button class="btn ghost" id="mo-reset" title="Put every motion setting back to its default">Reset</button></div>
           <p class="note" id="mo-note">Speed simulation for the environment. Play it with the timeline under the viewport (Space): the camera stays, the set moves past it.</p>
         </div>
       </section>
@@ -1629,6 +1631,7 @@ const TRAIN = (() => {
   return { body, roof, band, stripe, under, doors };
 })();
 const ENV_MOTION = [
+  { key: 'mon', label: 'Motion on', type: 'bool', def: false, tip: 'Off: the set stays still on every frame, whatever the speeds.' },
   { key: 'speed', label: 'Speed', type: 'num', min: 0, max: 300, step: 1, def: 50, unit: 'km/h', tip: 'Speed of the shot\'s vehicle. On play the camera stays still and the environment moves past it.' },
   { key: 'mdir', label: 'Travel', type: 'select', options: [['fwd', 'Forward (−Z)'], ['back', 'Backward (+Z)']], def: 'fwd' },
   { key: 'tspeed', label: 'Other vehicles', type: 'num', min: 0, max: 200, step: 1, def: 40, unit: 'km/h', tip: 'Constant speed of the other cars / trains along their own direction (0 = parked).' },
@@ -1703,6 +1706,7 @@ const tl = { start: 1001, end: 1100, fps: 24, frame: 1001, playing: false, loop:
 const smooth = (u) => u * u * (3 - 2 * u);
 // speed factor (0..1) and distance in metres at timeline position u (0..1 over the range)
 function motionAt(u) {
+  if (!env.vals.mon) return { k: 0, d: 0 };
   const V = (env.vals.speed || 0) / 3.6, T = Math.max(tl.end - tl.start, 1) / tl.fps, prof = env.vals.mprof || 'const';
   u = Math.min(Math.max(u, 0), 1);
   if (prof === 'accel') return { k: smooth(u), d: V * T * (u ** 3 - u ** 4 / 2) };
@@ -1722,7 +1726,7 @@ function applyMotion() {
   // travelling forward (toward the env's −Z) = the world slides toward +Z
   const r = (v.rot || 0) * Math.PI / 180;
   envRoot.position.set(v.x + Math.sin(r) * d, v.y, v.z + Math.cos(r) * d);
-  const t = (tl.frame - tl.start) / tl.fps; // other vehicles along their own direction, each lane/train with its small difference
+  const t = v.mon ? (tl.frame - tl.start) / tl.fps : 0; // other vehicles along their own direction, each lane/train with its small difference
   envRoot.traverse(o => { if (o.userData.flow) o.position.z = -o.userData.flow * Math.max(0, (v.tspeed || 0) + (o.userData.vk || 0) * (v.tvar || 0)) / 3.6 * t; });
   envRoot.updateMatrixWorld(true);
 }
@@ -1731,10 +1735,13 @@ function tlUI() {
   { const b = $('tl-play'), st_ = String(tl.playing);
     if (b.getAttribute('aria-pressed') !== st_ || !b.firstChild) { b.setAttribute('aria-pressed', st_); b.innerHTML = tl.playing ? TL_ICON.pause : TL_ICON.play; b.title = tl.playing ? 'Pause (Space)' : 'Play (Space)'; } }
   const m = motionAt(tlU()), on = !!ENV_MODULES[env.id];
-  $('tl-kmh').textContent = on ? `${((env.vals.speed || 0) * m.k).toFixed(1)} km/h` : 'no environment';
-  $('tl-dist').textContent = on ? `${m.d.toFixed(1)} m` : '';
+  const mo = on && !!env.vals.mon;
+  $('tl-kmh').textContent = !on ? 'no environment' : mo ? `${((env.vals.speed || 0) * m.k).toFixed(1)} km/h` : 'motion off';
+  $('tl-dist').textContent = mo ? `${m.d.toFixed(1)} m` : '';
   $('tl-time').textContent = `${((tl.frame - tl.start) / tl.fps).toFixed(2)} s`;
-  $('mo-st').textContent = on ? `${env.vals.speed || 0} km/h` : '–';
+  $('mo-st').textContent = mo ? `${env.vals.speed || 0} km/h` : on ? 'off' : '–';
+  $('s6').dataset.state = mo ? 'ok' : '';
+  $('motion-params').querySelectorAll('[data-k]').forEach(el => { if (el.dataset.k !== 'mon') { const r = el.closest('.knobrow, .fld'); if (r) r.classList.toggle('dim', !mo); } });
 }
 function tlSet(f) {
   tl.frame = Math.round(Math.min(Math.max(f, tl.start), tl.end));
@@ -1761,7 +1768,7 @@ function envRebuild() {
     const v = env.vals;
     envRoot.position.set(v.x, v.y, v.z); envRoot.rotation.set(0, v.rot * Math.PI / 180, 0); envRoot.updateMatrixWorld(true);
     const origin = envRoot.worldToLocal(new THREE.Vector3(0, 0, 0));
-    const need = 2 * (Math.abs(motionDist(1)) + ((v.tspeed || 0) + (v.tvar || 0)) / 3.6 * (tl.end - tl.start) / tl.fps + 150); // long enough to drive the whole range without running off
+    const need = v.mon ? 2 * (Math.abs(motionDist(1)) + ((v.tspeed || 0) + (v.tvar || 0)) / 3.6 * (tl.end - tl.start) / tl.fps + 150) : 0; // long enough to drive the whole range without running off
     const obj = mod.build(need > v.length ? Object.assign({}, v, { length: Math.min(need, 6000) }) : v, mulberry32(env.seed), origin);
     if (env.display === 'wire') obj.traverse(o => { if (o.isMesh) { o.material = MAT.wire; } });
     envRoot.add(obj);
@@ -3893,6 +3900,11 @@ $('env-shuffle').onclick = () => { env.seed = (env.seed * 9301 + 49297) % 233280
 $('env-ground').onclick = () => {
   const b = new THREE.Box3().setFromObject(scanRoot);
   if (!b.isEmpty()) { envSet('y', +(b.min.y - (env.id === 'rail' ? env.vals.floorH || 0 : 0)).toFixed(3)); lsSet('env.vals.' + env.id, env.vals); }
+};
+$('mo-reset').onclick = () => {
+  if (!ENV_MODULES[env.id]) return;
+  ENV_MOTION.forEach(p => env.vals[p.key] = p.def);
+  lsSet('env.vals.' + env.id, env.vals); envRenderParams(); envSave(); envRebuild(); tlUI();
 };
 $('env-reset').onclick = () => { env.vals = envDefaults(env.id); lsSet('env.vals.' + env.id, null); envRenderParams(); envSave(); envRebuild(); };
 {

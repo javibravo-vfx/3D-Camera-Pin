@@ -110,8 +110,23 @@ Modular 3D set pieces you can turn on behind or around the scan to check a match
 - Street lights and buildings on/off.
 - Placement: offset X/Z, ground height and rotation. **Ground to scan** sets the ground to the lowest point of the scan.
 - Display as solid or wireframe.
+- **Car models**:
+  - **Built-in** gives real-size procedural sedans, hatchbacks and SUVs.
+  - **My models** uses car files you load (GLB/GLTF, including Draco/meshopt-compressed, FBX, OBJ). Each one is turned so its length runs along the road, sat on the ground, and kept at its own size if it is already 2.5–8 m long; otherwise it is scaled to a 4.6 m car.
+  - **Flip model front** turns them around if they drive backwards.
+  - Loaded models last for the session.
 
 New modules plug into `ENV_MODULES` in `index.html`. Each one declares its parameters (numbers and toggles) and a `build(params, rng, origin)` function that returns a three.js group. The panel builds its controls from that list, so adding a module needs no UI work.
+
+## Scan orientation and scale
+
+- **File up axis** says how the file was written: Y up, Z up, or Y down (COLMAP). The app always works Y-up internally, and the export converts to Z-up for 3ds Max and Blender (Nuke stays Y-up), so this setting never changes how you work in Max.
+- **Rotation** X / Y / Z (degrees) and **Flip** (180° on X) fix a scan that came in upside down or turned. The export note tells you the matching rotation to apply to the imported scan in your DCC, already converted to Z-up for 3ds Max and Blender.
+- **Scale** shows the factor from the last measurement. Click it to type a different factor by hand.
+
+## Gaussian splats
+
+Gaussian-splat PLYs (with `scale_*`, `rot_*`, `f_dc_*` and `opacity`) open in **Splat (gaussians)** mode. They are drawn as real anisotropic splats with depth sorting, not as points. Picking pins and measuring still uses the splat centers. Switch the display menu to see them as points. Very large splats are thinned to 3 million.
 
 ## Scan display
 

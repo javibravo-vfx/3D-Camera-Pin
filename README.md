@@ -153,6 +153,18 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
   - You can also set **Cars per train**, **Train position** along the track, **Train height** and **Train width**.
   - The cars are 20 m long, with window band, doors, stripe, underframe and a cab windscreen on the leading car.
 
+**Speed simulation (timeline)**
+- A timeline sits under the viewport. It has first / previous / play / next / last buttons, loop, a scrub bar, the current frame, **In / Out** (default 1001–1100) and **FPS**. FPS is taken from the EXR's `framesPerSecond` when the plate has it.
+- On play the camera does not move; the environment slides past it.
+- **Environment → Motion** settings:
+  - **Speed** in km/h.
+  - **Travel**: forward along the set's −Z or backward.
+  - **Speed curve**: constant, start from 0 (ease in), stop to 0 (ease out), or from 0 and back to 0.
+  - **Other vehicles** speed: cars and trains move along their own direction at that speed; 0 parks them.
+- The timeline shows the current speed in km/h, the distance travelled and the time.
+- The set is lengthened automatically so the whole range never runs off its end.
+- The range and FPS are saved with the project.
+
 ## Scan orientation and scale
 
 - **File up axis** says how the file was written: Y up, Z up, or Y down (COLMAP). The app always works Y-up internally, and the export converts to Z-up for 3ds Max and Blender (Nuke, Maya and Houdini stay Y-up), so this setting never changes how you work in Max.

@@ -50,7 +50,7 @@ body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-s
 .vbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .vbar .sep { width: 1px; align-self: stretch; margin-block: 4px; background: var(--line); }
 .vbar label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; }
-.tbcam { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-fg); font: 500 12px var(--f-ui); white-space: nowrap; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.tbcam { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: transparent; border: 1px solid var(--line); color: var(--muted); font: 500 12px var(--f-ui); white-space: nowrap; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .tbcam.warn { background: color-mix(in srgb, var(--warn) 22%, var(--card)); color: var(--warn); }
 .tbcam + .fmt { margin-left: 0; }
 .vbar .fmt { margin-left: auto; font: 500 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -84,11 +84,24 @@ details.more[open] summary::before { content: "▾  "; }
 details.more summary:hover { color: var(--fg); }
 details.more .more-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 main.vp { position: relative; overflow: hidden; background: var(--bg); min-height: 0; touch-action: none; user-select: none; }
-.ibar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 7px 12px; border-top: 1px solid var(--line); font: 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ibar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 7px 12px; border-top: 1px solid var(--line); font: 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
 .ibar b { color: var(--fg); font-weight: 500; }
 .ibar .hint { font: 12px var(--f-ui); color: var(--muted); margin-left: auto; min-width: 0; }
 .ibar .hint b { font-weight: 600; }
 #badge { display: flex; gap: 16px; }
+.ibar .xy { display: inline-flex; gap: 4px; margin-right: 26px; }
+.ibar .xy b { display: inline-block; min-width: 4.5ch; text-align: right; }
+.ibar .ro { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; }
+.ibar .ro b { display: inline-block; min-width: 8.5ch; font: 500 12px var(--f-ui); letter-spacing: 0; color: var(--fg); }
+.ibar .grp { display: inline-flex; align-items: center; gap: 14px; }
+.ibar .sep { width: 1px; height: 16px; background: var(--line); }
+/* editable numbers outside the panel: a small field, drag to scrub, click to type */
+.num:has(> input.mini) { display: inline-block; flex: none; width: 98px; }
+input.mini { height: 26px; font-size: 12px; padding: 2px 7px; }
+.num:has(> input.mini).has-u > input { padding-right: 32px; }
+.num:has(> input.mini) .u { right: 8px; font-size: 11px; }
+/* one rule everywhere: a boxed field is editable; plain text is a readout; a dashed field is locked */
+input[type=number]:disabled { background: transparent; border-style: dashed; color: var(--muted); cursor: default; }
 #badge small { color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; text-transform: uppercase; margin-right: 5px; }
 /* ---------- Properties sidebar ---------- */
 aside.props { --lbl-w: clamp(84px, 34%, 150px); min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -201,7 +214,7 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .keybox .seg { justify-self: start; }
 .lockc { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
 .lockc b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
-.lockc:has(input:checked) b { color: var(--accent-fg); }
+
 #cam-ang .scrub { cursor: ew-resize; padding: 2px 4px; border-radius: 4px; }
 #cam-ang .scrub:hover { background: var(--panel-2); color: var(--fg); }
 #cam-ang .scrub.locked { cursor: not-allowed; opacity: .55; }
@@ -232,6 +245,7 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .row.nowrap > .num { flex: 1; min-width: 56px; }
+.row.ap .apsp { flex: 0 0 58px; }
 .num > input { width: 100%; }
 .num > input:not(:focus):not(:disabled):not([data-noscrub]) { cursor: ew-resize; }
 .num.has-u > input { padding-right: 40px; }
@@ -287,6 +301,17 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     </div>
   </div>
 </div>
+<div class="start" id="demo-ask" role="dialog" aria-modal="true" aria-labelledby="demo-ask-t" hidden>
+  <div class="start-card">
+    <b id="demo-ask-t">Load the demo scene?</b>
+    <p class="note">This clears the current plate, scan, pins and camera and replaces them with the demo. Save the project first if you want to keep it.</p>
+    <div class="start-btns">
+      <button class="btn primary" id="demo-yes">Replace with demo</button>
+      <button class="btn" id="demo-save">Save project first</button>
+      <button class="btn ghost" id="demo-no">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="app">
   <div class="viewer">
     <div class="vbar">
@@ -329,9 +354,11 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       </label>
       <input id="mask-c" type="number" step="0.01" min="0.1" max="10" value="2.00" style="width:68px" aria-label="Custom mask aspect" hidden>
       <span class="sep"></span>
-      <label class="lockc" for="lock-f" title="Keep the focal length fixed while solving. Untick to let the pins estimate it (needs 6 pins, 4 with tilt/roll locked).">
-        <input id="lock-f" type="checkbox" checked> Lock focal <b id="lock-f-v">–</b>
+      <button class="btn" id="tb-apply-f" disabled>Apply focal</button>
+      <label class="lockc" for="lock-f" title="Keep the focal length fixed while solving. Untick to edit it here and let the pins refine it (needs 6 pins, 4 with tilt/roll locked).">
+        <input id="lock-f" type="checkbox" checked> Lock focal
       </label>
+      <input id="tb-focal" class="mini" type="number" step="0.1" min="1" data-unit="mm" aria-label="Focal length" disabled>
       <button class="btn" id="tb-apply-tr" disabled>Apply T/R</button>
       <label class="lockc" for="lock-tr" title="Keep the current tilt and roll; the pins only adjust yaw and position (2 pins are enough)">
         <input id="lock-tr" type="checkbox"> Lock tilt/roll <b id="lock-tr-v"></b>
@@ -422,10 +449,17 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     </div>
 
     <div class="ibar">
-      <span>x <b id="cx">–</b> y <b id="cy">–</b></span>
+      <span class="xy" title="Cursor position on the plate (pixels)">x <b id="cx">–</b> y <b id="cy">–</b></span>
+      <span class="ro" title="Focal length used">FOCAL <b id="ib-focal">–</b></span>
+      <span class="sep"></span>
+      <span class="grp" id="cam-ang">
+        <label class="camh" title="Camera height above the ground (y = 0). Moves only the camera: drag or type.">CAM HEIGHT <input id="cam-h" class="mini" type="number" step="0.01" data-unit="m"></label>
+        <label class="camh">TILT <input id="ang-tilt" class="mini" type="number" step="0.05" data-unit="°"></label>
+        <label class="camh">ROLL <input id="ang-roll" class="mini" type="number" step="0.05" data-unit="°"></label>
+        <label class="camh">YAW <input id="ang-yaw" class="mini" type="number" step="0.05" data-unit="°"></label>
+      </span>
+      <span class="sep"></span>
       <span id="badge"></span>
-      <span class="camh" title="Camera height above the ground (y = 0). To change it, use Height offset in Scan & scale.">CAM HEIGHT <b id="cam-h">–</b> m</span>
-      <span id="cam-ang"></span>
       <span class="hint" id="hint"></span>
     </div>
   </div>
@@ -486,9 +520,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
           <label class="fld" for="preset">Camera
             <select id="preset"></select>
           </label>
-          <div class="knobrow"><label for="sw" id="lb-sw">haperture (mm)</label><input id="sw" type="number" step="0.01" min="1" data-unit="mm"></div>
+          <div class="knobrow"><label for="sw" id="lb-sw">haperture (mm)</label><div class="row nowrap ap"><span class="apsp"></span><input id="sw" type="number" step="0.01" min="1" data-unit="mm"></div></div>
           <div class="knobrow"><label for="sh" id="lb-sh">vaperture (mm)</label>
-            <div class="row nowrap"><input id="sh" type="number" step="0.01" min="0.1" disabled data-unit="mm"><label class="note chk" for="sh-auto"><input id="sh-auto" type="checkbox" checked> auto</label></div>
+            <div class="row nowrap ap"><label class="note chk apsp" for="sh-auto"><input id="sh-auto" type="checkbox" checked> auto</label><input id="sh" type="number" step="0.01" min="0.1" disabled data-unit="mm"></div>
           </div>
           <div class="knobrow"><label for="focal" id="lb-focal">focal (mm)</label><input id="focal" type="number" step="0.1" min="1" data-unit="mm"></div>
           <div class="knobrow"><label for="par" id="lb-par">pixel aspect</label>
@@ -1873,7 +1907,7 @@ function setPlate(url, W, H, name, sample) {
   if (url) { plateImg.onload = () => { if (key.on) keyLater(); }; plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
   else { plateImg.hidden = true; $('platecv').hidden = false; }
   if (url) {
-    $('exr-box').hidden = true; exrState = null; st.metaCamera = null;
+    $('exr-box').hidden = true; exrState = null; st.metaCamera = null; st.metaFocal = null;
     $('cs').value = 'disp'; $('cs').disabled = true; $('view').disabled = true;
   } else { $('cs').disabled = false; $('view').disabled = false; }
   $('plate-name').textContent = (sample ? 'Sample' : name) + ' · ' + W + ' × ' + H;
@@ -2224,6 +2258,7 @@ function showExrMeta(h) {
     setSensor(+hint.sw.toFixed(3), +(hint.sh || st.sh).toFixed(3), false);
     lines.push(`Film back ${hint.sw.toFixed(2)} × ${(hint.sh || st.sh).toFixed(2)} mm (from ${hint.sensorKey})`);
   }
+  st.metaFocal = hint.focal || null;
   if (hint.focal) {
     st.focal = +hint.focal.toFixed(3); st.fScale = 1; $('focal').value = st.focal; applyIntrinsics();
     lines.push(`Focal ${hint.focal.toFixed(2)} mm (from ${hint.focalKey})`);
@@ -2474,9 +2509,17 @@ function camAngles() {
   return { tilt: e.x * d, yaw: e.y * d, roll: e.z * d };
 }
 function updateCamInfo() {
-  $('cam-h').textContent = camera.position.y.toFixed(3);
   const a = camAngles();
-  $('lock-f-v').textContent = fmt(focalUsed(), 2) + ' mm';
+  const setF = (id, v, d) => { const el = $(id); if (document.activeElement !== el && !el.parentNode.classList.contains('scrubbing')) el.value = (+v).toFixed(d); };
+  setF('cam-h', camera.position.y, 3);
+  setF('ang-tilt', a.tilt, 2); setF('ang-roll', a.roll, 2); setF('ang-yaw', a.yaw, 2);
+  $('ang-tilt').disabled = $('ang-roll').disabled = !!st.lockTR;
+  $('ang-tilt').title = $('ang-roll').title = st.lockTR ? 'Locked (Lock tilt/roll is on)' : 'Drag to adjust (Shift: fine) or click to type';
+  setF('tb-focal', focalUsed(), 2); $('tb-focal').disabled = !st.freeF;
+  $('tb-focal').title = st.freeF ? 'Focal length: drag or type. The pins refine it once there are enough.' : 'Locked. Untick Lock focal to edit it here.';
+  $('ib-focal').textContent = fmt(focalUsed(), 2) + ' mm';
+  $('tb-apply-f').disabled = !st.metaFocal;
+  $('tb-apply-f').title = st.metaFocal ? `Set the focal length from the EXR metadata: ${fmt(st.metaFocal, 2)} mm` : 'No focal length in the plate metadata';
   { const pr = PRESETS.find(p => p[0] === st.preset);
     const name = pr && pr[2] ? pr[1].replace(/\s*·.*$/, '') + ' · ' + pr[1].replace(/^.*·\s*/, '') : 'Custom sensor';
     const ids = st.metaCamera ? presetsForModel(st.metaCamera) : null;
@@ -2487,8 +2530,6 @@ function updateCamInfo() {
     tc.title = mismatch ? `The plate metadata says "${st.metaCamera}", which doesn't match this sensor. Check the camera preset.` : (st.metaCamera ? `Matches the plate metadata: ${st.metaCamera}` : 'Camera and lens used for the solve'); }
   $('lock-f').checked = !st.freeF;
   $('lock-tr-v').textContent = `${fmt(a.tilt, 1)}° / ${fmt(a.roll, 1)}°`;
-  const sc = (k, label, v) => `<span class="scrub${st.lockTR && k !== 'yaw' ? ' locked' : ''}" data-a="${k}" title="${st.lockTR && k !== 'yaw' ? 'Locked' : 'Drag left/right to adjust · Shift: fine'}"><small>${label}</small>${fmt(v, 2)}°</span>`;
-  $('cam-ang').innerHTML = sc('tilt', 'TILT', a.tilt) + sc('roll', 'ROLL', a.roll) + sc('yaw', 'YAW', a.yaw);
   const o = st.metaOrient, hasTR = !!(o && (o.tilt || o.roll));
   $('tb-apply-tr').disabled = !hasTR;
   $('tb-apply-tr').title = hasTR ? 'Set tilt and roll from the EXR metadata: ' + $('orient-txt').textContent : 'No tilt/roll in the plate metadata';
@@ -2508,7 +2549,6 @@ function applyOrientation(o) {
 function updateBadge() {
   const b = $('badge');
   const parts = [];
-  parts.push(`<span><small>Focal</small>${fmt(focalUsed(), 2)} mm</span>`);
   if (st.rms != null && st.pins.filter(p => p.on).length) parts.push(`<span class="${errClass(st.rms)}"><small>RMS</small>${fmt(st.rms, 2)} px</span>`);
   if (st.view.zoom !== 1) parts.push(`<span><small>Zoom</small>${fmt(st.view.zoom, 1)}×</span>`);
   b.innerHTML = parts.join('');
@@ -3072,22 +3112,37 @@ $('vgain').oninput = setGain;
 // ---------- Apply T/R, angle scrub, reset all ----------
 $('tb-apply-tr').onclick = () => { const o = st.metaOrient; if (o) applyOrientation({ tilt: o.tilt, roll: o.roll }); };
 {
-  let sx = null, key = null;
-  const box = $('cam-ang');
-  box.addEventListener('pointerdown', e => {
-    const el = e.target.closest('.scrub'); if (!el || el.classList.contains('locked')) return;
-    key = el.dataset.a; sx = e.clientX; box.setPointerCapture(e.pointerId); e.preventDefault();
-  });
-  box.addEventListener('pointermove', e => {
-    if (sx === null) return;
-    const d = (e.clientX - sx) * (e.shiftKey ? 0.01 : 0.05); sx = e.clientX;
-    const a = camAngles(); a[key] += d;
-    const r = Math.PI / 180;
+  let t = 0;
+  const later = () => { clearTimeout(t); t = setTimeout(refreshAll, 150); };
+  ['tilt', 'roll', 'yaw'].forEach(k => $('ang-' + k).addEventListener('change', e => {
+    const v = parseFloat(e.target.value); if (!Number.isFinite(v)) return;
+    const a = camAngles(); a[k] = v; const r = Math.PI / 180;
     camera.quaternion.setFromEuler(new THREE.Euler(a.tilt * r, a.yaw * r, a.roll * r, 'YXZ'));
-    navRetarget(); navChanged();
+    navRetarget(); navChanged(); later();
+  }));
+  // camera height: moves only the camera (and its orbit target), not the scan
+  $('cam-h').addEventListener('change', e => {
+    const v = parseFloat(e.target.value); if (!Number.isFinite(v)) return;
+    const d = v - camera.position.y; camera.position.y += d; nav.target.y += d;
+    navChanged(); later();
   });
-  const end = () => { if (sx === null) return; sx = null; refreshAll(); };
-  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+  $('tb-focal').addEventListener('change', e => {
+    const v = parseFloat(e.target.value); if (!(v > 0)) return;
+    st.focal = v; st.fScale = 1; $('focal').value = v; lsSet('focal', v); applyIntrinsics();
+    if (st.pins.length) solveLive(true);
+    later();
+  });
+  $('tb-apply-f').onclick = () => {
+    if (!st.metaFocal) return;
+    st.focal = +st.metaFocal.toFixed(3); st.fScale = 1; $('focal').value = st.focal; applyIntrinsics();
+    if (st.pins.length) solveLive(true);
+    refreshAll(); toast(`Focal ${fmt(st.focal, 2)} mm from the plate metadata`);
+  };
+  ['cam-h', 'ang-tilt', 'ang-roll', 'ang-yaw', 'tb-focal'].forEach(id => $(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); e.target.dispatchEvent(new Event('change', { bubbles: true })); e.target.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.target.blur(); refreshAll(); }
+    e.stopPropagation();
+  }));
 }
 function resetAll(keepPrefs) {
   hist.undo.length = 0; hist.redo.length = 0; histUI();
@@ -3096,7 +3151,7 @@ function resetAll(keepPrefs) {
   st.pins = []; st.sel = -1; st.rms = null; st.solved = null; $('back').disabled = true; st.nextId = 1;
   st.measure = { a: null, b: null }; updateMeasureGeo();
   // plate
-  exrState = null; st.metaOrient = null; st.metaCamera = null; $('stage').classList.remove('noplate'); $('plate-on').setAttribute('aria-pressed', 'true');
+  exrState = null; st.metaOrient = null; st.metaCamera = null; st.metaFocal = null; $('stage').classList.remove('noplate'); $('plate-on').setAttribute('aria-pressed', 'true');
   plateImg.removeAttribute('src'); plateImg.hidden = true; $('platecv').hidden = true;
   setKey({ on: false });
   $('exr-box').hidden = true; $('orient-row').hidden = true; $('orient-auto-row').hidden = true; $('meta-msg').hidden = true; $('aspect-msg').hidden = true;
@@ -3258,7 +3313,15 @@ $('f-proj').onchange = async e => { const f = e.target.files[0]; e.target.value 
 $('f-proj2').onchange = $('f-proj').onchange;
 $('st-demo').onclick = () => { closeStart(); resetAll(true); loadDemo(); };
 $('st-empty').onclick = closeStart;
-$('pj-demo').onclick = () => { resetAll(true); loadDemo(); };
+$('pj-demo').onclick = () => {
+  const busy = !st.plate.empty || !!scanObj || st.pins.length > 0;
+  if (!busy) { resetAll(true); loadDemo(); return; }
+  $('demo-ask').hidden = false; setTimeout(() => $('demo-no').focus(), 30);
+};
+$('demo-no').onclick = () => { $('demo-ask').hidden = true; };
+$('demo-yes').onclick = () => { $('demo-ask').hidden = true; resetAll(true); loadDemo(); };
+$('demo-save').onclick = () => { $('pj-save').click(); };
+$('demo-ask').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); $('demo-ask').hidden = true; } });
 $('relink-x').onclick = () => { st.pendingProject = null; $('relink').hidden = true; };
 ['pointerdown', 'wheel'].forEach(t => $('relink').addEventListener(t, e => e.stopPropagation()));
 window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('start').hidden) closeStart(); });

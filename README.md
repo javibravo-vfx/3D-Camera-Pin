@@ -36,7 +36,7 @@ The panel header also has **Open**, **Save**, **Demo** and **Reset all**.
 ## Camera height, scan offset and orientation
 
 - **Ground**: world y = 0, shown by the 1 m grid.
-- **Camera height**: the info bar under the viewport always shows the camera height above the ground, plus its tilt, roll and yaw. It is a readout only.
+- **Camera height**: the info bar under the viewport shows the camera height above the ground as an editable field. Changing it moves only the camera, for fine adjustment; tilt, roll and yaw sit next to it as fields too.
 - **Height offset** (Scan & scale): moves the scan and the camera up or down together, so the match holds and only the distance to the ground changes. **Sit on ground** puts the lowest point of the scan at y = 0. In both cases the 3D camera follows.
   - The environment's **Ground to scan** respects the offset.
   - The export notes tell you how far to move the scan in your DCC.
@@ -51,10 +51,11 @@ The top bar always shows the camera in use: sensor preset, film back and focal l
 ## Solve locks
 
 The top bar has two locks for the solve:
-- **Lock focal** (on by default) keeps the focal length shown next to it fixed. Untick it to let the pins estimate the focal: 6 pins, or 4 with tilt/roll locked.
+- **Lock focal** (on by default) keeps the focal length fixed; its field shows dashed while locked. Untick it to type or drag the focal right there and let the pins refine it: 6 pins, or 4 with tilt/roll locked.
+- **Apply focal** sets the focal length from the EXR metadata.
 - **Lock tilt/roll** freezes the camera's current tilt and roll everywhere: the pins only adjust yaw and position (two pins are enough), and navigation only turns in yaw and moves.
 - **Apply T/R** sets tilt and roll from the EXR metadata.
-- In the info bar, the **TILT / ROLL / YAW** values can be dragged left or right to fine-tune them. Hold Shift for finer steps. Tilt and roll are disabled while locked.
+- In the info bar, **CAM HEIGHT / TILT / ROLL / YAW** are fields: drag them or click and type. Tilt and roll are disabled while locked.
 
 **Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
 
@@ -64,6 +65,7 @@ The top bar has two locks for the solve:
 
 ## Fields and sliders
 
+- One rule everywhere: **a boxed value is editable**, a dashed box is locked, plain text is a readout.
 - **Numeric fields** show their unit (mm, m, ×) inside the box.
   - Click and drag left or right to change the value. Hold Shift for fine steps, Ctrl for coarse.
   - A plain click lets you type. With the field selected, the Up/Down arrow keys nudge by one step (Shift ×10, Alt ×0.1), as in Nuke.
@@ -81,6 +83,9 @@ The top bar has two locks for the solve:
 The plate and the scan are not stored in the file, only their names. When you **Open** a project, a card lists the files it needs. Load them with Load plate and Load scan, or drop them on the viewer, and the project restores itself. Demo projects restore directly. You can also drop a `.json` project on the viewer.
 
 ## Reset all
+
+**Demo** asks before replacing a scene that has a plate, scan or pins, with an option to save the project first.
+
 
 **Reset all**, in the panel header, asks for a second click and then:
 - Removes the plate and the scan, including the sample.

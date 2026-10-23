@@ -44,6 +44,10 @@ The panel header also has **Open**, **Save**, **Demo** and **Reset all**.
   - They are applied on load (**Apply on load**, on by default). **Apply** sets them again if the camera drifts after adjustments.
   - The camera position is kept, and values missing from the file keep the current ones.
 
+## Camera badge
+
+The top bar always shows the camera in use: sensor preset, film back and focal length. If the plate metadata names a different camera than the current preset, the badge turns amber, and hovering it shows what the file says.
+
 ## Solve locks
 
 The top bar has two locks for the solve:
@@ -62,7 +66,7 @@ The top bar has two locks for the solve:
 
 - **Numeric fields** show their unit (mm, m, ×) inside the box.
   - Click and drag left or right to change the value. Hold Shift for fine steps, Ctrl for coarse.
-  - A plain click lets you type.
+  - A plain click lets you type. With the field selected, the Up/Down arrow keys nudge by one step (Shift ×10, Alt ×0.1), as in Nuke.
 - **Sliders**: double-click resets them to their default.
 - **Exposure** on the viewport is a viewer gain in stops for the plate only. The mask darkening and the scan overlay are not affected.
 
@@ -102,7 +106,7 @@ Modular 3D set pieces you can turn on behind or around the scan to check a match
 
 **Avenue / street**
 - Number of lanes, lane width, median width (0 gives a painted center line), sidewalk width and length.
-- Traffic on/off, with density and a clear zone around the origin so no car overlaps the hero vehicle. **Shuffle** generates new traffic.
+- Traffic on/off with real-size sedans, hatchbacks and SUVs (body, glass, roof, wheels and lights), with density and a clear zone around the origin so no car overlaps the hero vehicle. **Shuffle** generates new traffic.
 - Street lights and buildings on/off.
 - Placement: offset X/Z, ground height and rotation. **Ground to scan** sets the ground to the lowest point of the scan.
 - Display as solid or wireframe.
@@ -152,6 +156,7 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 |---|---|
 | `N` / `P` / `M` | Navigate / Pins / Measure mode |
 | `H` | Show / hide the scan |
+| `B` | Show / hide the plate |
 | `E` | Show / hide the environment |
 | `K` | Chroma key on / off |
 | `F` | Fit the plate |
@@ -178,7 +183,8 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
   - The number in the lens name (e.g. "Signature Prime 47").
 - If none is found, click a value in the metadata list to use it as the focal.
 - Film back from `sensorAcquisitionRectangle` × `sensorPhotositePitch`.
-- Camera and lens make/model.
+- Camera model (`cameraModel` or vendor keys such as `com.arri.camera.CameraModel`). It is matched to a sensor preset, picking the mode that fits the plate's aspect.
+- Lens make and model.
 - Vendor keys containing `focal` or `sensor`.
 
 ## How it solves

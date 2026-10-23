@@ -50,6 +50,9 @@ body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-s
 .vbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .vbar .sep { width: 1px; align-self: stretch; margin-block: 4px; background: var(--line); }
 .vbar label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; }
+.tbcam { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-fg); font: 500 12px var(--f-ui); white-space: nowrap; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.tbcam.warn { background: color-mix(in srgb, var(--warn) 22%, var(--card)); color: var(--warn); }
+.tbcam + .fmt { margin-left: 0; }
 .vbar .fmt { margin-left: auto; font: 500 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; }
 .seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; }
 .seg button { font: 500 12.5px var(--f-ui); color: var(--muted); background: transparent; border: 0; border-radius: 5px; padding: 4px 11px; cursor: pointer; }
@@ -226,15 +229,18 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .toast { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5; background: var(--accent-soft); color: var(--accent-fg); border-radius: 999px; padding: 6px 14px; font-size: 12.5px; font-weight: 500; }
 .toast.bad { background: color-mix(in srgb, var(--bad) 25%, var(--card)); color: #fff; }
 .num { position: relative; display: block; min-width: 0; width: 100%; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .row.nowrap > .num { flex: 1; min-width: 56px; }
 .num > input { width: 100%; }
 .num > input:not(:focus):not(:disabled) { cursor: ew-resize; }
-.num.has-u > input { padding-right: 30px; }
+.num.has-u > input { padding-right: 40px; }
 .num .u { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
 .num.scrubbing > input { border-color: var(--accent-hi); }
 .vpsep { width: 10px; }
 #vgain-v { color: var(--fg); font-weight: 500; min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .stage img, .stage #platecv, .stage #platekey { filter: brightness(var(--gain, 1)); }
+.stage.noplate img, .stage.noplate #platecv, .stage.noplate #platekey { visibility: hidden !important; }
 .pins li.baked .id::after { content: " ◆"; color: var(--accent-fg); font-size: 9px; }
 .mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .mrow .arrow { color: var(--muted); }
@@ -329,6 +335,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       <button class="btn" id="tb-clear" title="Delete every pin and keep the camera where it is">Clear pins</button>
       <button class="btn" id="tb-bake">Bake pins</button>
       <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button>
+      <span class="tbcam" id="tb-cam" title="Camera and lens used for the solve"></span>
       <span class="fmt" id="tag">SAMPLE</span>
     </div>
 
@@ -365,6 +372,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       </div>
       <svg class="ov" id="ov"></svg>
       <div class="vpbar" id="vpbar">
+        <button class="vpchip" id="plate-on" aria-pressed="true" title="Show / hide the plate (B)">
+          <svg viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>Plate
+        </button>
         <button class="vpchip" id="scan-on" aria-pressed="true" title="Show / hide the scan (H)">
           <svg viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>Scan
         </button>
@@ -843,6 +853,30 @@ const lsGet = (k, d) => { try { const v = localStorage.getItem('pinmatch.' + k);
 const lsSet = (k, v) => { try { localStorage.setItem('pinmatch.' + k, JSON.stringify(v)); } catch (e) {} };
 
 // ---------- Sensor presets (film back in mm; check against the camera report) ----------
+// camera model text -> preset ids, chosen by the plate's aspect
+const MODEL_PRESETS = [
+  [/alexa\s*35/i, ['alexa35-og', 'alexa35-169']],
+  [/(mini\s*lf|alexa\s*lf)/i, ['alexa-lf-og', 'alexa-lf-169']],
+  [/alexa\s*mini/i, ['alexamini-og', 'alexamini-169']],
+  [/venice/i, ['venice-ff']],
+  [/fx[36]|fx30/i, ['fx6']],
+  [/v-?raptor/i, ['vraptor']],
+  [/komodo/i, ['komodo']],
+  [/c70|c300/i, ['c70']],
+  [/pocket.*6k|bmpcc\s*6k/i, ['bmpcc6k']],
+  [/pocket.*4k|bmpcc\s*4k/i, ['bmpcc4k']],
+  [/iphone/i, ['iph12']],
+];
+function presetsForModel(model) {
+  for (const [re, ids] of MODEL_PRESETS) if (re.test(model)) return ids;
+  return null;
+}
+function matchPreset(model, W, H) {
+  const ids = model && presetsForModel(model); if (!ids) return null;
+  const a = W / H;
+  return ids.map(id => PRESETS.find(p => p[0] === id)).filter(Boolean)
+    .sort((x, y) => Math.abs(x[2] / x[3] - a) - Math.abs(y[2] / y[3] - a))[0] || null;
+}
 const PRESETS = [
   ['alexa-lf-og', 'ARRI Alexa LF / Mini LF · Open Gate 4.5K', 36.70, 25.54],
   ['alexa-lf-169', 'ARRI Alexa LF / Mini LF · 16:9 UHD', 31.68, 17.82],
@@ -992,35 +1026,83 @@ const ENV_MAT = {
   walk: new THREE.MeshLambertMaterial({ color: 0x9a978f }),
   median: new THREE.MeshLambertMaterial({ color: 0x5f6b4e }),
   building: new THREE.MeshLambertMaterial({ color: 0xffffff }),
-  car: new THREE.MeshLambertMaterial({ color: 0xffffff }),
-  glass: new THREE.MeshLambertMaterial({ color: 0x1d242b }),
+  car: new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 60, specular: 0x333333 }),
+  glass: new THREE.MeshPhongMaterial({ color: 0x151b21, shininess: 90, specular: 0x666666 }),
   tire: new THREE.MeshLambertMaterial({ color: 0x141414 }),
   pole: new THREE.MeshLambertMaterial({ color: 0x55585c }),
 };
 const CAR_COLORS = [0xe8e8e6, 0xe8e8e6, 0xb9bcc0, 0xb9bcc0, 0x2a2c30, 0x1b1c1e, 0x5d6166, 0x8c1c1c, 0x1f3f78, 0x6b7f8c];
 function boxAt(w, h, d, x, y, z, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); return m; }
 // one instanced set of cars; cars: [{ x, z, dir(+1 drives toward -Z, -1 toward +Z), len, wid, color }]
+// Car body types in meters (real-world sizes). Profile points are [z, y] along the car's length, front at -z.
+const CAR_TYPES = {
+  sedan: { L: 4.65, W: 1.82, H: 1.45, wheelR: 0.32, wheelbase: 2.75, clear: 0.15, weight: 0.45,
+    lower: [[-2.325, 0.22], [-2.325, 0.62], [-2.2, 0.72], [-1.15, 0.86], [-0.75, 0.92], [1.55, 0.92], [2.25, 0.86], [2.325, 0.72], [2.325, 0.25]],
+    cabin: [[-0.95, 0.9], [-0.25, 1.42], [0.85, 1.43], [1.55, 0.95]] },
+  hatch: { L: 4.1, W: 1.76, H: 1.48, wheelR: 0.31, wheelbase: 2.55, clear: 0.15, weight: 0.3,
+    lower: [[-2.05, 0.22], [-2.05, 0.62], [-1.9, 0.72], [-1.0, 0.86], [-0.65, 0.92], [1.85, 0.94], [2.05, 0.9], [2.05, 0.25]],
+    cabin: [[-0.82, 0.9], [-0.1, 1.45], [1.55, 1.44], [1.98, 0.95]] },
+  suv: { L: 4.7, W: 1.9, H: 1.72, wheelR: 0.36, wheelbase: 2.8, clear: 0.2, weight: 0.25,
+    lower: [[-2.35, 0.28], [-2.35, 0.8], [-2.2, 0.92], [-1.25, 1.05], [-0.85, 1.1], [2.15, 1.12], [2.35, 1.0], [2.35, 0.3]],
+    cabin: [[-1.05, 1.08], [-0.35, 1.7], [1.85, 1.7], [2.25, 1.12]] },
+};
+function carGeoms(t) {
+  const prof = (pts) => { const sh = new THREE.Shape(); pts.forEach(([z, y], i) => i ? sh.lineTo(z, y) : sh.moveTo(z, y)); sh.closePath(); return sh; };
+  const ex = (pts, w, bevel) => {
+    const g = new THREE.ExtrudeGeometry(prof(pts), { depth: w - 2 * bevel, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, steps: 1 });
+    g.translate(0, 0, -(w - 2 * bevel) / 2); // centre the width on z
+    g.rotateY(-Math.PI / 2);                 // shape x (length) -> world z, extrusion -> world x
+    return g;
+  };
+  const lowerPts = t.lower.concat([[t.lower[0][0], t.clear + 0.05]]).slice(0, -1);
+  const body = ex(lowerPts, t.W, 0.06);
+  // cabin: glass greenhouse, narrower; roof slab painted
+  const cab = ex(t.cabin, t.W * 0.86, 0.05);
+  const rz0 = t.cabin[1][0] + 0.12, rz1 = t.cabin[2][0] - 0.12, ry = t.cabin[1][1];
+  const roof = new THREE.BoxGeometry(t.W * 0.8, 0.05, rz1 - rz0).translate(0, ry + 0.02, (rz0 + rz1) / 2);
+  const lampF = new THREE.BoxGeometry(0.32, 0.08, 0.04), lampR = new THREE.BoxGeometry(0.34, 0.09, 0.04);
+  return { body, cab, roof, lampF, lampR };
+}
+const CAR_GEO = {};
 function buildCars(cars) {
-  const g = new THREE.Group(), n = cars.length;
-  if (!n) return g;
-  const body = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), ENV_MAT.car, n);
-  const cab = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), ENV_MAT.glass, n);
-  const wheel = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.33, 0.33, 0.24, 14).rotateZ(Math.PI / 2), ENV_MAT.tire, n * 4);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
-  cars.forEach((c, i) => {
-    const bodyH = c.tall ? 1.25 : 0.78, base = 0.3;
-    m.compose(p.set(c.x, base + bodyH / 2, c.z), q, s.set(c.wid, bodyH, c.len)); body.setMatrixAt(i, m);
-    body.setColorAt(i, col.setHex(c.color));
-    const cabL = c.len * (c.tall ? 0.62 : 0.5), cabH = c.tall ? 0.62 : 0.58;
-    m.compose(p.set(c.x, base + bodyH + cabH / 2, c.z + c.dir * c.len * 0.06), q, s.set(c.wid * 0.9, cabH, cabL)); cab.setMatrixAt(i, m);
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz], k) => {
-      m.compose(p.set(c.x + sx * (c.wid / 2 - 0.08), 0.33, c.z + sz * (c.len / 2 - 0.75)), q, s.set(1, 1, 1));
-      wheel.setMatrixAt(i * 4 + k, m);
+  const g = new THREE.Group();
+  if (!cars.length) return g;
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), col = new THREE.Color();
+  const up = new THREE.Vector3(0, 1, 0);
+  const wheelGeo = new THREE.CylinderGeometry(1, 1, 1, 18).rotateZ(Math.PI / 2);
+  const lampMatF = new THREE.MeshBasicMaterial({ color: 0xf2f0e6 }), lampMatR = new THREE.MeshBasicMaterial({ color: 0x9c1a1a });
+  for (const [type, t] of Object.entries(CAR_TYPES)) {
+    const list = cars.filter(c => c.type === type); const n = list.length; if (!n) continue;
+    const G = CAR_GEO[type] || (CAR_GEO[type] = carGeoms(t));
+    const body = new THREE.InstancedMesh(G.body, ENV_MAT.car, n), roof = new THREE.InstancedMesh(G.roof, ENV_MAT.car, n);
+    const cab = new THREE.InstancedMesh(G.cab, ENV_MAT.glass, n), wheels = new THREE.InstancedMesh(wheelGeo, ENV_MAT.tire, n * 4);
+    const lf = new THREE.InstancedMesh(G.lampF, lampMatF, n * 2), lr = new THREE.InstancedMesh(G.lampR, lampMatR, n * 2);
+    const W = new THREE.Matrix4(), L = new THREE.Matrix4();
+    list.forEach((c, i) => {
+      q.setFromAxisAngle(up, c.dir > 0 ? 0 : Math.PI);
+      W.compose(v.set(c.x, 0, c.z), q, s.set(c.k, c.k, c.k));
+      body.setMatrixAt(i, W); roof.setMatrixAt(i, W); cab.setMatrixAt(i, W);
+      body.setColorAt(i, col.setHex(c.color)); roof.setColorAt(i, col.setHex(c.color));
+      const hw = t.W / 2 - 0.12, hb = t.wheelbase / 2, zc = (t.lower[0][0] + t.lower[t.lower.length - 1][0]) / 2;
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz], k) => {
+        L.compose(v.set(sx * hw, t.wheelR, zc + sz * hb), new THREE.Quaternion(), s.set(0.23, t.wheelR, t.wheelR));
+        wheels.setMatrixAt(i * 4 + k, m.multiplyMatrices(W, L));
+      });
+      [-1, 1].forEach((sx, k) => {
+        L.makeTranslation(sx * (t.W / 2 - 0.3), t.lower[2][1] - 0.06, t.lower[0][0] - 0.01); lf.setMatrixAt(i * 2 + k, m.multiplyMatrices(W, L));
+        const last = t.lower[t.lower.length - 2];
+        L.makeTranslation(sx * (t.W / 2 - 0.28), last[1] - 0.08, last[0] + 0.01); lr.setMatrixAt(i * 2 + k, m.multiplyMatrices(W, L));
+      });
     });
-  });
-  body.instanceColor.needsUpdate = true;
-  g.add(body, cab, wheel);
+    body.instanceColor.needsUpdate = true; roof.instanceColor.needsUpdate = true;
+    g.add(body, roof, cab, wheels, lf, lr);
+  }
   return g;
+}
+function pickCarType(rng) {
+  let r = rng(), acc = 0;
+  for (const [k, t] of Object.entries(CAR_TYPES)) { acc += t.weight; if (r < acc) return k; }
+  return 'sedan';
 }
 const ENV_MODULES = {
   avenue: {
@@ -1100,10 +1182,10 @@ const ENV_MODULES = {
         for (const ln of lanes) {
           let z = -len / 2 + rng() * 10;
           while (z < len / 2 - 3) {
-            const tall = rng() < 0.22, clen = tall ? 4.9 + rng() * 0.5 : 4.2 + rng() * 0.6, cwid = tall ? 1.95 : 1.78;
-            const cz = z + clen / 2, cx = ln.x + (rng() - 0.5) * 0.4;
+            const type = pickCarType(rng), k = 0.96 + rng() * 0.08, clen = CAR_TYPES[type].L * k;
+            const cz = z + clen / 2, cx = ln.x + (rng() - 0.5) * 0.3;
             if (Math.hypot(cx - origin.x, cz - origin.z) > p.clear + clen / 2) {
-              cars.push({ x: cx, z: cz, dir: ln.dir, len: clen, wid: cwid, tall, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
+              cars.push({ x: cx, z: cz, dir: ln.dir, type, k, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
             }
             z += clen + 2 + (1 - p.density) * (8 + rng() * 40) + rng() * 4;
           }
@@ -1556,7 +1638,7 @@ function setPlate(url, W, H, name, sample) {
   if (url) { plateImg.onload = () => { if (key.on) keyLater(); }; plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
   else { plateImg.hidden = true; $('platecv').hidden = false; }
   if (url) {
-    $('exr-box').hidden = true; exrState = null;
+    $('exr-box').hidden = true; exrState = null; st.metaCamera = null;
     $('cs').value = 'disp'; $('cs').disabled = true; $('view').disabled = true;
   } else { $('cs').disabled = false; $('view').disabled = false; }
   $('plate-name').textContent = (sample ? 'Sample' : name) + ' · ' + W + ' × ' + H;
@@ -1721,7 +1803,12 @@ const EXR = (() => {
       const hA = h.attrs.find(x => /(sensor|film.?back)/i.test(x.name) && /height|vert/i.test(x.name) && num(x.value) > 1 && num(x.value) < 100);
       if (wA) { out.sw = num(wA.value); out.sh = hA ? num(hA.value) : null; out.sensorKey = wA.name; }
     }
-    const cam = [h.get('cameraMake'), h.get('cameraModel')].filter(Boolean).join(' ');
+    let cam = [h.get('cameraMake'), h.get('cameraModel')].filter(Boolean).join(' ');
+    if (!cam) { // vendor keys: com.arri.camera.CameraModel, cameraType, Camera Name...
+      const a = h.attrs.find(x => typeof x.value === 'string' && x.value.trim() && /camera.?(model|type|name|id)?$|cameramodel|camera_model/i.test(x.name) && !/lens|serial|index|roll|id$/i.test(x.name));
+      if (a) cam = a.value.trim();
+    }
+    if (!cam) { const a = h.attrs.find(x => typeof x.value === 'string' && /\b(alexa|venice|v-?raptor|komodo|monstro|helium|burano|fx[36]|c[37]0{1,2}|pocket|ursa|blackmagic|varicam)\b/i.test(x.value)); if (a) cam = a.value.trim().slice(0, 60); }
     const lens = [h.get('lensMake'), h.get('lensModel')].filter(Boolean).join(' ');
     if (cam) out.camera = cam;
     if (lens) out.lens = lens;
@@ -1890,7 +1977,13 @@ function showExrMeta(h) {
     lines.push('Orientation: ' + $('orient-txt').textContent);
     if ($('orient-auto').checked && !st.pendingProject) setTimeout(() => applyOrientation(st.metaOrient), 0);
   }
+  st.metaCamera = hint.camera || null;
   if (hint.camera) lines.push('Camera: ' + hint.camera);
+  if (hint.camera && !hint.sw) {
+    const pr = matchPreset(hint.camera, st.plate.W, st.plate.H);
+    if (pr) { st.preset = pr[0]; pre.value = pr[0]; setSensor(pr[2], pr[3], true); lines.push(`Sensor: ${pr[1]} (${pr[2]} × ${pr[3]} mm)`); }
+    else lines.push('Camera not in the preset list: check the film back.');
+  }
   if (hint.lens) lines.push('Lens: ' + hint.lens);
   if (hint.sw) {
     setSensor(+hint.sw.toFixed(3), +(hint.sh || st.sh).toFixed(3), false);
@@ -2132,6 +2225,14 @@ function updateCamInfo() {
   $('cam-h').textContent = camera.position.y.toFixed(3);
   const a = camAngles();
   $('lock-f-v').textContent = fmt(focalUsed(), 2) + ' mm';
+  { const pr = PRESETS.find(p => p[0] === st.preset);
+    const name = pr && pr[2] ? pr[1].replace(/\s*·.*$/, '') + ' · ' + pr[1].replace(/^.*·\s*/, '') : 'Custom sensor';
+    const ids = st.metaCamera ? presetsForModel(st.metaCamera) : null;
+    const mismatch = !!(st.metaCamera && (!ids || !ids.includes(st.preset)));
+    const tc = $('tb-cam');
+    tc.textContent = `${name} · ${fmt(st.sw, 2)} × ${fmt(shUsed(), 2)} mm · ${fmt(focalUsed(), 1)} mm`;
+    tc.classList.toggle('warn', mismatch);
+    tc.title = mismatch ? `The plate metadata says "${st.metaCamera}", which doesn't match this sensor. Check the camera preset.` : (st.metaCamera ? `Matches the plate metadata: ${st.metaCamera}` : 'Camera and lens used for the solve'); }
   $('lock-f').checked = !st.freeF;
   $('lock-tr-v').textContent = `${fmt(a.tilt, 1)}° / ${fmt(a.roll, 1)}°`;
   const sc = (k, label, v) => `<span class="scrub${st.lockTR && k !== 'yaw' ? ' locked' : ''}" data-a="${k}" title="${st.lockTR && k !== 'yaw' ? 'Locked' : 'Drag left/right to adjust · Shift: fine'}"><small>${label}</small>${fmt(v, 2)}°</span>`;
@@ -2430,6 +2531,7 @@ window.addEventListener('keydown', e => {
   if (k === 'n') setMode('nav'); else if (k === 'p') setMode('pins'); else if (k === 'm') setMode('measure');
   else if (k === 'f') layoutStage(true);
   else if (k === 'h') toggleScan();
+  else if (k === 'b') togglePlate();
   else if (k === 'e') toggleEnv();
   else if (k === 'k') toggleKey();
   else if (k === 'escape' && st.mode === 'measure') clearMeasure();
@@ -2470,6 +2572,12 @@ function toggleScan() {
   render(); drawOverlay();
 }
 $('scan-on').onclick = toggleScan;
+function togglePlate() {
+  const off = !$('stage').classList.toggle('noplate') ? false : true;
+  $('plate-on').setAttribute('aria-pressed', String(!off));
+}
+$('plate-on').onclick = togglePlate;
+$('plate-on').addEventListener('pointerdown', e => e.stopPropagation());
 // ---------- Resizable properties panel ----------
 {
   const app = document.querySelector('.app'), sp = $('split');
@@ -2654,6 +2762,18 @@ function enhanceNumbers(root) {
       if (!moved) { inp.focus(); inp.select(); }
     };
     inp.addEventListener('pointerup', end); inp.addEventListener('pointercancel', end);
+    // Nuke-style: arrow up/down nudges by one step (Shift x10, Alt x0.1)
+    inp.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault(); e.stopPropagation();
+      const stp = (parseFloat(inp.step) || 0.01) * (e.shiftKey ? 10 : e.altKey ? 0.1 : 1);
+      let v2 = (parseFloat(inp.value) || 0) + (e.key === 'ArrowUp' ? stp : -stp);
+      if (inp.min !== '') v2 = Math.max(+inp.min, v2);
+      if (inp.max !== '') v2 = Math.min(+inp.max, v2);
+      inp.value = +v2.toFixed(dec() + (e.altKey ? 1 : 0));
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+    });
   });
 }
 enhanceNumbers(document);
@@ -2698,7 +2818,7 @@ function resetAll(keepPrefs) {
   st.pins = []; st.sel = -1; st.rms = null; st.solved = null; $('back').disabled = true; st.nextId = 1;
   st.measure = { a: null, b: null }; updateMeasureGeo();
   // plate
-  exrState = null; st.metaOrient = null;
+  exrState = null; st.metaOrient = null; st.metaCamera = null; $('stage').classList.remove('noplate'); $('plate-on').setAttribute('aria-pressed', 'true');
   plateImg.removeAttribute('src'); plateImg.hidden = true; $('platecv').hidden = true;
   setKey({ on: false });
   $('exr-box').hidden = true; $('orient-row').hidden = true; $('orient-auto-row').hidden = true; $('meta-msg').hidden = true; $('aspect-msg').hidden = true;

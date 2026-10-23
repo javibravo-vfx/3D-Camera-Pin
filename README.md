@@ -167,6 +167,13 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 - The set is lengthened automatically so the whole range never runs off its end.
 - The range and FPS are saved with the project.
 
+**Playblast**
+- **Playblast** on the timeline renders what the viewport shows over the frame range and saves it as an MP4. That includes the plate (with exposure and key), the scan, the environment, the Mix opacity and the motion. Pins and overlays are left out.
+- **Size** can be full plate resolution, half or quarter. Anamorphic plates come out desqueezed.
+- **Burn-in** adds a bar with the plate name, frame number, focal length and km/h.
+- **Mask** darkens the area outside the mask, as the viewport does.
+- Encoding uses the browser's WebCodecs, which needs Chrome, Edge or Safari 17+. Video is H.264. If the browser has no H.264 encoder it falls back to VP9 inside the MP4, which plays in browsers, VLC and Resolve but not QuickTime. The muxer is [mp4-muxer](https://github.com/Vanilagy/mp4-muxer), loaded from jsDelivr on first use.
+
 ## Scan orientation and scale
 
 - **File up axis** says how the file was written: Y up, Z up, or Y down (COLMAP). The app always works Y-up internally, and the export converts to Z-up for 3ds Max and Blender (Nuke, Maya and Houdini stay Y-up), so this setting never changes how you work in Max.

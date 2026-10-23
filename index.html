@@ -87,6 +87,8 @@ main.vp { position: relative; overflow: hidden; background: var(--bg); min-heigh
 .tlbar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--line); font: 12px var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
 .tlbar .tlbtns { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .tool.sm { width: 28px; height: 26px; }
+.pbprog { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+.pbprog > div { height: 100%; width: 0; background: var(--accent-hi); transition: width .1s; }
 .knobrow.dim, .fld.dim { opacity: .45; }
 .tool.sm svg { width: 15px; height: 15px; }
 .tlbar input[type=range] { flex: 1 1 auto; min-width: 80px; width: auto; }
@@ -381,6 +383,22 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     </div>
   </div>
 </div>
+<div class="start" id="pb-dlg" role="dialog" aria-modal="true" aria-labelledby="pb-t" hidden>
+  <div class="start-card">
+    <b id="pb-t">Playblast to MP4</b>
+    <p class="note" id="pb-info"></p>
+    <label class="fld" for="pb-size">Size
+      <select id="pb-size"><option value="1">Full (plate resolution)</option><option value="0.5">Half</option><option value="0.25">Quarter</option></select>
+    </label>
+    <label class="fld" for="pb-burn"><span>Burn-in</span><span class="row"><input id="pb-burn" type="checkbox" checked> Frame, speed and camera</span></label>
+    <label class="fld" for="pb-mask"><span>Mask</span><span class="row"><input id="pb-mask" type="checkbox" checked> Darken outside the mask (when one is set)</span></label>
+    <div class="pbprog" id="pb-prog" hidden><div id="pb-bar"></div></div>
+    <div class="start-btns">
+      <button class="btn primary" id="pb-go">Render MP4</button>
+      <button class="btn ghost" id="pb-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
 <div class="app">
   <div class="viewer">
     <div class="vbar">
@@ -535,6 +553,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <label class="camh" title="Range end">OUT <input id="tl-out" class="mini" type="number" step="1" value="1100" data-noscrub="1"></label>
         <label class="camh" title="Frames per second (taken from the plate when it says)">FPS <input id="tl-fps" class="mini" type="number" step="0.001" min="1" value="24" data-noscrub="1"></label>
         <span class="tlread"><b id="tl-kmh">–</b><span id="tl-dist"></span><span id="tl-time"></span></span>
+        <button class="btn sm" id="pb-open" title="Render the viewport over the frame range to an MP4">Playblast</button>
       </span>
     </div>
     <div class="ibar">
@@ -3896,6 +3915,104 @@ const tlRange = () => {
 ['tl-in', 'tl-out', 'tl-fps'].forEach(id => $(id).addEventListener('change', tlRange));
 ['tl-f', 'tl-in', 'tl-out', 'tl-fps'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.dispatchEvent(new Event('change')); e.target.blur(); } e.stopPropagation(); }));
 setTimeout(() => tlSet(tl.start), 0);
+
+// ---------- Playblast: render the viewport over the frame range and encode an MP4 (WebCodecs + mp4-muxer) ----------
+const pb = { busy: false, cancel: false };
+function pbDims() {
+  const k = +$('pb-size').value || 1;
+  const even = (n) => Math.max(2, Math.round(n / 2) * 2);
+  return { W: even(st.plate.W * par() * k), H: even(st.plate.H * k) }; // anamorphic plates come out desqueezed
+}
+function pbInfo() {
+  const d = pbDims(), n = tl.end - tl.start + 1;
+  $('pb-info').textContent = `Frames ${tl.start}–${tl.end} (${n}) at ${fmt(tl.fps, 3)} fps · ${d.W} × ${d.H} · H.264 MP4. What is shown in the viewport (plate, key, scan, environment, Mix) goes into the file.`;
+}
+function loadMuxer() {
+  if (window.Mp4Muxer) return Promise.resolve();
+  return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/build/mp4-muxer.js'; sc.onload = res; sc.onerror = () => rej(new Error('Could not load the MP4 muxer')); document.head.appendChild(sc); });
+}
+// one composited frame, like the viewport stack: environment (keyed) < plate < scan/environment (Mix)
+function pbComposite(ctx, W, H) {
+  ctx.globalAlpha = 1; ctx.filter = 'none'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  if (!$('glenv').hidden) { envRenderer.setPixelRatio(1); envRenderer.setSize(W, H, false); envRenderer.render(envScene, camera); ctx.drawImage($('glenv'), 0, 0, W, H); }
+  if (!stage.classList.contains('noplate')) {
+    const el = !$('platekey').hidden ? $('platekey') : !$('platecv').hidden ? $('platecv') : !plateImg.hidden && plateImg.complete && plateImg.naturalWidth ? plateImg : null;
+    if (el) { const g = parseFloat(getComputedStyle(stage).getPropertyValue('--gain')) || 1; if (g !== 1) ctx.filter = `brightness(${g})`; ctx.drawImage(el, 0, 0, W, H); ctx.filter = 'none'; }
+  }
+  renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.render(scene, camera);
+  ctx.globalAlpha = parseFloat(canvas.style.opacity || '1'); ctx.drawImage(canvas, 0, 0, W, H); ctx.globalAlpha = 1;
+  if ($('pb-mask').checked && maskAspect()) {
+    const c = maskRect(), sx = W / st.plate.W, sy = H / st.plate.H;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.rect(c.x * sx, c.y * sy, c.w * sx, c.h * sy); ctx.fill('evenodd');
+  }
+  if ($('pb-burn').checked) {
+    const fs = Math.max(11, Math.round(H / 45)), pad = Math.round(fs * 0.8), m = motionAt(tlU());
+    const left = `${st.plate.name || 'Camera Pin'}  ·  ${tl.frame}`;
+    const right = `${fmt(focalUsed(), 1)} mm` + (ENV_MODULES[env.id] && env.vals.mon ? `  ·  ${((env.vals.speed || 0) * m.k).toFixed(1)} km/h` : '');
+    ctx.font = `600 ${fs}px Inter, system-ui, sans-serif`; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, H - fs - pad * 2, W, fs + pad * 2);
+    ctx.fillStyle = '#e8e8e8'; ctx.textAlign = 'left'; ctx.fillText(left, pad, H - pad); ctx.textAlign = 'right'; ctx.fillText(right, W - pad, H - pad);
+  }
+}
+async function pbSave(blob, filename) {
+  try {
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename, data: blob }); toast('Playblast saved'); return; }
+  } catch (e) { if (e && e.code === 'declined') return; if (e && e.code === 'too_large') { toast('Too large for this view: try Half size', true); return; } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast('Playblast saved');
+}
+async function playblast() {
+  if (pb.busy) return;
+  if (typeof VideoEncoder === 'undefined') { toast('This browser cannot encode video (needs WebCodecs: Chrome, Edge or Safari 17+)', true); return; }
+  pb.busy = true; pb.cancel = false; tlPlay(false);
+  const { W, H } = pbDims(), fps = tl.fps, n = tl.end - tl.start + 1, keep = tl.frame;
+  $('pb-go').disabled = true; $('pb-prog').hidden = false; $('pb-bar').style.width = '0';
+  let encoder = null;
+  try {
+    await loadMuxer();
+    // H.264 first; if this browser has no H.264 encoder, VP9 in the same MP4 container (plays in browsers, VLC, Resolve; not QuickTime)
+    let codec = null, mux = 'avc';
+    for (const [c, m] of [['avc1.640034', 'avc'], ['avc1.640033', 'avc'], ['avc1.4d0034', 'avc'], ['avc1.42003e', 'avc'], ['vp09.00.50.08', 'vp9'], ['vp09.00.41.08', 'vp9']]) {
+      const r = await VideoEncoder.isConfigSupported({ codec: c, width: W, height: H, bitrate: 8e6, framerate: fps }).catch(() => null);
+      if (r && r.supported) { codec = c; mux = m; break; }
+    }
+    if (!codec) throw new Error(`no video encoder for ${W} × ${H} here: try Half size`);
+    if (mux !== 'avc') toast('No H.264 encoder in this browser: the MP4 uses VP9 (plays in browsers, VLC and Resolve, not QuickTime)');
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: fps }, fastStart: 'in-memory' });
+    let encErr = null;
+    encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { encErr = e; } });
+    encoder.configure({ codec, width: W, height: H, bitrate: Math.min(60e6, Math.max(4e6, W * H * fps * 0.12)), framerate: fps, latencyMode: 'quality' });
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
+    for (let i = 0; i < n; i++) {
+      if (pb.cancel) throw new Error('cancelled');
+      if (encErr) throw encErr;
+      tl.frame = tl.start + i; applyMotion();
+      pbComposite(ctx, W, H);
+      const vf = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
+      encoder.encode(vf, { keyFrame: i % Math.max(1, Math.round(fps)) === 0 }); vf.close();
+      while (encoder.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
+      $('pb-bar').style.width = ((i + 1) / n * 100).toFixed(1) + '%'; $('pb-t').textContent = `Playblast ${i + 1} / ${n}`;
+      if (i % 4 === 3) await new Promise(r => setTimeout(r, 0)); // let the progress paint
+    }
+    await encoder.flush(); muxer.finalize();
+    const base = ((st.plate.empty ? '' : st.plate.name) || 'playblast').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
+    $('pb-dlg').hidden = true;
+    await pbSave(new Blob([muxer.target.buffer], { type: 'video/mp4' }), `${base}_playblast_${tl.start}-${tl.end}.mp4`);
+  } catch (e) {
+    if (e && e.message !== 'cancelled') { console.error(e); toast('Playblast failed: ' + (e.message || e), true); }
+  } finally {
+    try { if (encoder && encoder.state !== 'closed') encoder.close(); } catch (e) {}
+    pb.busy = false; $('pb-go').disabled = false; $('pb-prog').hidden = true; $('pb-t').textContent = 'Playblast to MP4';
+    tl.frame = keep; applyMotion(); applyView(); tlUI();
+  }
+}
+$('pb-open').onclick = () => { pbInfo(); $('pb-dlg').hidden = false; };
+$('pb-size').onchange = pbInfo;
+$('pb-go').onclick = playblast;
+$('pb-cancel').onclick = () => { if (pb.busy) pb.cancel = true; else $('pb-dlg').hidden = true; };
+$('pb-dlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); $('pb-cancel').click(); } });
 $('f-cars').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) loadCarFiles(fs); };
 $('env-shuffle').onclick = () => { env.seed = (env.seed * 9301 + 49297) % 233280 + 1; envSave(); envRebuild(); };
 $('env-ground').onclick = () => {

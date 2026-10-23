@@ -256,6 +256,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 .mpop .u { color: var(--muted); font-size: 12px; }
 .mpop.done { border-color: var(--ok); }
 .mpop.done .d { color: var(--ok); }
+.mpop.envm .arrow, .mpop.envm input, .mpop.envm .u, .mpop.envm #mpop-ok { display: none; }
+.mpop .tag { display: none; font-size: 11px; color: var(--muted); }
+.mpop.envm .tag { display: inline; }
 .busy { position: absolute; top: 10px; right: 10px; font: 500 12px var(--f-ui); color: var(--accent-fg); background: var(--accent-soft); border-radius: 999px; padding: 5px 12px; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #2f2f35; border-radius: 10px; border: 2px solid var(--panel); }
@@ -400,7 +403,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <label class="vpchip" for="vgain" title="Viewer exposure in stops (plate only). Double-click the slider to reset.">Exposure <input id="vgain" type="range" min="-6" max="6" step="0.1" value="0"><b id="vgain-v">+0.0</b></label>
       </div>
       <div class="mpop" id="mpop" hidden>
-        <span class="d" id="mpop-d">0.000 m</span><span class="arrow">→</span>
+        <span class="d" id="mpop-d">0.000 m</span><span class="tag" title="One end is on the environment, so this is a check only and does not scale the scan">env · check only</span><span class="arrow">→</span>
         <input id="mpop-real" type="number" step="0.001" min="0" placeholder="real" aria-label="Real length in meters">
         <span class="u">m</span>
         <button class="btn primary" id="mpop-ok">Scale</button>
@@ -2307,6 +2310,22 @@ function pick(x, y) {
   return h.point.clone();
 }
 
+function pickEnv(x, y) {
+  if (!envRoot.visible || !envRoot.children.length) return null;
+  const [u, v] = vpToUv(x, y);
+  const ndc = new THREE.Vector2(u / st.plate.W * 2 - 1, -(v / st.plate.H * 2 - 1));
+  camera.updateMatrixWorld(); envRoot.updateMatrixWorld(true);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(envRoot, true).filter(h => h.object.isMesh && h.object.visible);
+  return hits.length ? hits[0].point.clone() : null;
+}
+// measure picks the scan or the environment (cars, road), whichever is nearer
+function pickMeasure(x, y) {
+  const a = pick(x, y), b = pickEnv(x, y);
+  if (a && b) return camera.position.distanceTo(a) <= camera.position.distanceTo(b) ? { p: a, env: false } : { p: b, env: true };
+  return a ? { p: a, env: false } : b ? { p: b, env: true } : null;
+}
+
 // ---------- Pins & solving ----------
 function pinWorld(p) { return scanRoot.localToWorld(p.local.clone()); }
 function activePins() { return st.pins.filter(p => p.on).map(p => { const w = pinWorld(p); return { X: [w.x, w.y, w.z], uv: p.uv, ref: p }; }); }
@@ -2392,6 +2411,7 @@ function drawOverlay() {
           showPop = true;
           pop.style.left = (ax + bx) / 2 + 'px'; pop.style.top = (ay + by) / 2 + 'px';
           $('mpop-d').textContent = d.toFixed(3) + ' m';
+          pop.classList.toggle('envm', measEnv());
           const real = +$('mpop-real').value;
           pop.classList.toggle('done', real > 0 && Math.abs(d - real) < 5e-4);
         } else {
@@ -2499,7 +2519,7 @@ function updateBadge() {
 const HINTS = {
   nav: () => `<b>Navigate</b> · ${NAV[navPreset].hint}`,
   pins: () => '<b>Pins</b> · click the scan to drop a pin, drag it onto the plate · RMB: delete · wheel: zoom · Alt or MMB: pan',
-  measure: () => `<b>Measure</b> · click two points on the scan, type the real length, Enter to scale · Esc clears · ${NAV[navPreset].hint}`,
+  measure: () => `<b>Measure</b> · click two points on the scan, type the real length, Enter to scale · points on the environment (cars, road) only check sizes · Esc clears · ${NAV[navPreset].hint}`,
 };
 function refreshAll() {
   $('hint').innerHTML = HINTS[st.mode]();
@@ -2639,13 +2659,15 @@ function updateMeasureGeo() {
   measPts.visible = false;
   const d = a && b ? a.distanceTo(b) : null;
   $('meas').value = d != null ? d.toFixed(4) + ' m' : a ? 'pick 2nd point' : '–';
-  $('apply-scale').disabled = !(d > 0 && +$('real').value > 0);
+  $('apply-scale').disabled = !(d > 0 && +$('real').value > 0) || measEnv();
 }
-// measure points are kept in scan-local space so they follow scale changes
+// measure points on the scan are kept in scan-local space so they follow scale changes; points on the environment stay in world space
 function measWorld() {
-  st.measure.a = st.measure.la ? scanRoot.localToWorld(st.measure.la.clone()) : null;
-  st.measure.b = st.measure.lb ? scanRoot.localToWorld(st.measure.lb.clone()) : null;
+  const W = (l, e) => l ? (e ? l.clone() : scanRoot.localToWorld(l.clone())) : null;
+  st.measure.a = W(st.measure.la, st.measure.ea);
+  st.measure.b = W(st.measure.lb, st.measure.eb);
 }
+function measEnv() { return !!(st.measure.ea || st.measure.eb); }
 
 // ---------- Interaction ----------
 let drag = null;
@@ -2711,7 +2733,7 @@ vp.addEventListener('pointermove', e => {
   { const [mx, my] = evVp(e); const [u, v] = vpToUv(mx, my); $('cx').textContent = Math.floor(u); $('cy').textContent = Math.floor(st.plate.H - v); }
   if (st.mode === 'measure' && st.measure.a && !st.measure.b && !drag && !hoverRAF) {
     const [mx, my] = evVp(e);
-    hoverRAF = requestAnimationFrame(() => { hoverRAF = 0; st.measure.hover = pick(mx, my); drawOverlay(); });
+    hoverRAF = requestAnimationFrame(() => { hoverRAF = 0; const m = pickMeasure(mx, my); st.measure.hover = m ? m.p : null; drawOverlay(); });
   }
   if (!drag) return;
   const [x, y] = evVp(e);
@@ -2736,14 +2758,14 @@ vp.addEventListener('pointerup', e => {
   const [x, y] = evVp(e);
   if (drag.type === 'pin') { solveLive(false); refreshAll(); }
   if ((drag.type === 'click' || (drag.type === 'nav' && drag.click)) && Math.hypot(x - drag.x, y - drag.y) < 4) {
-    const hit = pick(x, y);
-    if (hit) {
-      const loc = scanRoot.worldToLocal(hit.clone());
-      if (!st.measure.la || st.measure.lb) { st.measure.la = loc; st.measure.lb = null; $('mpop-real').value = ''; }
-      else st.measure.lb = loc;
+    const m = pickMeasure(x, y);
+    if (m) {
+      const loc = m.env ? m.p.clone() : scanRoot.worldToLocal(m.p.clone());
+      if (!st.measure.la || st.measure.lb) { st.measure.la = loc; st.measure.ea = m.env; st.measure.lb = null; st.measure.eb = false; $('mpop-real').value = ''; }
+      else { st.measure.lb = loc; st.measure.eb = m.env; }
       st.measure.hover = null;
       measWorld(); updateMeasureGeo(); render(); drawOverlay();
-      if (st.measure.lb) setTimeout(() => $('mpop-real').focus(), 0);
+      if (st.measure.lb && !measEnv()) setTimeout(() => $('mpop-real').focus(), 0);
     }
   }
   drag = null;
@@ -2872,7 +2894,7 @@ $('unit').onchange = () => { setRootTransform(+$('unit').value, st.userScale, st
 $('up').onchange = () => { if (/\.ply$/i.test(st.scanName)) lsSet('upPly', $('up').value); setRootTransform(st.unit, st.userScale, $('up').value, false); measWorld(); updateMeasureGeo(); refreshAll(); };
 $('real').oninput = updateMeasureGeo;
 function applyScaleFrom(real) {
-  if (!st.measure.a || !st.measure.b) return;
+  if (!st.measure.a || !st.measure.b || measEnv()) return;
   const d = st.measure.a.distanceTo(st.measure.b);
   if (!(d > 0 && real > 0)) return;
   $('real').value = real; $('mpop-real').value = real;
@@ -3125,7 +3147,7 @@ function projectState() {
     lens: { preset: st.preset, sw: st.sw, sh: st.sh, shAuto: st.shAuto, focal: st.focal, fScale: st.fScale, freeF: st.freeF, par: st.par },
     scanXform: { unit: st.unit, up: st.up, userScale: st.userScale, scanY: st.scanY || 0, rot: st.rot || [0, 0, 0], scaleOk: st.scaleOk, display: $('disp').value },
     pins: st.pins.map(p => ({ id: p.id, local: v3(p.local), uv: p.uv, on: p.on, baked: !!p.baked })),
-    measure: st.measure.la && st.measure.lb ? { a: v3(st.measure.la), b: v3(st.measure.lb) } : null,
+    measure: st.measure.la && st.measure.lb && !measEnv() ? { a: v3(st.measure.la), b: v3(st.measure.lb) } : null,
     camera: { pos: v3(camera.position), quat: camera.quaternion.toArray(), target: v3(nav.target) },
     solved: st.solved, lockTR: !!st.lockTR,
     mask: { v: $('mask').value, c: $('mask-c').value, crop: $('exp-crop').checked },

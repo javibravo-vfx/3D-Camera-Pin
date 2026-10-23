@@ -114,6 +114,7 @@ Modular 3D set pieces you can turn on behind or around the scan to check a match
   - **Built-in** gives real-size procedural sedans, hatchbacks and SUVs.
   - **My models** uses car files you load (GLB/GLTF, including Draco/meshopt-compressed, FBX, OBJ). Each one is turned so its length runs along the road, sat on the ground, and kept at its own size if it is already 2.5–8 m long; otherwise it is scaled to a 4.6 m car.
   - **Flip model front** turns them around if they drive backwards.
+- The **Measure** tool also picks the environment (cars, road, posts), so you can compare a traffic car against your scan. A measurement with an end on the environment is a size check only and never rescales the scan.
   - Loaded models last for the session.
 
 New modules plug into `ENV_MODULES` in `index.html`. Each one declares its parameters (numbers and toggles) and a `build(params, rng, origin)` function that returns a three.js group. The panel builds its controls from that list, so adding a module needs no UI work.

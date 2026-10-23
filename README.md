@@ -50,18 +50,19 @@ The top bar always shows the camera in use: sensor preset, film back and focal l
 
 ## Layout
 
-- **Top bar**: viewer LUT, mask, pin actions (Clear / Bake / Solved cam) and the camera badge.
-- **Info bar** (under the viewport), first row: FOCAL with its Lock and **EXR** button, CAM HEIGHT, TILT / ROLL with their Lock and **EXR** button, and YAW.
-- **Info bar**, second row: cursor x/y, plate resolution, RMS and zoom, the hint, and **Nav** (navigation preset) at the bottom right.
+- **Top bar, first row**: viewer LUT, mask, pin actions (Clear / Bake / Solved cam) and the camera badge.
+- **Top bar, second row**, centred over the image: FOCAL with its lock and **↓ EXR** button, HEIGHT, TILT / ROLL with their lock and **↓ EXR** button, and YAW. Plate resolution (and RMS while pinning) sits on the right. **↓ EXR** pulls the value from the plate metadata.
+- **Info bar** (under the viewport): cursor x/y on the left, the mode hint, and **Nav** (navigation preset) on the right.
+- **Panel**: every section starts collapsed. While no plate or scan is loaded, the Plate and Scan headers show a **Load** button; once loaded they show a green check, or an amber warning for a sample plate or an unverified scale.
 
 ## Solve locks
 
-The info bar has two locks for the solve:
+The top bar has two locks for the solve (padlock buttons):
 - **Lock focal** (on by default) keeps the focal length fixed; its field shows dashed while locked. Untick it to type or drag the focal right there and let the pins refine it: 6 pins, or 4 with tilt/roll locked.
 - **EXR** next to the focal sets it from the EXR metadata.
 - **Lock tilt/roll** freezes the camera's current tilt and roll everywhere: the pins only adjust yaw and position (two pins are enough), and navigation only turns in yaw and moves.
 - **EXR** next to tilt/roll sets them from the EXR metadata.
-- In the info bar, **CAM HEIGHT / TILT / ROLL / YAW** are fields: drag them or click and type. Tilt and roll are disabled while locked.
+- In the top bar, **HEIGHT / TILT / ROLL / YAW** are fields: drag them or click and type. Tilt and roll are disabled while locked.
 
 **Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
 

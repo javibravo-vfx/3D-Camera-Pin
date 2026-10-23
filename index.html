@@ -395,13 +395,15 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     <label class="fld" for="pb-burn"><span>Burn-in</span><span class="row"><input id="pb-burn" type="checkbox" checked> Frame, speed and camera</span></label>
     <label class="fld" for="pb-mask"><span>Mask</span><span class="row"><input id="pb-mask" type="checkbox" checked> Darken outside the mask (when one is set)</span></label>
     <div class="pbprog" id="pb-prog" hidden><div id="pb-bar"></div></div>
+    <p class="msg bad" id="pb-err" hidden></p>
     <div id="pb-done" hidden>
       <video id="pb-video" controls loop muted playsinline></video>
       <p class="note" id="pb-file"></p>
     </div>
     <div class="start-btns">
       <button class="btn primary" id="pb-go">Render MP4</button>
-      <button class="btn primary" id="pb-save" hidden>Save MP4…</button>
+      <button class="btn" id="pb-save" hidden>Download again</button>
+      <button class="btn" id="pb-saveas" hidden title="Pick the folder (Desktop or any other)">Save as…</button>
       <button class="btn" id="pb-again" hidden>Render again</button>
       <button class="btn ghost" id="pb-cancel">Cancel</button>
     </div>
@@ -3962,25 +3964,30 @@ function pbComposite(ctx, W, H) {
     ctx.fillStyle = '#e8e8e8'; ctx.textAlign = 'left'; ctx.fillText(left, pad, H - pad); ctx.textAlign = 'right'; ctx.fillText(right, W - pad, H - pad);
   }
 }
-// save: a folder picker where the browser allows it (Chrome / Edge, opened directly), else the viewer's download
-async function pbSave(blob, filename) {
-  if (window.showSaveFilePicker && window.self === window.top) {
-    try {
-      const h = await window.showSaveFilePicker({ suggestedName: filename, startIn: 'downloads', types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }] });
-      const w = await h.createWritable(); await w.write(blob); await w.close();
-      $('pb-file').innerHTML = `Saved as <b>${esc(h.name)}</b> in the folder you picked.`; toast('Playblast saved'); return;
-    } catch (e) { if (e && e.name === 'AbortError') return; /* not allowed here: fall through */ }
-  }
+// download like Save project does: the viewer's downloads (claude.ai) or a normal browser download (Downloads folder)
+async function pbDownload(blob, filename) {
+  const where = `Saved as <b>${esc(filename)}</b> in your <b>Downloads</b> folder (or wherever your browser saves downloads).`;
   try {
     const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-    if (dl) { await dl.save({ filename, data: blob }); $('pb-file').innerHTML = `Saved as <b>${esc(filename)}</b> in your <b>Downloads</b> folder (or where your browser saves downloads).`; toast('Playblast saved to Downloads'); return; }
-  } catch (e) { if (e && e.code === 'declined') return; if (e && e.code === 'too_large') { toast('Too large for this view: try Half size', true); return; } }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-  $('pb-file').innerHTML = `Saved as <b>${esc(filename)}</b> in your <b>Downloads</b> folder (or where your browser saves downloads).`; toast('Playblast saved to Downloads');
+    if (dl) { await dl.save({ filename, data: blob }); $('pb-file').innerHTML = where; toast('Playblast saved to Downloads'); return; }
+  } catch (e) { if (e && e.code === 'declined') { $('pb-file').innerHTML = `<b>${esc(filename)}</b> · not saved`; return; } if (e && e.code === 'too_large') { pbError('Too large to save from this view: try Half size'); return; } }
+  const a = document.createElement('a'); a.href = pb.url || URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  $('pb-file').innerHTML = where; toast('Playblast saved to Downloads');
 }
+// pick the folder (Chrome / Edge, page opened directly, e.g. GitHub Pages)
+async function pbSaveAs(blob, filename) {
+  try {
+    const h = await window.showSaveFilePicker({ suggestedName: filename, startIn: 'desktop', types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }] });
+    const w = await h.createWritable(); await w.write(blob); await w.close();
+    $('pb-file').innerHTML = `Saved as <b>${esc(h.name)}</b> in the folder you picked.`; toast('Playblast saved');
+  } catch (e) { if (!e || e.name !== 'AbortError') pbError('Could not save there: ' + (e && e.message || e)); }
+}
+function pbError(m) { $('pb-err').textContent = m; $('pb-err').hidden = false; }
 function pbMode(done) {
   $('pb-done').hidden = !done; $('pb-save').hidden = !done; $('pb-again').hidden = !done; $('pb-go').hidden = done;
+  $('pb-saveas').hidden = !done || !(window.showSaveFilePicker && window.self === window.top);
+  if (!done) $('pb-err').hidden = true;
   ['pb-size', 'pb-burn', 'pb-mask'].forEach(id => $(id).closest('.fld').hidden = done); $('pb-info').hidden = done;
   $('pb-cancel').textContent = done ? 'Close' : 'Cancel';
 }
@@ -4001,7 +4008,7 @@ async function playblast() {
     }
     if (!codec) throw new Error(`no video encoder for ${W} × ${H} here: try Half size`);
     if (mux !== 'avc') toast('No H.264 encoder in this browser: the MP4 uses VP9 (plays in browsers, VLC and Resolve, not QuickTime)');
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: fps }, fastStart: 'in-memory' });
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: Object.assign({ codec: mux, width: W, height: H }, Number.isInteger(fps) ? { frameRate: fps } : {}), fastStart: 'in-memory' });
     let encErr = null;
     encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { encErr = e; } });
     encoder.configure({ codec, width: W, height: H, bitrate: Math.min(60e6, Math.max(4e6, W * H * fps * 0.12)), framerate: fps, latencyMode: 'quality' });
@@ -4024,8 +4031,9 @@ async function playblast() {
     pb.blob = new Blob([muxer.target.buffer], { type: 'video/mp4' }); pb.name = `${base}_playblast_${tl.start}-${tl.end}.mp4`; pb.url = URL.createObjectURL(pb.blob);
     $('pb-video').src = pb.url; $('pb-file').innerHTML = `<b>${esc(pb.name)}</b> · ${(pb.blob.size / 1048576).toFixed(1)} MB · not saved yet`;
     pbMode(true); $('pb-video').play().catch(() => {});
+    await pbDownload(pb.blob, pb.name);
   } catch (e) {
-    if (e && e.message !== 'cancelled') { console.error(e); toast('Playblast failed: ' + (e.message || e), true); }
+    if (e && e.message !== 'cancelled') { console.error(e); pbError('Playblast failed: ' + (e.message || e)); }
   } finally {
     try { if (encoder && encoder.state !== 'closed') encoder.close(); } catch (e) {}
     pb.busy = false; $('pb-go').disabled = false; $('pb-prog').hidden = true; $('pb-t').textContent = 'Playblast to MP4';
@@ -4033,7 +4041,8 @@ async function playblast() {
   }
 }
 $('pb-open').onclick = () => { pbInfo(); pbMode(false); $('pb-dlg').hidden = false; };
-$('pb-save').onclick = () => { if (pb.blob) pbSave(pb.blob, pb.name); };
+$('pb-save').onclick = () => { if (pb.blob) pbDownload(pb.blob, pb.name); };
+$('pb-saveas').onclick = () => { if (pb.blob) pbSaveAs(pb.blob, pb.name); };
 $('pb-again').onclick = () => { $('pb-video').pause(); pbInfo(); pbMode(false); };
 $('pb-size').onchange = pbInfo;
 $('pb-go').onclick = playblast;

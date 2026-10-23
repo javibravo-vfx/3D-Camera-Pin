@@ -172,10 +172,9 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 - **Size** can be full plate resolution, half or quarter. Anamorphic plates come out desqueezed.
 - **Burn-in** adds a bar with the plate name, frame number, focal length and km/h.
 - **Mask** darkens the area outside the mask, as the viewport does.
-- When it finishes, the dialog plays the result right there.
-- **Save MP4…** stores the file:
-  - On GitHub Pages in Chrome or Edge it opens a save dialog, so you can pick Desktop or any folder.
-  - Inside a claude.ai artifact (and in other browsers) it goes to your Downloads folder, and the dialog shows the file name.
+- When it finishes, the MP4 downloads straight away, like **Save project**, to your Downloads folder. The dialog plays the result and shows the file name.
+- **Download again** repeats the download. **Save as…** (Chrome / Edge on GitHub Pages) lets you pick Desktop or any other folder.
+- Fractional frame rates such as 23.976 are supported. If something fails, the error stays in the dialog.
 - **Render again** goes back to the settings.
 - Encoding uses the browser's WebCodecs, which needs Chrome, Edge or Safari 17+. Video is H.264. If the browser has no H.264 encoder it falls back to VP9 inside the MP4, which plays in browsers, VLC and Resolve but not QuickTime. The muxer is [mp4-muxer](https://github.com/Vanilagy/mp4-muxer), loaded from jsDelivr on first use.
 

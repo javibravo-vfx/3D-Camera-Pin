@@ -123,8 +123,8 @@ Modular 3D set pieces you can turn on behind or around the scan to check a match
 - Placement: offset X/Z, ground height and rotation. **Ground to scan** sets the ground to the lowest point of the scan.
 - Display as solid or wireframe.
 - **Car models**:
-  - **Car pack** (default) uses 9 real-size, low-poly models: sedan, hatchback, compact, SUV, wagon, minivan, pickup, coupe and off-roader. They are mixed in realistic proportions (mostly sedans, hatchbacks and SUVs), and each car gets its own paint colour. The pack loads from `cars.glb` (about 2 MB) next to the page.
-  - **Simple boxes** gives the procedural sedans, hatchbacks and SUVs. They are also used if `cars.glb` can't be loaded.
+  - **Car pack** (default) uses 9 real-size, low-poly models: sedan, hatchback, compact, SUV, wagon, minivan, pickup, coupe and off-roader. They are mixed in realistic proportions (mostly sedans, hatchbacks and SUVs), and each car gets its own paint colour. The pack loads from `cars.js` (about 3 MB, the same model as `cars.glb` in base64) next to the page.
+  - **Simple boxes** gives the procedural sedans, hatchbacks and SUVs. They are also used if the pack can't be loaded.
   - **My models** uses car files you load (GLB/GLTF, including Draco/meshopt-compressed, FBX, OBJ). Each one is turned so its length runs along the road, sat on the ground, and kept at its own size if it is already 2.5–8 m long; otherwise it is scaled to a 4.6 m car.
   - **Flip model front** turns them around if they drive backwards.
 - **Road crown**: how much lower the road is at the curb than at the centre line (0 = flat, as before). **Crown curve** sets the profile: 1 is a straight slope, higher values keep the middle flatter and curve down harder near the curb. With a median, each carriageway falls from the median edge. Lane lines, sidewalks and posts follow it, and the cars sit on it and lean with the slope.
@@ -241,4 +241,4 @@ Loaded from CDNs, so the first load needs a connection:
 
 ## Credits
 
-- Default traffic cars: ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) by Comrade1280, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes: converted to `cars.glb` with `tools/convert_cars.py`. Textures were baked into vertex colours and the paint split out so it can be recoloured. Each car is oriented front to −Z on the ground in metres, and the sports car is left out.
+- Default traffic cars: ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) by Comrade1280, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes: converted to `cars.glb` / `cars.js` with `tools/convert_cars.py`. Textures were baked into vertex colours and the paint split out so it can be recoloured. Each car is oriented front to −Z on the ground in metres, and the sports car is left out.

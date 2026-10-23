@@ -1212,7 +1212,16 @@ function loadPack() {
   PACK.state = 'loading';
   const mat = (o) => new THREE.MeshPhongMaterial(Object.assign({ color: 0xffffff, vertexColors: true, shininess: 30, specular: 0x222222 }, o));
   const M = { paint: mat({ shininess: 70, specular: 0x444444 }), trim: mat(), wheel: mat({ shininess: 10, specular: 0x111111 }), optics: mat({ shininess: 90, specular: 0x666666 }), glass: ENV_MAT.glass };
-  new THREE.GLTFLoader().load('cars.glb', g => {
+  const fail = e => { console.warn('car pack', e); PACK.state = 'fail'; if (env.vals.carsrc === 'pack' || env.vals.carsrc === 'procedural') { toast('Could not load the car pack (cars.js); showing simple boxes', true); envRebuild(); } };
+  const parse = () => {
+    const bin = atob(window.CARPACK_B64), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    new THREE.GLTFLoader().parse(u8.buffer, '', onPack, fail);
+  };
+  if (window.CARPACK_B64) { parse(); return; }
+  const sc = document.createElement('script'); sc.src = 'cars.js';
+  sc.onload = () => { try { parse(); } catch (e) { fail(e); } }; sc.onerror = fail; document.head.appendChild(sc);
+  function onPack(g) {
     g.scene.updateMatrixWorld(true);
     g.scene.children.forEach(car => {
       const parts = []; let L = 0;
@@ -1225,7 +1234,7 @@ function loadPack() {
     });
     PACK.state = 'ok';
     if (env.vals.carsrc === 'pack' || env.vals.carsrc === 'procedural') envRebuild();
-  }, undefined, e => { console.warn('car pack', e); PACK.state = 'fail'; if (env.vals.carsrc === 'pack' || env.vals.carsrc === 'procedural') { toast('Could not load the car pack (cars.glb); showing simple cars', true); envRebuild(); } });
+  }
 }
 function pickPackCar(rng) {
   let r = rng() * Object.values(PACK_WEIGHTS).reduce((a, b) => a + b, 0);

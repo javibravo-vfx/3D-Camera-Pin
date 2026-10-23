@@ -172,6 +172,8 @@ section.step { background: var(--card); border: 1px solid var(--line); border-ra
 .step h2 .hload { height: 24px; padding: 0 10px; font: 600 11.5px var(--f-ui); letter-spacing: .02em; text-transform: none; margin-left: auto; }
 .step h2 .hload + * { margin-left: 0; }
 .step h2 .st .sti { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.credit { font-size: 11.5px; margin: 0; }
+.credit a { color: var(--muted); }
 .step h2 .st { margin-left: auto; font: 500 12px var(--f-ui); letter-spacing: 0; text-transform: none; color: var(--muted); }
 .step[data-state="ok"] h2 .st { color: var(--ok); }
 .step[data-state="warn"] h2 .st { color: var(--warn); }
@@ -659,6 +661,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             <div class="knobrow"><span>Car files</span>
               <div class="row"><span class="file btn">Load car models<input id="f-cars" type="file" accept=".glb,.gltf,.fbx,.obj" multiple></span><span class="note" id="cars-n">none</span></div>
             </div>
+            <p class="note credit">Car pack: <a href="https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5" target="_blank" rel="noopener">“Generic passenger car pack”</a> by Comrade1280, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (converted, sports car left out).</p>
             <div class="row k">
               <button class="btn" id="env-shuffle" title="New random traffic and buildings">Shuffle</button>
               <button class="btn" id="env-ground" title="Put the environment ground at the lowest point of the scan">Ground to scan</button>
@@ -1200,6 +1203,36 @@ function buildCars(cars) {
   }
   return g;
 }
+// default car pack: "Generic passenger car pack" by Comrade1280 (Sketchfab), CC BY 4.0, converted to cars.glb
+// (front at -Z, Y up, metres, ground at y = 0; *_paint parts take the per-car colour)
+const PACK = { state: 'idle', cars: {} };
+const PACK_WEIGHTS = { sedan: 0.2, hatchback: 0.17, suv: 0.16, compact: 0.12, wagon: 0.08, minivan: 0.08, pickup: 0.09, coupe: 0.05, offroad: 0.05 };
+function loadPack() {
+  if (PACK.state !== 'idle') return;
+  PACK.state = 'loading';
+  const mat = (o) => new THREE.MeshPhongMaterial(Object.assign({ color: 0xffffff, vertexColors: true, shininess: 30, specular: 0x222222 }, o));
+  const M = { paint: mat({ shininess: 70, specular: 0x444444 }), trim: mat(), wheel: mat({ shininess: 10, specular: 0x111111 }), optics: mat({ shininess: 90, specular: 0x666666 }), glass: ENV_MAT.glass };
+  new THREE.GLTFLoader().load('cars.glb', g => {
+    g.scene.updateMatrixWorld(true);
+    g.scene.children.forEach(car => {
+      const parts = []; let L = 0;
+      car.traverse(o => {
+        if (!o.isMesh) return;
+        const kind = o.name.split('_').pop(); o.geometry.computeBoundingBox(); L = Math.max(L, o.geometry.boundingBox.max.z - o.geometry.boundingBox.min.z);
+        parts.push({ geometry: o.geometry, material: M[kind] || M.trim, matrix: o.matrixWorld.clone(), paint: kind === 'paint' });
+      });
+      PACK.cars[car.name] = { name: car.name, parts, L };
+    });
+    PACK.state = 'ok';
+    if (env.vals.carsrc === 'pack' || env.vals.carsrc === 'procedural') envRebuild();
+  }, undefined, e => { console.warn('car pack', e); PACK.state = 'fail'; if (env.vals.carsrc === 'pack' || env.vals.carsrc === 'procedural') { toast('Could not load the car pack (cars.glb); showing simple cars', true); envRebuild(); } });
+}
+function pickPackCar(rng) {
+  let r = rng() * Object.values(PACK_WEIGHTS).reduce((a, b) => a + b, 0);
+  for (const [k, w] of Object.entries(PACK_WEIGHTS)) { if ((r -= w) < 0 && PACK.cars[k]) return PACK.cars[k]; }
+  return Object.values(PACK.cars)[0];
+}
+
 // user car models (session only): normalized to Y up, length along Z, front at -Z, bottom at y = 0, centred
 const userCars = [];
 function addUserCar(obj, name) {
@@ -1229,9 +1262,9 @@ async function loadCarFiles(files) {
   $('cars-n').textContent = userCars.length ? userCars.map(c => c.name).join(', ') : 'none';
   if (userCars.length && env.vals.carsrc !== 'custom') envSet('carsrc', 'custom'); else envRebuild();
 }
-function buildUserCars(cars, flip) {
-  const g = new THREE.Group();
-  userCars.forEach((uc, mi) => {
+function buildUserCars(cars, flip, models = userCars) {
+  const g = new THREE.Group(), col = new THREE.Color();
+  models.forEach((uc, mi) => {
     const list = cars.filter(c => c.model === mi); if (!list.length) return;
     const W = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), m = new THREE.Matrix4();
     uc.parts.forEach(pt => {
@@ -1241,7 +1274,9 @@ function buildUserCars(cars, flip) {
         if (c.roll) q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), c.roll));
         W.compose(v.set(c.x, c.y || 0, c.z), q, one);
         im.setMatrixAt(i, m.multiplyMatrices(W, pt.matrix));
+        if (pt.paint) im.setColorAt(i, col.setHex(c.color));
       });
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
       g.add(im);
     });
   });
@@ -1266,7 +1301,7 @@ const ENV_MODULES = {
       { key: 'flow', label: 'Traffic flow', type: 'select', options: [['two', 'Two-way'], ['one', 'One-way']], def: 'two' },
       { key: 'reverse', label: 'Reverse direction', type: 'bool', def: false },
       { key: 'cars', label: 'Cars', type: 'bool', def: true },
-      { key: 'carsrc', label: 'Car models', type: 'select', options: [['procedural', 'Built-in'], ['custom', 'My models']], def: 'procedural' },
+      { key: 'carsrc', label: 'Car models', type: 'select', options: [['pack', 'Car pack (9 models)'], ['simple', 'Simple boxes'], ['custom', 'My models']], def: 'pack' },
       { key: 'flipcars', label: 'Flip model front', type: 'bool', def: false },
       { key: 'density', label: 'Traffic', type: 'num', min: 0.05, max: 1, step: 0.05, def: 0.45 },
       { key: 'clear', label: 'Clear zone', type: 'num', min: 0, max: 50, step: 1, def: 10, unit: 'm' },
@@ -1344,12 +1379,15 @@ const ENV_MODULES = {
       // traffic
       if (p.cars && lanes.length) {
         const cars = [];
+        const src = p.carsrc === 'procedural' ? 'pack' : p.carsrc; // old saved value
+        if (src === 'pack' && PACK.state === 'idle') loadPack();
+        const packList = PACK.state === 'ok' ? Object.values(PACK.cars) : null;
+        const models = src === 'custom' && userCars.length ? userCars : src === 'pack' ? packList : null;
         for (const ln of lanes) {
           let z = -len / 2 + rng() * 10;
           while (z < len / 2 - 3) {
-            const custom = p.carsrc === 'custom' && userCars.length;
-            const type = pickCarType(rng), k = 0.96 + rng() * 0.08, model = custom ? Math.floor(rng() * userCars.length) : -1;
-            const clen = custom ? userCars[model].L : CAR_TYPES[type].L * k;
+            const type = pickCarType(rng), k = 0.96 + rng() * 0.08, model = models ? models.indexOf(models === packList ? pickPackCar(rng) : models[Math.floor(rng() * models.length)]) : -1;
+            const clen = models ? models[model].L : CAR_TYPES[type].L * k;
             const cz = z + clen / 2, cx = ln.x + (rng() - 0.5) * 0.3;
             if (Math.hypot(cx - origin.x, cz - origin.z) > p.clear + clen / 2) {
               cars.push({ x: cx, y: crownY(cx), roll: Math.atan(crownS(cx)), z: cz, dir: ln.dir, type, k, model, color: CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)] });
@@ -1357,7 +1395,7 @@ const ENV_MODULES = {
             z += clen + 2 + (1 - p.density) * (8 + rng() * 40) + rng() * 4;
           }
         }
-        g.add(p.carsrc === 'custom' && userCars.length ? buildUserCars(cars, p.flipcars) : buildCars(cars));
+        g.add(models ? buildUserCars(cars, models === packList ? false : p.flipcars, models) : buildCars(cars));
       }
       return g;
     },

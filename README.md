@@ -50,8 +50,8 @@ The top bar always shows the camera in use: sensor preset, film back and focal l
 
 ## Layout
 
-- **Top bar, first row**: viewer LUT, mask, pin actions (Clear / Bake / Solved cam) and the camera badge.
-- **Top bar, second row**, centred over the image: FOCAL with its lock and **↓ EXR** button, HEIGHT, TILT / ROLL with their lock and **↓ EXR** button, and YAW. Plate resolution (and RMS while pinning) sits on the right. **↓ EXR** pulls the value from the plate metadata.
+- **Top bar, first row**: viewer LUT on the left; centred over the image, **↓ EXR** + FOCAL + lock, then **↓ EXR** + TILT / ROLL + lock, then YAW and HEIGHT; camera badge on the right. **↓ EXR** pulls the value from the plate metadata.
+- **Top bar, second row**: mask on the left (under the viewer), the pin actions (Clear / Bake / Solved cam) centred, plate resolution (and RMS while pinning) on the right.
 - **Info bar** (under the viewport): cursor x/y on the left, the mode hint, and **Nav** (navigation preset) on the right.
 - **Panel**: every section starts collapsed. While no plate or scan is loaded, the Plate and Scan headers show a **Load** button; once loaded they show a green check, or an amber warning for a sample plate or an unverified scale.
 

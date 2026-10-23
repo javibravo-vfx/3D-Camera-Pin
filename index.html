@@ -69,6 +69,7 @@ button.vpchip[aria-pressed="false"] { color: var(--muted); text-decoration: line
 .tool { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; position: relative; padding: 0; }
 .tool svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .tool:hover { background: var(--panel-2); color: var(--fg); }
+.tool:disabled { opacity: .3; cursor: default; background: none; }
 .tool[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-fg); }
 .tool kbd { position: absolute; right: 3px; bottom: 1px; font: 600 8.5px var(--f-ui); opacity: .55; }
 .tools .tsep { width: 22px; height: 1px; margin: 4px 0; background: var(--line); }
@@ -209,7 +210,7 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .camh input { width: 78px; height: 24px; padding: 2px 7px; font-size: 12px; letter-spacing: 0; }
 #cam-ang small { color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; margin-right: 4px; }
 #cam-ang { display: flex; gap: 12px; }
-.pjbar { display: flex; gap: 6px; margin: 6px 10px 0; }
+.pjbar { display: flex; align-items: center; gap: 6px; margin: 6px 10px 0; }
 .pjbar .btn { flex: 1; justify-content: center; height: 28px; }
 .pjbar .file { display: inline-flex; }
 .start { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgb(8 8 10 / .72); backdrop-filter: blur(3px); padding: 16px; }
@@ -224,6 +225,17 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .relink ul { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; }
 .toast { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5; background: var(--accent-soft); color: var(--accent-fg); border-radius: 999px; padding: 6px 14px; font-size: 12.5px; font-weight: 500; }
 .toast.bad { background: color-mix(in srgb, var(--bad) 25%, var(--card)); color: #fff; }
+.num { position: relative; display: block; min-width: 0; width: 100%; }
+.row.nowrap > .num { flex: 1; min-width: 56px; }
+.num > input { width: 100%; }
+.num > input:not(:focus):not(:disabled) { cursor: ew-resize; }
+.num.has-u > input { padding-right: 30px; }
+.num .u { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
+.num.scrubbing > input { border-color: var(--accent-hi); }
+.vpsep { width: 10px; }
+#vgain-v { color: var(--fg); font-weight: 500; min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+.stage img, .stage #platecv, .stage #platekey { filter: brightness(var(--gain, 1)); }
+.pins li.baked .id::after { content: " ◆"; color: var(--accent-fg); font-size: 9px; }
 .mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .mrow .arrow { color: var(--muted); }
 .mono { font: 500 13px var(--f-ui); font-variant-numeric: tabular-nums; }
@@ -315,6 +327,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       </label>
       <span class="sep"></span>
       <button class="btn" id="tb-clear" title="Delete every pin and keep the camera where it is">Clear pins</button>
+      <button class="btn" id="tb-bake">Bake pins</button>
       <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button>
       <span class="fmt" id="tag">SAMPLE</span>
     </div>
@@ -333,6 +346,13 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       <span class="tsep"></span>
       <button class="tool" id="t-fit" title="Fit the plate (F)" aria-label="Fit the plate">
         <svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+      </button>
+      <span class="tsep"></span>
+      <button class="tool" id="t-undo" title="Undo pin edit (Ctrl+Z)" aria-label="Undo" disabled>
+        <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+      </button>
+      <button class="tool" id="t-redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>
+        <svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
       </button>
     </nav>
     <main class="vp" id="vp">
@@ -363,6 +383,8 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <label class="vpchip" for="opac">Mix <input id="opac" type="range" min="0" max="1" step="0.05" value="0.7"></label>
         <label class="vpchip" for="ptsize">Point <input id="ptsize" type="range" min="1" max="8" step="0.5" value="2"></label>
         <label class="vpchip" for="grid"><input id="grid" type="checkbox" checked> Grid 1 m</label>
+        <span class="vpsep"></span>
+        <label class="vpchip" for="vgain" title="Viewer exposure in stops (plate only). Double-click the slider to reset.">Exposure <input id="vgain" type="range" min="-6" max="6" step="0.1" value="0"><b id="vgain-v">+0.0</b></label>
       </div>
       <div class="mpop" id="mpop" hidden>
         <span class="d" id="mpop-d">0.000 m</span><span class="arrow">→</span>
@@ -448,13 +470,13 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
           <label class="fld" for="preset">Camera
             <select id="preset"></select>
           </label>
-          <div class="knobrow"><label for="sw" id="lb-sw">haperture (mm)</label><input id="sw" type="number" step="0.01" min="1"></div>
+          <div class="knobrow"><label for="sw" id="lb-sw">haperture (mm)</label><input id="sw" type="number" step="0.01" min="1" data-unit="mm"></div>
           <div class="knobrow"><label for="sh" id="lb-sh">vaperture (mm)</label>
-            <div class="row nowrap"><input id="sh" type="number" step="0.01" min="0.1" disabled><label class="note chk" for="sh-auto"><input id="sh-auto" type="checkbox" checked> auto</label></div>
+            <div class="row nowrap"><input id="sh" type="number" step="0.01" min="0.1" disabled data-unit="mm"><label class="note chk" for="sh-auto"><input id="sh-auto" type="checkbox" checked> auto</label></div>
           </div>
-          <div class="knobrow"><label for="focal" id="lb-focal">focal (mm)</label><input id="focal" type="number" step="0.1" min="1"></div>
+          <div class="knobrow"><label for="focal" id="lb-focal">focal (mm)</label><input id="focal" type="number" step="0.1" min="1" data-unit="mm"></div>
           <div class="knobrow"><label for="par" id="lb-par">pixel aspect</label>
-            <div class="row nowrap"><input id="par" type="number" step="0.01" min="0.25" max="4" value="1" list="par-list"><span class="note" id="par-note">square</span></div>
+            <div class="row nowrap"><input id="par" type="number" step="0.01" min="0.25" max="4" value="1" list="par-list" data-unit="×"><span class="note" id="par-note">square</span></div>
           </div>
           <datalist id="par-list"><option value="1"></option><option value="1.3"></option><option value="1.33"></option><option value="1.5"></option><option value="1.8"></option><option value="2"></option></datalist>
           <label class="fld" for="free"><span></span><span class="row"><input id="free" type="checkbox"> Estimate focal</span></label>
@@ -488,8 +510,8 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
           <div class="knobrow"><span>Texture</span>
             <div class="row"><span class="file btn">Apply image<input id="f-tex" type="file" accept="image/*"></span><span class="note" id="tex-name">from file</span><button class="btn ghost" id="tex-clear" hidden>Remove</button></div>
           </div>
-          <div class="knobrow"><label for="scan-y">Height offset (m)</label>
-            <div class="row nowrap"><input id="scan-y" type="number" step="0.01" value="0"><button class="btn" id="scan-sit" title="Move the scan so its lowest point sits on the ground (y = 0); the camera follows">Sit on ground</button></div>
+          <div class="knobrow"><label for="scan-y">Height offset</label>
+            <div class="row nowrap"><input id="scan-y" type="number" step="0.01" value="0" data-unit="m"><button class="btn" id="scan-sit" title="Move the scan so its lowest point sits on the ground (y = 0); the camera follows">Sit on ground</button></div>
           </div>
           <div class="msg" id="unit-msg" hidden></div>
           <details class="more" id="scan-more">
@@ -506,7 +528,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             <div class="mrow">
               <input id="meas" type="text" readonly value="–" aria-label="Length on the scan" title="Draw a line in Measure mode (M)">
               <span class="arrow">→</span>
-              <input id="real" type="number" step="0.001" min="0" placeholder="real m" aria-label="Real length in meters">
+              <input id="real" type="number" step="0.001" min="0" placeholder="real" aria-label="Real length in meters" data-unit="m">
               <button class="btn" id="apply-scale" disabled>Scale</button>
             </div>
           </div>
@@ -1183,9 +1205,10 @@ function envRenderParams() {
   const row = (p) => {
     const id = 'envp-' + p.key, v = env.vals[p.key];
     if (p.type === 'bool') return `<label class="fld" for="${id}">${p.label}<span class="row"><input id="${id}" type="checkbox" data-k="${p.key}" ${v ? 'checked' : ''}></span></label>`;
-    return `<div class="knobrow"><label for="${id}">${p.label}${p.unit ? ` (${p.unit})` : ''}</label><div class="erow"><input type="range" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}" aria-label="${p.label}"><input id="${id}" type="number" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}"></div></div>`;
+    return `<div class="knobrow"><label for="${id}">${p.label}</label><div class="erow"><input type="range" data-k="${p.key}" data-def="${p.def}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}" aria-label="${p.label}"><input id="${id}" type="number" data-k="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}"${p.unit ? ` data-unit="${p.unit}"` : ''}></div></div>`;
   };
   box.innerHTML = mod.params.map(row).join('') + '<div class="sub">Placement</div>' + ENV_COMMON.map(row).join('');
+  enhanceNumbers(box);
 }
 function envSet(k, val) {
   env.vals[k] = val;
@@ -1988,6 +2011,39 @@ function solveLive(full) {
   });
   if (pins.length >= (lock ? 2 : 3)) { st.solved = { R: best.R, C: best.C, f: best.f }; $('back').disabled = false; }
 }
+// ---------- Pin history (undo / redo) ----------
+const hist = { undo: [], redo: [] };
+function snapPins() {
+  camera.updateMatrixWorld();
+  return {
+    pins: st.pins.map(p => ({ id: p.id, local: p.local.clone(), uv: p.uv.slice(), on: p.on, baked: !!p.baked, err: p.err })),
+    nextId: st.nextId, sel: st.sel, rms: st.rms,
+    solved: st.solved ? JSON.parse(JSON.stringify(st.solved)) : null,
+    cam: { p: camera.position.clone(), q: camera.quaternion.clone(), t: nav.target.clone(), f: st.fScale },
+  };
+}
+function pushHistory() {
+  hist.undo.push(snapPins()); if (hist.undo.length > 80) hist.undo.shift();
+  hist.redo.length = 0; histUI();
+}
+function restorePins(sn) {
+  st.pins = sn.pins.map(p => ({ ...p, local: p.local.clone(), uv: p.uv.slice() }));
+  st.nextId = sn.nextId; st.sel = sn.sel; st.rms = sn.rms; st.solved = sn.solved;
+  camera.position.copy(sn.cam.p); camera.quaternion.copy(sn.cam.q); nav.target.copy(sn.cam.t); camera.updateMatrixWorld(true);
+  st.fScale = sn.cam.f; applyIntrinsics();
+  $('back').disabled = !st.solved;
+  refreshAll(); histUI();
+}
+function undo() { if (!hist.undo.length) return; hist.redo.push(snapPins()); restorePins(hist.undo.pop()); }
+function redo() { if (!hist.redo.length) return; hist.undo.push(snapPins()); restorePins(hist.redo.pop()); }
+function histUI() { $('t-undo').disabled = !hist.undo.length; $('t-redo').disabled = !hist.redo.length; }
+function bakeToggle() {
+  if (!st.pins.length) return;
+  pushHistory();
+  const anyLoose = st.pins.some(p => !p.baked);
+  st.pins.forEach(p => p.baked = anyLoose);
+  refreshAll();
+}
 function errClass(e) { return !Number.isFinite(e) ? 'e-bad' : e < 1 ? 'e-ok' : e < 3 ? 'e-warn' : 'e-bad'; }
 
 // ---------- Overlay ----------
@@ -2029,7 +2085,7 @@ function drawOverlay() {
       const q = projectWorld(pinWorld(p));
       const [tx, ty] = uvToVp(p.uv[0], p.uv[1]);
       const sel = i === st.sel;
-      const col = p.on ? '#ffb238' : '#8a96a6';
+      const col = !p.on ? '#8a96a6' : p.baked ? '#b3a8ff' : '#ffb238';
       if (q.front) {
         const [px, py] = uvToVp(q.u, q.v);
         h += `<line x1="${tx}" y1="${ty}" x2="${px}" y2="${py}" stroke="#ff6d5f" stroke-width="1.5"/>`;
@@ -2130,10 +2186,13 @@ function refreshAll() {
   // step 3
   const on = st.pins.filter(p => p.on).length;
   $('s3').dataset.state = on >= 4 && st.rms != null && st.rms < 3 ? 'ok' : 'warn';
+  { const b = $('tb-bake'), nb = st.pins.filter(p => p.baked).length, loose = st.pins.length - nb;
+    b.disabled = !st.pins.length; b.textContent = loose || !nb ? 'Bake pins' : 'Unbake';
+    b.title = loose || !nb ? 'Lock the current pins in place: they keep solving but cannot be dragged or deleted by accident. Add more pins on top.' : 'Release the baked pins so they can be moved again'; }
   $('s3st').textContent = `${on} pin${on === 1 ? '' : 's'}` + (st.rms != null && on ? ` · ${fmt(st.rms, 2)} px` : '');
   $('pinlist').innerHTML = st.pins.map((p, i) => {
     const w = pinWorld(p);
-    return `<li class="${i === st.sel ? 'sel' : ''}" data-i="${i}"><input type="checkbox" ${p.on ? 'checked' : ''} aria-label="Use pin ${p.id}"><span class="id">#${p.id}</span><span class="coord">${fmt(w.x, 2)}, ${fmt(w.y, 2)}, ${fmt(w.z, 2)}</span><span class="err ${errClass(p.err)}">${Number.isFinite(p.err) ? fmt(p.err, 2) + ' px' : '–'}</span><button class="x" aria-label="Delete pin ${p.id}">×</button></li>`;
+    return `<li class="${i === st.sel ? 'sel' : ''}${p.baked ? ' baked' : ''}" data-i="${i}" title="${p.baked ? 'Baked pin' : ''}"><input type="checkbox" ${p.on ? 'checked' : ''} aria-label="Use pin ${p.id}"><span class="id">#${p.id}</span><span class="coord">${fmt(w.x, 2)}, ${fmt(w.y, 2)}, ${fmt(w.z, 2)}</span><span class="err ${errClass(p.err)}">${Number.isFinite(p.err) ? fmt(p.err, 2) + ' px' : '–'}</span><button class="x" aria-label="Delete pin ${p.id}">×</button></li>`;
   }).join('') || '<li class="note" style="display:block">No pins yet.</li>';
   $('solve').disabled = on < 3;
   updateExport();
@@ -2261,6 +2320,7 @@ function setMode(m) {
 vp.addEventListener('contextmenu', e => e.preventDefault());
 vp.addEventListener('pointerdown', e => {
   const [x, y] = evVp(e);
+  { const ae = document.activeElement; if (ae && ae !== document.body && ae.matches('input, select, textarea, button')) ae.blur(); }
   const panBtn = e.button === 1 || (e.button === 0 && (spaceDown || e.altKey));
   if (st.mode === 'pins') {
     if (panBtn) { drag = { type: 'pan', x, y, vx: st.view.x, vy: st.view.y }; vp.setPointerCapture(e.pointerId); e.preventDefault(); return; }
@@ -2268,16 +2328,19 @@ vp.addEventListener('pointerdown', e => {
     let bi = -1, bd = 14;
     st.pins.forEach((p, i) => { const [tx, ty] = uvToVp(p.uv[0], p.uv[1]); const d = Math.hypot(tx - x, ty - y); if (d < bd) { bd = d; bi = i; } });
     if (e.button === 2) {
-      if (bi >= 0) { st.pins.splice(bi, 1); st.sel = -1; solveLive(false); refreshAll(); }
+      if (bi >= 0 && !st.pins[bi].baked) { pushHistory(); st.pins.splice(bi, 1); st.sel = -1; solveLive(false); refreshAll(); }
       return;
     }
     if (e.button !== 0) return;
+    if (bi >= 0 && st.pins[bi].baked) { st.sel = bi; refreshAll(); return; }
     if (bi >= 0) {
+      pushHistory();
       st.sel = bi; const [u, v] = vpToUv(x, y); const p = st.pins[bi];
       drag = { type: 'pin', i: bi, du: p.uv[0] - u, dv: p.uv[1] - v };
     } else {
       const hit = pick(x, y);
       if (!hit) return;
+      pushHistory();
       const local = scanRoot.worldToLocal(hit.clone());
       const q = projectWorld(hit);
       st.pins.push({ id: st.nextId++, local, uv: [q.u, q.v], on: true, err: 0 });
@@ -2358,8 +2421,9 @@ vp.addEventListener('wheel', e => {
 window.addEventListener('keydown', e => {
   game.keys.add(e.code);
   if (drag && drag.action === 'look') { e.preventDefault(); return; }
-  if (e.target.matches('input, textarea, select')) return;
-  if (drag && drag.action === 'look') { e.preventDefault(); return; } // flying: WASD/QE don't trigger shortcuts
+  if (e.target.matches('textarea, select, input:not([type=checkbox]):not([type=range]):not([type=radio]):not([type=file])')) return;
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
   if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
   if (e.key === 'Alt') e.preventDefault();
   const k = e.key.toLowerCase();
@@ -2369,7 +2433,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'e') toggleEnv();
   else if (k === 'k') toggleKey();
   else if (k === 'escape' && st.mode === 'measure') clearMeasure();
-  else if ((k === 'delete' || k === 'backspace') && st.sel >= 0) { st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
+  else if ((k === 'delete' || k === 'backspace') && st.sel >= 0 && st.pins[st.sel] && !st.pins[st.sel].baked) { pushHistory(); st.pins.splice(st.sel, 1); st.sel = -1; solveLive(false); refreshAll(); }
 });
 window.addEventListener('keyup', e => { game.keys.delete(e.code); if (e.code === 'Space') spaceDown = false; if (e.key === 'Alt') e.preventDefault(); });
 window.addEventListener('blur', () => { spaceDown = false; game.keys.clear(); });
@@ -2515,7 +2579,7 @@ const KNOB_NAMES = {
 };
 function applyKnobNames() {
   const n = KNOB_NAMES[navPreset] || KNOB_NAMES.nuke;
-  ['lb-sw', 'lb-sh', 'lb-focal', 'lb-par'].forEach((id, i) => $(id).textContent = n[i]);
+  ['lb-sw', 'lb-sh', 'lb-focal', 'lb-par'].forEach((id, i) => $(id).textContent = n[i].replace(/\s*\(mm\)/, ''));
   $('lb-sw').title = navPreset === 'maya' ? 'Maya shows the film aperture in inches: divide by 25.4' : '';
 }
 $('focal').onchange = () => { const v = +$('focal').value; if (v > 0) { st.focal = v; st.fScale = 1; lsSet('focal', v); applyIntrinsics(); if (st.pins.length) solveLive(true); refreshAll(); } };
@@ -2523,15 +2587,17 @@ $('free').onchange = () => { st.freeF = $('free').checked; st.fScale = 1; applyI
 $('lock-f').onchange = () => { $('free').checked = !$('lock-f').checked; $('free').onchange(); };
 $('lock-tr').onchange = () => { st.lockTR = $('lock-tr').checked; lsSet('lockTR', st.lockTR); if (st.pins.length) solveLive(true); refreshAll(); };
 $('lock-tr').checked = st.lockTR = !!lsGet('lockTR', false);
-function clearPinsKeepCam() { st.pins = []; st.sel = -1; st.rms = null; refreshAll(); }
+function clearPinsKeepCam() { if (st.pins.length) pushHistory(); st.pins = []; st.sel = -1; st.rms = null; refreshAll(); }
+$('tb-bake').onclick = bakeToggle;
+$('t-undo').onclick = undo; $('t-redo').onclick = redo;
 $('tb-clear').onclick = clearPinsKeepCam;
-$('solve').onclick = () => { solveLive(true); refreshAll(); };
+$('solve').onclick = () => { pushHistory(); solveLive(true); refreshAll(); };
 $('clear-pins').onclick = () => clearPinsKeepCam();
 $('pinlist').addEventListener('click', e => {
   const li = e.target.closest('li[data-i]'); if (!li) return;
   const i = +li.dataset.i;
-  if (e.target.matches('.x')) { st.pins.splice(i, 1); st.sel = -1; solveLive(false); }
-  else if (e.target.matches('input')) { st.pins[i].on = e.target.checked; solveLive(true); }
+  if (e.target.matches('.x')) { pushHistory(); st.pins.splice(i, 1); st.sel = -1; solveLive(false); }
+  else if (e.target.matches('input')) { pushHistory(); st.pins[i].on = e.target.checked; solveLive(true); }
   else st.sel = i;
   refreshAll();
 });
@@ -2556,6 +2622,55 @@ $('meta-kv').addEventListener('click', e => {
 });
 $('orient-auto').checked = lsGet('orientAuto', true);
 $('orient-auto').onchange = () => lsSet('orientAuto', $('orient-auto').checked);
+// ---------- Number fields: unit suffix + drag to scrub ----------
+function enhanceNumbers(root) {
+  root.querySelectorAll('input[type=number]:not([data-enh])').forEach(inp => {
+    if (inp.closest('.mpop') || inp.id === 'mask-c') return;
+    inp.dataset.enh = '1';
+    const w = document.createElement('span'); w.className = 'num';
+    inp.parentNode.insertBefore(w, inp); w.appendChild(inp);
+    if (inp.dataset.unit) { w.classList.add('has-u'); const u = document.createElement('span'); u.className = 'u'; u.textContent = inp.dataset.unit; w.appendChild(u); }
+    let sx = null, start = 0, moved = false;
+    const dec = () => { const t = String(inp.step || '0.01'); return t.includes('.') ? t.split('.')[1].length : 0; };
+    inp.addEventListener('pointerdown', e => {
+      if (inp.disabled || document.activeElement === inp || e.button !== 0) return;
+      e.preventDefault(); sx = e.clientX; start = parseFloat(inp.value) || 0; moved = false; inp.setPointerCapture(e.pointerId);
+    });
+    inp.addEventListener('pointermove', e => {
+      if (sx === null) return;
+      const dx = e.clientX - sx;
+      if (!moved && Math.abs(dx) < 3) return;
+      moved = true; w.classList.add('scrubbing');
+      const stp = parseFloat(inp.step) || 0.01, k = e.shiftKey ? 0.1 : e.ctrlKey ? 10 : 1;
+      let v = start + dx * stp * k;
+      if (inp.min !== '') v = Math.max(+inp.min, v);
+      if (inp.max !== '') v = Math.min(+inp.max, v);
+      inp.value = +v.toFixed(dec() + (e.shiftKey ? 1 : 0));
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const end = () => {
+      if (sx === null) return; sx = null; w.classList.remove('scrubbing');
+      if (!moved) { inp.focus(); inp.select(); }
+    };
+    inp.addEventListener('pointerup', end); inp.addEventListener('pointercancel', end);
+  });
+}
+enhanceNumbers(document);
+// double-click a slider: back to its default (captured from the markup at load)
+document.querySelectorAll('input[type=range]').forEach(r => { if (r.dataset.def === undefined) r.dataset.def = r.getAttribute('value') ?? r.value; });
+document.addEventListener('dblclick', e => {
+  const r = e.target.closest('input[type=range]'); if (!r) return;
+  r.value = r.dataset.def ?? r.getAttribute('value');
+  r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true }));
+}, true);
+// viewer exposure (plate only, display gain in stops)
+function setGain() {
+  const v = +$('vgain').value;
+  $('vgain-v').textContent = (v >= 0 ? '+' : '') + v.toFixed(1);
+  $('stage').style.setProperty('--gain', Math.pow(2, v).toFixed(4));
+}
+$('vgain').oninput = setGain;
 // ---------- Apply T/R, angle scrub, reset all ----------
 $('tb-apply-tr').onclick = () => { const o = st.metaOrient; if (o) applyOrientation({ tilt: o.tilt, roll: o.roll }); };
 {
@@ -2577,6 +2692,7 @@ $('tb-apply-tr').onclick = () => { const o = st.metaOrient; if (o) applyOrientat
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
 }
 function resetAll(keepPrefs) {
+  hist.undo.length = 0; hist.redo.length = 0; histUI();
   st.pendingProject = null; $('relink').hidden = true;
   // pins, measure, solve
   st.pins = []; st.sel = -1; st.rms = null; st.solved = null; $('back').disabled = true; st.nextId = 1;
@@ -2631,7 +2747,7 @@ function projectState() {
     scan: scanObj && !st.sample ? { name: st.scanName } : (st.sample ? { name: 'Sample' } : null),
     lens: { preset: st.preset, sw: st.sw, sh: st.sh, shAuto: st.shAuto, focal: st.focal, fScale: st.fScale, freeF: st.freeF, par: st.par },
     scanXform: { unit: st.unit, up: st.up, userScale: st.userScale, scanY: st.scanY || 0, scaleOk: st.scaleOk, display: $('disp').value },
-    pins: st.pins.map(p => ({ id: p.id, local: v3(p.local), uv: p.uv, on: p.on })),
+    pins: st.pins.map(p => ({ id: p.id, local: v3(p.local), uv: p.uv, on: p.on, baked: !!p.baked })),
     measure: st.measure.la && st.measure.lb ? { a: v3(st.measure.la), b: v3(st.measure.lb) } : null,
     camera: { pos: v3(camera.position), quat: camera.quaternion.toArray(), target: v3(nav.target) },
     solved: st.solved, lockTR: !!st.lockTR,
@@ -2663,7 +2779,7 @@ function applyProjectState(p) {
   st.scaleOk = !!X.scaleOk;
   if (X.display) { $('disp').value = X.display; applyDisplay(); }
   // pins and measure (scan-local)
-  st.pins = (p.pins || []).map(q => ({ id: q.id, local: V(q.local), uv: q.uv, on: q.on !== false, err: 0 }));
+  st.pins = (p.pins || []).map(q => ({ id: q.id, local: V(q.local), uv: q.uv, on: q.on !== false, baked: !!q.baked, err: 0 }));
   st.nextId = st.pins.reduce((m, q) => Math.max(m, q.id + 1), 1); st.sel = -1;
   st.measure = p.measure ? { la: V(p.measure.a), lb: V(p.measure.b) } : { a: null, b: null };
   measWorld(); updateMeasureGeo();

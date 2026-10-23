@@ -54,6 +54,18 @@ The top bar has two locks for the solve:
 
 **Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
 
+**Bake pins** locks the current pins in place. They keep taking part in the solve, but they can't be dragged or deleted by accident (they turn violet). You can then add more pins on top to refine. **Unbake** releases them.
+
+**Undo / Redo** (tool rail, `Ctrl+Z` / `Ctrl+Shift+Z` or `Ctrl+Y`) steps back through pin edits: creating, moving, deleting, toggling, clearing, baking and solving. Each step restores the camera as it was.
+
+## Fields and sliders
+
+- **Numeric fields** show their unit (mm, m, ×) inside the box.
+  - Click and drag left or right to change the value. Hold Shift for fine steps, Ctrl for coarse.
+  - A plain click lets you type.
+- **Sliders**: double-click resets them to their default.
+- **Exposure** on the viewport is a viewer gain in stops for the plate only. The mask darkening and the scan overlay are not affected.
+
 ## Projects
 
 **Save** writes a small `.camerapin.json` file (a few KB) with everything you set up:
@@ -143,6 +155,7 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 | `E` | Show / hide the environment |
 | `K` | Chroma key on / off |
 | `F` | Fit the plate |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo pin edits |
 | `Esc` (Measure) | Clear the measurement |
 | `Delete` | Delete the selected pin |
 | RMB on a pin | Delete that pin |

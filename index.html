@@ -299,7 +299,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 </head>
 <body>
 
-<div class="start" id="start" role="dialog" aria-modal="true" aria-labelledby="start-t">
+<div class="start" id="start" role="dialog" aria-modal="true" aria-labelledby="start-t" hidden>
   <div class="start-card">
     <div class="start-logo"><span class="chip"></span><b id="start-t">Camera Pin</b></div>
     <p class="note">Single-frame camera match: pin a scan to a plate with the lens fixed.</p>
@@ -3550,8 +3550,6 @@ function loadDemo() {
   resetAll(true);
   st._saved = lsGet('sensor', null);
   maskChanged();
-  $('start').hidden = false;
-  setTimeout(() => $('st-demo').focus(), 50);
 })();
 // when the first real plate arrives, restore the last sensor/focal the user used
 const _setPlate = setPlate;

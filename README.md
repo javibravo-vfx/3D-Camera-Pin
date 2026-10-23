@@ -8,7 +8,7 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 ## Workflow
 
-It opens empty, with a start dialog: **Load demo scene**, **Open project…** or **Start empty**. The demo is:
+It opens empty. **Demo** (top of the panel) loads the demo scene, which is:
 - **Plate**: a hood-mount shot through the windshield of a car on a green screen stage, with a driver and a passenger. Alexa Mini LF Open Gate, 24 mm.
 - **Scan**: the matching empty car interior, in meters.
 

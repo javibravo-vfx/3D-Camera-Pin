@@ -712,7 +712,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <h2 tabindex="0"><span class="n">4</span>Motion<span class="st" id="mo-st">–</span></h2>
         <div class="body">
           <div class="eparams" id="motion-params"></div>
-          <div class="row k"><button class="btn ghost" id="mo-reset" title="Put every motion setting back to its default">Reset</button></div>
+          <div class="row k"><button class="btn ghost" id="mo-reset" title="Put the speeds and curve back to their defaults (Motion on stays as it is)">Reset</button></div>
           <p class="note" id="mo-note">Speed simulation for the environment. Play it with the timeline under the viewport (Space): the camera stays, the set moves past it.</p>
         </div>
       </section>
@@ -3903,7 +3903,7 @@ $('env-ground').onclick = () => {
 };
 $('mo-reset').onclick = () => {
   if (!ENV_MODULES[env.id]) return;
-  ENV_MOTION.forEach(p => env.vals[p.key] = p.def);
+  ENV_MOTION.forEach(p => { if (p.key !== 'mon') env.vals[p.key] = p.def; }); // keeps Motion on as it is
   lsSet('env.vals.' + env.id, env.vals); envRenderParams(); envSave(); envRebuild(); tlUI();
 };
 $('env-reset').onclick = () => { env.vals = envDefaults(env.id); lsSet('env.vals.' + env.id, null); envRenderParams(); envSave(); envRebuild(); };

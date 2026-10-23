@@ -1810,6 +1810,7 @@ function envSelect(id) {
   env.id = ENV_MODULES[id] ? id : 'none';
   const saved = lsGet('env.vals.' + env.id, null);
   env.vals = Object.assign(envDefaults(env.id), saved || {});
+  env.vals.mon = false; // motion always starts off; only a project brings it back on
   if (env.id !== 'none') env.on = true;
   $('env-mod').value = env.id;
   envRenderParams(); envSave(); envRebuild();
@@ -3723,7 +3724,7 @@ function applyProjectState(p) {
   if (p.timeline) { tl.start = p.timeline.start; tl.end = p.timeline.end; tl.fps = p.timeline.fps; tl.frame = p.timeline.frame || tl.start; $('tl-in').value = tl.start; $('tl-out').value = tl.end; $('tl-fps').value = tl.fps; tlSave(); }
   if (p.env) {
     env.seed = p.env.seed || 7; env.display = p.env.display || 'solid'; $('env-disp').value = env.display;
-    if (ENV_MODULES[p.env.id]) { lsSet('env.vals.' + p.env.id, p.env.vals); envSelect(p.env.id); env.on = !!p.env.on; envSave(); envRebuild(); }
+    if (ENV_MODULES[p.env.id]) { lsSet('env.vals.' + p.env.id, p.env.vals); envSelect(p.env.id); env.on = !!p.env.on; env.vals.mon = !!(p.env.vals && p.env.vals.mon); envRenderParams(); envSave(); envRebuild(); }
     else envSelect('none');
   }
   setPar(st.par);

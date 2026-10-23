@@ -209,6 +209,21 @@ button.vpchip:disabled { opacity: .35; cursor: default; text-decoration: none; }
 .camh input { width: 78px; height: 24px; padding: 2px 7px; font-size: 12px; letter-spacing: 0; }
 #cam-ang small { color: var(--muted); font: 600 10.5px var(--f-ui); letter-spacing: .08em; margin-right: 4px; }
 #cam-ang { display: flex; gap: 12px; }
+.pjbar { display: flex; gap: 6px; margin: 6px 10px 0; }
+.pjbar .btn { flex: 1; justify-content: center; height: 28px; }
+.pjbar .file { display: inline-flex; }
+.start { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgb(8 8 10 / .72); backdrop-filter: blur(3px); padding: 16px; }
+.start-card { width: min(440px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 60px rgb(0 0 0 / .5); }
+.start-logo { display: flex; align-items: center; gap: 10px; font-size: 18px; }
+.start-logo .chip { width: 12px; height: 12px; border-radius: 3px; background: var(--accent-hi); }
+.start-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.start-btns .btn { height: 34px; }
+.start-btns .file { display: inline-flex; }
+.relink { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 4; width: min(460px, calc(100% - 24px)); background: var(--card); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 10px 30px rgb(0 0 0 / .45); }
+.relink-h { display: flex; align-items: center; justify-content: space-between; }
+.relink ul { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; }
+.toast { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5; background: var(--accent-soft); color: var(--accent-fg); border-radius: 999px; padding: 6px 14px; font-size: 12.5px; font-weight: 500; }
+.toast.bad { background: color-mix(in srgb, var(--bad) 25%, var(--card)); color: #fff; }
 .mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .mrow .arrow { color: var(--muted); }
 .mono { font: 500 13px var(--f-ui); font-variant-numeric: tabular-nums; }
@@ -238,6 +253,17 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 </head>
 <body>
 
+<div class="start" id="start" role="dialog" aria-modal="true" aria-labelledby="start-t">
+  <div class="start-card">
+    <div class="start-logo"><span class="chip"></span><b id="start-t">Camera Pin</b></div>
+    <p class="note">Single-frame camera match: pin a scan to a plate with the lens fixed.</p>
+    <div class="start-btns">
+      <button class="btn primary" id="st-demo">Load demo scene</button>
+      <span class="file btn">Open project…<input id="f-proj2" type="file" accept=".json,application/json"></span>
+      <button class="btn ghost" id="st-empty">Start empty</button>
+    </div>
+  </div>
+</div>
 <div class="app">
   <div class="viewer">
     <div class="vbar">
@@ -345,8 +371,14 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <button class="btn primary" id="mpop-ok">Scale</button>
         <button class="btn ghost" id="mpop-x" aria-label="Clear measurement" title="Clear measurement (Esc)">×</button>
       </div>
-      <div class="drop" id="drop" hidden>Drop the scan (OBJ, PLY, GLB, FBX) or the plate (EXR, JPG, PNG)</div>
+      <div class="drop" id="drop" hidden>Drop the scan (OBJ, PLY, GLB, FBX), the plate (EXR, JPG, PNG) or a project (.json)</div>
       <div class="busy" id="busy" hidden>Loading…</div>
+      <div class="relink" id="relink" hidden>
+        <div class="relink-h"><b>Re-link the project files</b><button class="btn ghost" id="relink-x" aria-label="Cancel">×</button></div>
+        <p class="note">The project keeps settings, pins and the camera. Load these files with Load plate / Load scan (or drop them here) and it restores itself:</p>
+        <ul id="relink-list"></ul>
+      </div>
+      <div class="toast" id="toast" hidden></div>
       <div class="empty" id="empty" hidden><div><b>No plate, no scan</b><br>Drop a plate (EXR, JPG, PNG) and a scan (OBJ, PLY, GLB, FBX) here,<br>or use Load plate and Load scan in the panel.</div></div>
     </main>
     </div>
@@ -362,7 +394,13 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 
   <div class="split" id="split" role="separator" aria-orientation="vertical" aria-label="Resize the properties panel" tabindex="0" title="Drag to resize · double-click to reset"></div>
   <aside class="props" aria-label="Properties">
-    <div class="node"><span class="chip"></span><b>CameraPin1</b><span>camera match on a scan</span><button class="btn ghost" id="reset-all" title="Remove the plate and the scan and reset every value to its default">Reset all</button></div>
+    <div class="node"><span class="chip"></span><b>CameraPin1</b><span>camera match on a scan</span></div>
+    <div class="pjbar">
+      <span class="file btn" title="Open a saved project (.camerapin.json)">Open<input id="f-proj" type="file" accept=".json,application/json"></span>
+      <button class="btn" id="pj-save" title="Save settings, pins and camera to a small .json file. Plate and scan files are not included; you re-link them when opening.">Save</button>
+      <button class="btn ghost" id="pj-demo" title="Load the demo scene">Demo</button>
+      <button class="btn ghost" id="reset-all" title="Remove the plate and the scan and reset every value to its default">Reset all</button>
+    </div>
     <div class="scroll">
       <section class="step" id="s2" data-state="warn">
         <h2 tabindex="0"><span class="n">1</span>Plate &amp; camera<span class="st" id="s2st">sample</span></h2>
@@ -1271,7 +1309,7 @@ function clearScan() {
 }
 function finishScan(obj, name, kind, fileType) {
   clearScan();
-  $('empty').hidden = true;
+  $('empty').hidden = true; st.sample = false;
   st.scanFmt = fileType; $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true;
   // compute raw bbox with identity root
   scanRoot.position.set(0, 0, 0); scanRoot.quaternion.identity(); scanRoot.scale.set(1, 1, 1); scanRoot.updateMatrixWorld(true);
@@ -1316,6 +1354,7 @@ function finishScan(obj, name, kind, fileType) {
   $('scan-kv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   refreshAll();
   setBusy(false);
+  projectAfterLoad('scan');
 }
 function frameScan() {
   const b = new THREE.Box3().setFromObject(scanRoot);
@@ -1514,6 +1553,7 @@ function loadPlateFile(file) {
     st.pins.forEach(p => { p.uv = null; });
     st.pins = []; st.solved = null; st.rms = null;
     refreshAll();
+    projectAfterLoad('plate');
   };
   im.onerror = () => showMsg('aspect-msg', 'The browser cannot open ' + file.name + '. Export the frame as EXR, JPG or PNG (DPX is not supported).', 'msg bad');
   im.src = url;
@@ -1797,6 +1837,7 @@ async function loadExrFile(file) {
     resetPinsForNewPlate();
     showExrMeta(h);
     refreshAll();
+    projectAfterLoad('plate');
   } catch (err) {
     console.error(err);
     showMsg('aspect-msg', 'Could not open ' + file.name + ': ' + (err.message || err) + '.', 'msg bad');
@@ -1824,7 +1865,7 @@ function showExrMeta(h) {
     $('orient-txt').textContent = [f(o.tilt, 'tilt'), f(o.roll, 'roll'), f(o.yaw, 'yaw')].filter(Boolean).join(' · ');
     $('orient-txt').title = [o.tilt, o.roll, o.yaw].filter(Boolean).map(a => a.key).join(', ');
     lines.push('Orientation: ' + $('orient-txt').textContent);
-    if ($('orient-auto').checked) setTimeout(() => applyOrientation(st.metaOrient), 0);
+    if ($('orient-auto').checked && !st.pendingProject) setTimeout(() => applyOrientation(st.metaOrient), 0);
   }
   if (hint.camera) lines.push('Camera: ' + hint.camera);
   if (hint.lens) lines.push('Lens: ' + hint.lens);
@@ -2343,7 +2384,8 @@ vp.addEventListener('dragover', e => e.preventDefault());
 vp.addEventListener('drop', e => {
   e.preventDefault(); dragDepth = 0; $('drop').hidden = true;
   for (const f of e.dataTransfer.files) {
-    if (/\.(obj|ply|glb|gltf|fbx)$/i.test(f.name)) loadScanFile(f);
+    if (/\.json$/i.test(f.name)) { f.text().then(t => { try { openProject(JSON.parse(t)); } catch (e) { toast('Could not read ' + f.name, true); } }); }
+    else if (/\.(obj|ply|glb|gltf|fbx)$/i.test(f.name)) loadScanFile(f);
     else if (f.type.startsWith('image/') || /\.exr$/i.test(f.name)) loadPlateFile(f);
   }
 });
@@ -2534,7 +2576,8 @@ $('tb-apply-tr').onclick = () => { const o = st.metaOrient; if (o) applyOrientat
   const end = () => { if (sx === null) return; sx = null; refreshAll(); };
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
 }
-function resetAll() {
+function resetAll(keepPrefs) {
+  st.pendingProject = null; $('relink').hidden = true;
   // pins, measure, solve
   st.pins = []; st.sel = -1; st.rms = null; st.solved = null; $('back').disabled = true; st.nextId = 1;
   st.measure = { a: null, b: null }; updateMeasureGeo();
@@ -2550,7 +2593,7 @@ function resetAll() {
   $('sw').value = st.sw; st.focal = 35; st.fScale = 1; $('focal').value = 35;
   st.freeF = false; $('free').checked = false; st.lockTR = false; $('lock-tr').checked = false; lsSet('lockTR', false);
   st.par = 1; $('par').value = 1; $('par-note').textContent = 'square';
-  lsSet('sensor', null); lsSet('focal', null); st._saved = null;
+  if (!keepPrefs) { lsSet('sensor', null); lsSet('focal', null); st._saved = null; }
   // scan
   clearScan(); st.scanName = ''; st.scanFmt = null; st.sample = false;
   st.scanY = 0; $('scan-y').value = 0; st.scaleOk = false; $('real').value = '';
@@ -2576,6 +2619,134 @@ function resetAll() {
     clearTimeout(t); b.classList.remove('armed'); b.textContent = 'Reset all'; resetAll();
   };
 }
+// ---------- Project save / load (data only: settings, pins, camera; plate and scan are re-linked) ----------
+const PROJECT_VERSION = 1;
+function projectState() {
+  camera.updateMatrixWorld();
+  const v3 = (v) => [v.x, v.y, v.z];
+  return {
+    app: 'Camera Pin', version: PROJECT_VERSION, saved: new Date().toISOString(),
+    demo: !!st.plate.sample,
+    plate: st.plate.empty ? null : { name: st.plate.name, W: st.plate.W, H: st.plate.H, exr: !!exrState, cs: $('cs').value, view: $('view').value, ev: +$('ev').value },
+    scan: scanObj && !st.sample ? { name: st.scanName } : (st.sample ? { name: 'Sample' } : null),
+    lens: { preset: st.preset, sw: st.sw, sh: st.sh, shAuto: st.shAuto, focal: st.focal, fScale: st.fScale, freeF: st.freeF, par: st.par },
+    scanXform: { unit: st.unit, up: st.up, userScale: st.userScale, scanY: st.scanY || 0, scaleOk: st.scaleOk, display: $('disp').value },
+    pins: st.pins.map(p => ({ id: p.id, local: v3(p.local), uv: p.uv, on: p.on })),
+    measure: st.measure.la && st.measure.lb ? { a: v3(st.measure.la), b: v3(st.measure.lb) } : null,
+    camera: { pos: v3(camera.position), quat: camera.quaternion.toArray(), target: v3(nav.target) },
+    solved: st.solved, lockTR: !!st.lockTR,
+    mask: { v: $('mask').value, c: $('mask-c').value, crop: $('exp-crop').checked },
+    export: { target: $('target').value, name: $('camname').value },
+    key: { ...key },
+    env: { id: env.id, on: env.on, seed: env.seed, vals: env.vals, display: env.display },
+  };
+}
+function applyProjectState(p) {
+  const V = (a) => new THREE.Vector3(...a);
+  // lens
+  const L = p.lens || {};
+  st.preset = L.preset || 'custom'; pre.value = st.preset;
+  st.sw = L.sw || st.sw; $('sw').value = st.sw;
+  st.shAuto = L.shAuto !== false; $('sh-auto').checked = st.shAuto; $('sh').disabled = st.shAuto;
+  if (!st.shAuto && L.sh) { st.sh = L.sh; $('sh').value = L.sh; }
+  st.focal = L.focal || st.focal; $('focal').value = st.focal; st.fScale = L.fScale || 1;
+  st.freeF = !!L.freeF; $('free').checked = st.freeF;
+  st.par = L.par || 1; $('par').value = st.par;
+  // plate color
+  if (p.plate && exrState) { $('cs').value = p.plate.cs; exrState.cs = p.plate.cs; exrState.why = 'from project'; $('view').value = p.plate.view; $('ev').value = p.plate.ev || 0; $('ev-v').textContent = ((+$('ev').value) >= 0 ? '+' : '') + (+$('ev').value).toFixed(2) + ' EV'; drawExr(); }
+  else if (p.plate && p.plate.view) $('view').value = p.plate.view;
+  // scan transform
+  const X = p.scanXform || {};
+  st.scanY = X.scanY || 0; $('scan-y').value = st.scanY;
+  $('unit').value = String(X.unit || 1); $('up').value = X.up || 'y';
+  setRootTransform(X.unit || 1, X.userScale || 1, X.up || 'y', false);
+  st.scaleOk = !!X.scaleOk;
+  if (X.display) { $('disp').value = X.display; applyDisplay(); }
+  // pins and measure (scan-local)
+  st.pins = (p.pins || []).map(q => ({ id: q.id, local: V(q.local), uv: q.uv, on: q.on !== false, err: 0 }));
+  st.nextId = st.pins.reduce((m, q) => Math.max(m, q.id + 1), 1); st.sel = -1;
+  st.measure = p.measure ? { la: V(p.measure.a), lb: V(p.measure.b) } : { a: null, b: null };
+  measWorld(); updateMeasureGeo();
+  // camera
+  if (p.camera) {
+    camera.position.fromArray(p.camera.pos); camera.quaternion.fromArray(p.camera.quat); nav.target.fromArray(p.camera.target);
+    camera.updateMatrixWorld(true);
+  }
+  st.solved = p.solved || null; $('back').disabled = !st.solved;
+  st.lockTR = !!p.lockTR; $('lock-tr').checked = st.lockTR;
+  // view, export, key, environment
+  if (p.mask) { $('mask').value = p.mask.v; $('mask-c').value = p.mask.c; $('exp-crop').checked = !!p.mask.crop; maskChanged(); }
+  if (p.export) { $('target').value = p.export.target; $('camname').value = p.export.name; }
+  if (p.key) setKey({ ...p.key });
+  if (p.env) {
+    env.seed = p.env.seed || 7; env.display = p.env.display || 'solid'; $('env-disp').value = env.display;
+    if (ENV_MODULES[p.env.id]) { lsSet('env.vals.' + p.env.id, p.env.vals); envSelect(p.env.id); env.on = !!p.env.on; envSave(); envRebuild(); }
+    else envSelect('none');
+  }
+  setPar(st.par);
+  applyIntrinsics(); checkAspect();
+  if (st.pins.length) {
+    const k = K(), pose = { ...poseFromCamera() };
+    const ap = activePins(); const errs = Solver.errorsOf(pose, k, ap); ap.forEach((q, i) => q.ref.err = errs[i]);
+    st.rms = Solver.rmsOf(pose, k, ap);
+  } else st.rms = null;
+  refreshAll();
+}
+// relink flow: the project names its plate and scan; once the user loads them the state is applied
+function showRelink(p) {
+  const need = [];
+  if (p.plate && !p.demo) need.push(`<b>Plate</b>: ${esc(p.plate.name)} (${p.plate.W} × ${p.plate.H})`);
+  if (p.scan && !p.demo) need.push(`<b>Scan</b>: ${esc(p.scan.name)}`);
+  $('relink-list').innerHTML = need.map(x => `<li>${x}</li>`).join('');
+  $('relink').hidden = !need.length;
+}
+function projectAfterLoad(kind) {
+  const p = st.pendingProject; if (!p) return;
+  p._got = p._got || {};
+  p._got[kind] = true;
+  const ok = (!p.plate || p._got.plate) && (!p.scan || p._got.scan);
+  if (ok) { st.pendingProject = null; $('relink').hidden = true; applyProjectState(p); toast('Project restored'); }
+}
+function openProject(p) {
+  if (!p || p.app !== 'Camera Pin') { toast('That file is not a Camera Pin project', true); return; }
+  closeStart();
+  resetAll(true);
+  if (p.demo) { loadDemo(); applyProjectState(p); toast('Project restored'); return; }
+  if (!p.plate && !p.scan) { applyProjectState(p); toast('Project restored'); return; }
+  st.pendingProject = p; showRelink(p);
+}
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+async function saveProject() {
+  const data = JSON.stringify(projectState(), null, 1);
+  const base = ((st.plate.empty ? '' : st.plate.name) || 'project').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
+  const filename = base + '.camerapin.json';
+  try {
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename, data }); toast('Project saved'); return; }
+  } catch (e) { if (e && e.code === 'declined') return; }
+  try {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Project saved');
+  } catch (e) { toast('This view cannot save files', true); }
+}
+function toast(msg, bad) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2400);
+}
+function closeStart() { $('start').hidden = true; }
+$('pj-save').onclick = saveProject;
+$('f-proj').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { openProject(JSON.parse(await f.text())); } catch (err) { toast('Could not read ' + f.name, true); } };
+$('f-proj2').onchange = $('f-proj').onchange;
+$('st-demo').onclick = () => { closeStart(); resetAll(true); loadDemo(); };
+$('st-empty').onclick = closeStart;
+$('pj-demo').onclick = () => { resetAll(true); loadDemo(); };
+$('relink-x').onclick = () => { st.pendingProject = null; $('relink').hidden = true; };
+['pointerdown', 'wheel'].forEach(t => $('relink').addEventListener(t, e => e.stopPropagation()));
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('start').hidden) closeStart(); });
+
 // ---------- Scan texture from an image ----------
 function applyTextureFile(file) {
   if (!scanObj) return;
@@ -2761,19 +2932,17 @@ function buildSample() {
 }
 
 // ---------- Boot ----------
-(function boot() {
-  const saved = lsGet('sensor', null);
-  const tgt = lsGet('target', null); if (tgt) $('target').value = tgt;
-  // the sample uses its own known camera; saved sensor/focal apply once a real plate loads
-  st.sw = 36.70; st.sh = 25.54; st.focal = 24; st.preset = 'alexa-lf-og';
+function loadDemo() {
+  // the demo uses its own known camera
+  st.sw = 36.70; st.sh = 25.54; st.focal = 24; st.preset = 'alexa-lf-og'; st.shAuto = true; st.par = 1;
   pre.value = st.preset; $('sw').value = st.sw; $('sh').value = st.sh; $('focal').value = st.focal;
-  applyKnobNames();
-  st._saved = saved;
   const s = buildSample();
-  scanObj = sampleGeometry(false, false); scanRoot.add(scanObj);
+  clearScan();
+  scanObj = sampleGeometry(false, false); scanRoot.add(scanObj); st.sample = true; st.scanName = 'Sample';
   scanObj.traverse(o => { if (o.isMesh) o.userData.orig = o.material; });
   st.rawBox = new THREE.Box3().setFromObject(scanRoot);
   setRootTransform(1, 1, 'y', false);
+  $('scan-name').textContent = 'Sample';
   $('scan-kv').innerHTML = '<dt>Type</dt><dd>Sample car interior</dd><dt>Reference</dt><dd>wheelbase 2.70 m · roof 1.45 m</dd>';
   applyDisplay();
   setPlate(s.url, s.W, s.H, 'Sample', true);
@@ -2781,7 +2950,15 @@ function buildSample() {
   camera.near = 0.02; camera.far = 1000;
   applyIntrinsics();
   refreshAll();
+}
+(function boot() {
+  const tgt = lsGet('target', null); if (tgt) $('target').value = tgt;
+  applyKnobNames();
+  resetAll(true);
+  st._saved = lsGet('sensor', null);
   maskChanged();
+  $('start').hidden = false;
+  setTimeout(() => $('st-demo').focus(), 50);
 })();
 // when the first real plate arrives, restore the last sensor/focal the user used
 const _setPlate = setPlate;

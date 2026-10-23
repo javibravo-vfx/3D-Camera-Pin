@@ -8,9 +8,11 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 ## Workflow
 
-It opens with a sample to try the workflow:
+It opens empty, with a start dialog: **Load demo scene**, **Open project…** or **Start empty**. The demo is:
 - **Plate**: a hood-mount shot through the windshield of a car on a green screen stage, with a driver and a passenger. Alexa Mini LF Open Gate, 24 mm.
 - **Scan**: the matching empty car interior, in meters.
+
+The panel header also has **Open**, **Save**, **Demo** and **Reset all**.
 
 
 1. **Plate & camera**: load the plate (EXR, JPG, PNG). For EXR, choose the input colorspace (ACES2065-1, ACEScg, ARRI Wide Gamut 3, Rec.2020, Rec.709) and the viewer transform (ACES 1.0 Rec.709 by default). Pick the sensor and the focal length. If the EXR carries camera and lens metadata, those fields fill in automatically.
@@ -51,6 +53,16 @@ The top bar has two locks for the solve:
 - In the info bar, the **TILT / ROLL / YAW** values can be dragged left or right to fine-tune them. Hold Shift for finer steps. Tilt and roll are disabled while locked.
 
 **Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
+
+## Projects
+
+**Save** writes a small `.camerapin.json` file (a few KB) with everything you set up:
+- Lens and film back, pixel aspect, colorspace, viewer and exposure.
+- Scan units, axis, scale and height offset.
+- Pins, the measurement, the camera and the solved camera.
+- Locks, mask, export settings, chroma key and environment.
+
+The plate and the scan are not stored in the file, only their names. When you **Open** a project, a card lists the files it needs. Load them with Load plate and Load scan, or drop them on the viewer, and the project restores itself. Demo projects restore directly. You can also drop a `.json` project on the viewer.
 
 ## Reset all
 

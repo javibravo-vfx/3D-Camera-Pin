@@ -1833,8 +1833,10 @@ function envRenderParams() {
   enhanceNumbers($('motion-params'));
   enhanceNumbers(box);
 }
+const SESSION_MON = {};
 function envSet(k, val) {
   env.vals[k] = val;
+  if (k === 'mon') SESSION_MON[env.id] = !!val;
   if (typeof tlUI === 'function') setTimeout(tlUI, 0);
   document.querySelectorAll(`#env-params [data-k="${k}"], #motion-params [data-k="${k}"]`).forEach(el => { if (el.type === 'checkbox') el.checked = !!val; else if (document.activeElement !== el) el.value = val; });
   envSave(); envRebuild();
@@ -1843,7 +1845,7 @@ function envSelect(id) {
   env.id = ENV_MODULES[id] ? id : 'none';
   const saved = lsGet('env.vals.' + env.id, null);
   env.vals = Object.assign(envDefaults(env.id), saved || {});
-  env.vals.mon = false; // motion always starts off; only a project brings it back on
+  env.vals.mon = !!SESSION_MON[env.id]; // off on a fresh start; switching environments keeps each one's state for this session
   if (env.id !== 'none') env.on = true;
   $('env-mod').value = env.id;
   envRenderParams(); envSave(); envRebuild();
@@ -3757,7 +3759,7 @@ function applyProjectState(p) {
   if (p.timeline) { tl.start = p.timeline.start; tl.end = p.timeline.end; tl.fps = p.timeline.fps; tl.frame = p.timeline.frame || tl.start; $('tl-in').value = tl.start; $('tl-out').value = tl.end; $('tl-fps').value = tl.fps; tlSave(); }
   if (p.env) {
     env.seed = p.env.seed || 7; env.display = p.env.display || 'solid'; $('env-disp').value = env.display;
-    if (ENV_MODULES[p.env.id]) { lsSet('env.vals.' + p.env.id, p.env.vals); envSelect(p.env.id); env.on = !!p.env.on; env.vals.mon = !!(p.env.vals && p.env.vals.mon); envRenderParams(); envSave(); envRebuild(); }
+    if (ENV_MODULES[p.env.id]) { lsSet('env.vals.' + p.env.id, p.env.vals); envSelect(p.env.id); env.on = !!p.env.on; env.vals.mon = SESSION_MON[p.env.id] = !!(p.env.vals && p.env.vals.mon); envRenderParams(); envSave(); envRebuild(); }
     else envSelect('none');
   }
   setPar(st.par);
@@ -3918,8 +3920,8 @@ $('tl-prev').onclick = () => { tlPlay(false); tlSet(tl.frame - 1); };
 $('tl-next').onclick = () => { tlPlay(false); tlSet(tl.frame + 1); };
 $('tl-play').onclick = () => tlPlay();
 $('tl-loop').onchange = () => { tl.loop = $('tl-loop').checked; tlSave(); };
-$('tl-s').addEventListener('input', () => { tlPlay(false); tlSet(+$('tl-s').value); });
-$('tl-f').addEventListener('change', () => tlSet(+$('tl-f').value));
+$('tl-s').addEventListener('input', () => { const f = +$('tl-s').value; if (tl.playing) tlPlay(false); tlSet(f); }); // read the slider before anything redraws it
+$('tl-f').addEventListener('change', () => { const f = +$('tl-f').value; if (tl.playing) tlPlay(false); tlSet(f); });
 const tlRange = () => {
   let a = Math.round(+$('tl-in').value), b = Math.round(+$('tl-out').value), f = +$('tl-fps').value;
   if (!(b > a)) b = a + 1; if (!(f > 0)) f = 24;

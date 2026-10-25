@@ -50,7 +50,24 @@ The panel header also has **Open**, **Save**, **Demo** and **Reset all**.
 
 The top bar always shows the camera in use: sensor preset, film back and focal length. If the plate metadata names a different camera than the current preset, the badge turns amber, and hovering it shows what the file says.
 
+## Naming
+
+The **Naming** panel reads shot information from the plate's file name and uses it to name the outputs.
+- **Convention**:
+  - `PROJ_EP_SCENE_SHOT_desc_plate_vNN` is the default. For example, `VLLF_000_115_010_PPRubio34_aPlate_v01_1001.exr` gives project VLLF, episode/group 000, scene 115, shot 010, description PPRubio34, plate aPlate and version v01.
+  - `PROJ_SCENE_SHOT` handles names like `MOR_1001A_930`.
+  - **Custom** lets you write your own pattern with `{project} {episode} {seq} {scene} {shot} {desc} {plate} {version}`, and `{*}` to skip a part.
+  - The trailing frame number (`_1001` / `.1001`) is ignored. Extra parts are folded into `{desc}`.
+- **Playblast** and **Camera** are the output templates. They take the plate tokens plus `{ver}`, the output version (default `v001`; the number and the 2–4 digits are adjustable). Empty tokens drop out with their underscore.
+  - Playblast defaults to `VLLF_000_115_010_PPRubio34_matchmove_v001.mp4`.
+  - Camera defaults to `VLLF_000_115_010_camera_v001`. The export camera name follows it until you type a different one.
+- Without a plate, or with a name that doesn't match, outputs are called `camerapin_matchmove_v001` and `camerapin_camera_v001`.
+- The convention is remembered and saved with the project.
+
 ## Layout
+
+- **Tabs**: a tab bar sits above everything. **Camera Pin** is the first module, and more will sit to its right.
+
 
 - **Top bar, first row**: viewer LUT on the left; centred over the image, **↓ EXR** + FOCAL + lock, then **↓ EXR** + TILT / ROLL + lock, then YAW and HEIGHT; camera badge on the right. **↓ EXR** pulls the value from the plate metadata.
 - **Top bar, second row**: mask on the left (under the viewer), the pin actions (Clear / Bake / Solved cam) centred, plate resolution (and RMS while pinning) on the right.

@@ -38,10 +38,18 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; }
 html, body { height: 100%; }
+body { display: flex; flex-direction: column; }
+.apptabs { flex: none; display: flex; align-items: flex-end; gap: 2px; padding: 6px max(16px, env(safe-area-inset-left, 0px)) 0; border-bottom: 1px solid var(--line); background: var(--bg); }
+.apptab { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); font: 600 12.5px var(--f-ui); cursor: pointer; margin-bottom: -1px; }
+.apptab:hover { color: var(--fg); background: var(--panel); }
+.apptab[aria-selected="true"] { color: var(--fg); background: var(--panel); border-color: var(--line); box-shadow: inset 0 2px 0 var(--accent-hi); }
+.apptab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.apptab[aria-selected="true"] svg { stroke: var(--accent-fg); }
+[data-tabpage][hidden] { display: none !important; }
 body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-size: 13px; overflow: hidden; -webkit-font-smoothing: antialiased; }
 .app {
   --side-w: 380px;
-  height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 8px var(--side-w); gap: 0;
+  flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 8px var(--side-w); gap: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 8px;
 }
@@ -196,6 +204,8 @@ section.step { background: var(--card); border: 1px solid var(--line); border-ra
 .step h2 .st .sti { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .credit { font-size: 11.5px; margin: 0; }
 .credit a { color: var(--muted); }
+.fld.wide { grid-template-columns: minmax(0, 1fr) !important; gap: 5px !important; }
+.fld.wide input { font: 500 12px var(--f-mono, 'JetBrains Mono', monospace); }
 .step h2 .st { margin-left: auto; font: 500 12px var(--f-ui); letter-spacing: 0; text-transform: none; color: var(--muted); }
 .step[data-state="ok"] h2 .st { color: var(--ok); }
 .step[data-state="warn"] h2 .st { color: var(--warn); }
@@ -413,7 +423,10 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     </div>
   </div>
 </div>
-<div class="app">
+<nav class="apptabs" role="tablist" aria-label="Modules">
+  <button class="apptab" role="tab" aria-selected="true" data-tab="camerapin"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5c-.8-1.5-5-6.2-5-9.1a5 5 0 0 1 10 0c0 2.9-4.2 7.6-5 9.1z"/><circle cx="8" cy="5.4" r="1.8"/></svg>Camera Pin</button>
+</nav>
+<div class="app" data-tabpage="camerapin">
   <div class="viewer">
     <div class="vbar">
      <div class="vrow">
@@ -759,6 +772,31 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             <button class="btn" id="solve" title="Solve the pose from scratch with every pin">Solve from scratch</button>
             <button class="btn ghost" id="clear-pins">Clear pins</button>
           </div>
+        </div>
+      </section>
+
+      <section class="step" id="s7">
+        <h2 tabindex="0"><span class="n">5</span>Naming<span class="st" id="nm-st">generic</span></h2>
+        <div class="body">
+          <label class="fld" for="nm-preset">Convention
+            <select id="nm-preset">
+              <option value="feature">PROJ_EP_SCENE_SHOT_desc_plate_vNN (VLLF)</option>
+              <option value="short">PROJ_SCENE_SHOT (Moria)</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label class="fld wide" for="nm-in" title="How plate file names are built. Tokens: {project} {episode} {seq} {scene} {shot} {desc} {plate} {version} and {*} to skip a part. The frame number at the end is ignored.">Plate name
+            <input id="nm-in" type="text" spellcheck="false"></label>
+          <dl class="kv" id="nm-kv"></dl>
+          <label class="fld wide" for="nm-pb" title="Tokens from the plate plus {ver} (the output version below). Empty tokens drop out with their underscore.">Playblast
+            <input id="nm-pb" type="text" spellcheck="false"></label>
+          <label class="fld wide" for="nm-cam">Camera
+            <input id="nm-cam" type="text" spellcheck="false"></label>
+          <div class="knobrow"><label for="nm-ver">Output version</label>
+            <div class="row nowrap"><input id="nm-ver" type="number" min="0" step="1" value="1" data-noscrub="1"><select id="nm-pad" aria-label="Version digits" style="width:auto"><option value="3">v001</option><option value="2">v01</option><option value="4">v0001</option></select></div>
+          </div>
+          <p class="note" id="nm-out"></p>
+          <div class="row k"><button class="btn ghost" id="nm-reset">Reset</button></div>
         </div>
       </section>
 
@@ -2352,6 +2390,7 @@ function applyDisplay() {
 // ---------- Plate ----------
 function setPlate(url, W, H, name, sample) {
   st.plate = { W, H, name, sample };
+  setTimeout(() => typeof nmUI === 'function' && nmUI(), 0);
   $('empty').hidden = true;
   if (url) { plateImg.onload = () => { if (key.on) keyLater(); }; plateImg.src = url; plateImg.hidden = false; $('platecv').hidden = true; }
   else { plateImg.hidden = true; $('platecv').hidden = false; }
@@ -3646,6 +3685,7 @@ function resetAll(keepPrefs) {
   $('exr-box').hidden = true; $('orient-row').hidden = true; $('orient-auto-row').hidden = true; $('meta-msg').hidden = true; $('aspect-msg').hidden = true;
   $('cs').value = 'disp'; $('cs').disabled = true;
   st.plate = { W: 1920, H: 1080, name: '', sample: false, empty: true };
+  setTimeout(() => typeof nmUI === 'function' && nmUI(), 0);
   // camera defaults
   st.preset = 'alexa-lf-og'; pre.value = st.preset; st.sw = 36.70; st.sh = 25.54; st.shAuto = true; $('sh-auto').checked = true; $('sh').disabled = true;
   $('sw').value = st.sw; st.focal = 35; st.fScale = 1; $('focal').value = 35;
@@ -3699,6 +3739,7 @@ function projectState() {
     key: { ...key },
     env: { id: env.id, on: env.on, seed: env.seed, vals: env.vals, display: env.display },
     timeline: { start: tl.start, end: tl.end, fps: tl.fps, frame: tl.frame },
+    naming: { preset: nm.preset, in: nm.in, pb: nm.pb, cam: nm.cam, ver: nm.ver, pad: nm.pad },
   };
 }
 // lens + camera only: used as soon as a project opens and after each re-linked file, so the view never jumps
@@ -3754,7 +3795,9 @@ function applyProjectState(p) {
   st.lockTR = !!p.lockTR; $('lock-tr').checked = st.lockTR;
   // view, export, key, environment
   if (p.mask) { $('mask').value = p.mask.v; $('mask-c').value = p.mask.c; $('exp-crop').checked = !!p.mask.crop; maskChanged(); }
+  if (p.naming) { Object.assign(nm, p.naming); lsSet('naming', p.naming); }
   if (p.export) { $('target').value = p.export.target; $('camname').value = p.export.name; }
+  nmUI();
   if (p.key) setKey({ ...p.key });
   if (p.timeline) { tl.start = p.timeline.start; tl.end = p.timeline.end; tl.fps = p.timeline.fps; tl.frame = p.timeline.frame || tl.start; $('tl-in').value = tl.start; $('tl-out').value = tl.end; $('tl-fps').value = tl.fps; tlSave(); }
   if (p.env) {
@@ -3941,7 +3984,7 @@ function pbDims() {
 }
 function pbInfo() {
   const d = pbDims(), n = tl.end - tl.start + 1;
-  $('pb-info').textContent = `Frames ${tl.start}–${tl.end} (${n}) at ${fmt(tl.fps, 3)} fps · ${d.W} × ${d.H} · H.264 MP4. What is shown in the viewport (plate, key, scan, environment, Mix) goes into the file.`;
+  $('pb-info').textContent = `${nmNames().pb}.mp4 · Frames ${tl.start}–${tl.end} (${n}) at ${fmt(tl.fps, 3)} fps · ${d.W} × ${d.H} · H.264 MP4. What is shown in the viewport (plate, key, scan, environment, Mix) goes into the file.`;
 }
 function loadMuxer() {
   if (window.Mp4Muxer) return Promise.resolve();
@@ -4060,10 +4103,10 @@ async function playblast() {
     }
     if (!muxer) throw lastErr || new Error(`no video encoder for ${W} × ${H} here: try Half size`);
     if (usedVp9) toast('This browser has no usable H.264 encoder: the MP4 uses VP9 (plays in browsers, VLC and Resolve, not QuickTime)');
-    const base = ((st.plate.empty ? '' : st.plate.name) || 'camerapin').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
+    const base = nmNames().pb;
     // keep the result: preview it right here, save it where you want
     if (pb.url) URL.revokeObjectURL(pb.url);
-    pb.blob = new Blob([muxer.target.buffer], { type: 'video/mp4' }); pb.name = `${base}_playblast_${tl.start}-${tl.end}.mp4`; pb.url = URL.createObjectURL(pb.blob);
+    pb.blob = new Blob([muxer.target.buffer], { type: 'video/mp4' }); pb.name = `${base}.mp4`; pb.url = URL.createObjectURL(pb.blob);
     $('pb-video').src = pb.url; $('pb-file').innerHTML = `<b>${esc(pb.name)}</b> · ${(pb.blob.size / 1048576).toFixed(1)} MB · not saved yet`;
     pbMode(true); $('pb-video').play().catch(() => {});
     await pbDownload(pb.blob, pb.name);
@@ -4083,6 +4126,62 @@ $('pb-size').onchange = pbInfo;
 $('pb-go').onclick = playblast;
 $('pb-cancel').onclick = () => { if (pb.busy) pb.cancel = true; else { $('pb-video').pause(); $('pb-dlg').hidden = true; } };
 $('pb-dlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); $('pb-cancel').click(); } });
+
+// ---------- Naming: read shot info from the plate's file name, name the outputs from it ----------
+const NAMING_PRESETS = {
+  feature: { in: '{project}_{episode}_{scene}_{shot}_{desc}_{plate}_{version}', pb: '{project}_{episode}_{scene}_{shot}_{desc}_matchmove_{ver}', cam: '{project}_{episode}_{scene}_{shot}_camera_{ver}' },
+  short: { in: '{project}_{scene}_{shot}', pb: '{project}_{scene}_{shot}_{desc}_matchmove_{ver}', cam: '{project}_{scene}_{shot}_camera_{ver}' },
+};
+const NM_LABELS = { project: 'Project', episode: 'Episode / group', seq: 'Sequence', scene: 'Scene', shot: 'Shot', desc: 'Description', plate: 'Plate', version: 'Plate version' };
+const nm = Object.assign({ preset: 'feature', ver: 1, pad: 3 }, NAMING_PRESETS.feature, lsGet('naming', {}));
+let camAutoName = null;
+function nmParse(file) {
+  if (!file || st.plate.sample || st.plate.empty) return null;
+  let base = file.replace(/\.[A-Za-z0-9]{2,5}$/, '').replace(/[.#]\d{3,8}$/, '');
+  const toks = (nm.in.match(/\{(\w+|\*)\}/g) || []).map(t => t.slice(1, -1));
+  let parts = base.split('_').filter(Boolean);
+  if (parts.length > toks.length && /^\d{3,8}$/.test(parts[parts.length - 1])) parts = parts.slice(0, -1); // trailing frame number (_1001)
+  if (parts.length < Math.min(2, toks.length)) return null;
+  const out = {};
+  // extra parts are folded into {desc} when the pattern has one
+  const extra = parts.length - toks.length, di = toks.indexOf('desc');
+  let k = 0;
+  toks.forEach((t, i) => {
+    let v;
+    if (t === 'desc' && extra > 0) { v = parts.slice(k, k + extra + 1).join('_'); k += extra + 1; } else v = parts[k++];
+    if (t !== '*' && v !== undefined) out[t] = v;
+  });
+  return out.project ? out : null;
+}
+function nmVer() { return 'v' + String(Math.max(0, Math.round(nm.ver || 0))).padStart(nm.pad || 3, '0'); }
+function nmFill(tpl, info) {
+  const s = tpl.replace(/\{(\w+)\}/g, (m, k) => k === 'ver' ? nmVer() : (info[k] || ''));
+  return s.replace(/_+/g, '_').replace(/^_|_$/g, '').replace(/[^\w.-]+/g, '_');
+}
+function nmNames() {
+  const info = nmParse(st.plate.name);
+  return info ? { info, pb: nmFill(nm.pb, info), cam: nmFill(nm.cam, info) } : { info: null, pb: `camerapin_matchmove_${nmVer()}`, cam: `camerapin_camera_${nmVer()}` };
+}
+function nmUI() {
+  const r = nmNames();
+  $('nm-preset').value = nm.preset; $('nm-in').value = nm.in; $('nm-pb').value = nm.pb; $('nm-cam').value = nm.cam; $('nm-ver').value = nm.ver; $('nm-pad').value = String(nm.pad);
+  $('nm-kv').innerHTML = r.info ? Object.entries(r.info).map(([k, v]) => `<dt>${NM_LABELS[k] || k}</dt><dd>${esc(v)}</dd>`).join('')
+    : `<dt></dt><dd class="note">${st.plate.empty || st.plate.sample ? 'Load a plate to read its shot info.' : 'The plate name doesn\'t match this convention: outputs get generic names.'}</dd>`;
+  $('nm-out').innerHTML = `Playblast: <b>${esc(r.pb)}.mp4</b><br>Camera: <b>${esc(r.cam)}</b>`;
+  $('nm-st').textContent = r.info ? [r.info.project, r.info.episode || r.info.seq, r.info.scene, r.info.shot].filter(Boolean).join(' · ') : 'generic';
+  $('s7').dataset.state = r.info ? 'ok' : '';
+  // the export camera name follows the convention until it is typed by hand
+  const cn = $('camname');
+  if (camAutoName === null || cn.value === camAutoName || cn.value === 'MatchCam' || !cn.value) { cn.value = r.cam; camAutoName = r.cam; if (typeof updateExport === 'function') updateExport(); }
+}
+function nmSave() { lsSet('naming', { preset: nm.preset, in: nm.in, pb: nm.pb, cam: nm.cam, ver: nm.ver, pad: nm.pad }); nmUI(); }
+$('nm-preset').onchange = () => { nm.preset = $('nm-preset').value; if (NAMING_PRESETS[nm.preset]) Object.assign(nm, NAMING_PRESETS[nm.preset]); nmSave(); };
+['in', 'pb', 'cam'].forEach(k => $('nm-' + k).addEventListener('input', () => { nm[k] = $('nm-' + k).value; nm.preset = 'custom'; $('nm-preset').value = 'custom'; lsSet('naming', { preset: nm.preset, in: nm.in, pb: nm.pb, cam: nm.cam, ver: nm.ver, pad: nm.pad }); nmUI(); }));
+$('nm-ver').addEventListener('change', () => { nm.ver = Math.max(0, Math.round(+$('nm-ver').value || 0)); nmSave(); });
+$('nm-pad').onchange = () => { nm.pad = +$('nm-pad').value; nmSave(); };
+$('nm-reset').onclick = () => { Object.assign(nm, { preset: 'feature', ver: 1, pad: 3 }, NAMING_PRESETS.feature); nmSave(); };
+['nm-in', 'nm-pb', 'nm-cam', 'nm-ver'].forEach(id => $(id).addEventListener('keydown', e => e.stopPropagation()));
+setTimeout(nmUI, 0);
 $('f-cars').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) loadCarFiles(fs); };
 $('env-shuffle').onclick = () => { env.seed = (env.seed * 9301 + 49297) % 233280 + 1; envSave(); envRebuild(); };
 $('env-ground').onclick = () => {

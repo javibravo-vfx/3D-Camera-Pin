@@ -478,7 +478,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       <input id="mask-c" type="number" step="0.01" min="0.1" max="10" value="2.00" style="width:68px" aria-label="Custom mask aspect" hidden></span>
       <span class="pinrow"><button class="btn" id="tb-clear" title="Delete every pin and keep the camera where it is">Clear pins</button>
       <button class="btn" id="tb-bake">Bake pins</button>
-      <button class="btn" id="back" title="Go back to the solved camera" disabled>Solved cam</button></span>
+      <button class="btn" id="back" title="Go back to the stored camera: the last solve, or the view you stored with Store cam" disabled>Recall cam</button><button class="btn" id="store-cam" title="Store the current viewport camera (position, rotation, focal) as THE camera: Recall cam comes back here and it is what gets exported">Store cam</button></span>
       <span class="vr"><span class="vinfo"><span id="badge"></span><span class="fmt" id="tag" title="Plate resolution">SAMPLE</span></span></span>
      </div>
     </div>
@@ -3100,19 +3100,26 @@ function maskRect() {
   if (a < pa) { const w = Math.round(H * a / p); return { x: (W - w) / 2, y: 0, w, h: H }; }
   const h = Math.round(W * p / a); return { x: 0, y: (H - h) / 2, w: W, h };
 }
+// the exported camera is the stored one (last solve or Store cam); without one, the current view
+function exportMatrix() {
+  if (!st.solved) { camera.updateMatrixWorld(); return camera.matrixWorld; }
+  const R = st.solved.R, C = st.solved.C;
+  return new THREE.Matrix4().set(R[0], -R[3], -R[6], C[0], R[1], -R[4], -R[7], C[1], R[2], -R[5], -R[8], C[2], 0, 0, 0, 1);
+}
 function camData() {
-  camera.updateMatrixWorld();
-  const e = camera.matrixWorld.elements;
+  const MW = exportMatrix();
+  const e = MW.elements;
   const X = [e[0], e[1], e[2]], Y = [e[4], e[5], e[6]], Z = [e[8], e[9], e[10]], C = [e[12], e[13], e[14]];
   const A = (v) => [v[0], -v[2], v[1]]; // Y-up -> Z-up (Max / Blender)
-  const eul = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().extractRotation(camera.matrixWorld), 'YXZ');
+  const eul = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().extractRotation(MW), 'YXZ');
   const crop = $('exp-crop').checked && maskAspect() ? maskRect() : null;
   const W = crop ? crop.w : st.plate.W, H = crop ? crop.h : st.plate.H;
   // same focal and center; film back shrinks with the crop. Horizontal is exported desqueezed (sensor × pixel aspect)
   const p = par();
   const sw = st.sw * p * W / st.plate.W;
   const sh = shUsed() * H / st.plate.H;
-  return { X, Y, Z, C, Xm: A(X), Ym: A(Y), Zm: A(Z), Cm: A(C), eul, f: focalUsed(), sw, sh, W, H, crop, p };
+  const f = st.solved && st.solved.focal ? st.solved.focal * (st.freeF ? (st.solved.f || 1) : 1) : focalUsed();
+  return { X, Y, Z, C, Xm: A(X), Ym: A(Y), Zm: A(Z), Cm: A(C), eul, f, sw, sh, W, H, crop, p };
 }
 const n6 = (v) => (Math.abs(v) < 5e-13 ? 0 : v).toFixed(6);
 function updateExport() {
@@ -3202,7 +3209,7 @@ function updateExport() {
     rotNote = (t === 'nuke' || t === 'maya' || t === 'houdini' ? `Scan rotation: rotate the scan X ${f1(st.rot[0] * d2r)}, Y ${f1(st.rot[1] * d2r)}, Z ${f1(st.rot[2] * d2r)} (XYZ order). `
       : `Scan rotation: in ${t === 'blender' ? 'Blender' : '3ds Max'} rotate the imported scan X ${f1(ez.x)}, Y ${f1(ez.y)}, Z ${f1(ez.z)} (XYZ, Z up), around the origin. `);
   }
-  $('export-note').innerHTML = rotNote + (Math.abs(yo) > 1e-6 ? `Scan height offset: move the scan <b>${yo > 0 ? 'up' : 'down'} ${fmt(Math.abs(yo), 3)} m</b> in your DCC (after any scale). ` : '') + (Math.abs(sf - 1) > 1e-6 || st.up !== 'y'
+  $('export-note').innerHTML = (st.solved ? (st.solved.manual ? 'Exports the camera stored with <b>Store cam</b>. ' : 'Exports the solved camera. ') : 'No stored camera yet: exports the current view. ') + rotNote + (Math.abs(yo) > 1e-6 ? `Scan height offset: move the scan <b>${yo > 0 ? 'up' : 'down'} ${fmt(Math.abs(yo), 3)} m</b> in your DCC (after any scale). ` : '') + (Math.abs(sf - 1) > 1e-6 || st.up !== 'y'
     ? `The camera lives in the corrected space (meters${st.up !== 'y' ? ', axis converted' : ''}). Import the scan in your DCC in meters${Math.abs(st.userScale - 1) > 1e-6 ? ` and scale it <b>×${fmt(st.userScale, 4)}</b> from the origin` : ''} so they line up.`
     : 'The camera lives in the same space as the scan, in meters. Import the scan in meters and they line up.');
 }
@@ -3455,7 +3462,21 @@ $('disp').value = lsGet('disp', 'wire'); if (!$('disp').value) $('disp').value =
 $('disp').onchange = () => { lsSet('disp', $('disp').value); applyDisplay(); }; $('opac').oninput = applyDisplay; $('ptsize').oninput = applyDisplay;
 $('grid').onchange = () => { grid.visible = $('grid').checked; render(); };
 
-$('back').onclick = () => { if (st.solved) { cameraFromPose(st.solved); solveLive(false); refreshAll(); } };
+// Recall: go back to the stored camera exactly as stored (no re-solve, so a hand-made camera is kept); only the pin errors are recomputed
+function pinErrorsOnly() {
+  const ap = activePins(); if (!ap.length) { st.rms = null; return; }
+  const k = K(), pose = poseFromCamera(); const errs = Solver.errorsOf(pose, k, ap); ap.forEach((q, i) => q.ref.err = errs[i]); st.rms = Solver.rmsOf(pose, k, ap);
+}
+$('back').onclick = () => {
+  if (!st.solved) return;
+  if (st.solved.focal) { st.focal = st.solved.focal; $('focal').value = st.focal; }
+  cameraFromPose(st.solved); navRetarget(); pinErrorsOnly(); refreshAll();
+};
+$('store-cam').onclick = () => {
+  pushHistory();
+  st.solved = { ...poseFromCamera(), focal: st.focal, manual: true }; $('back').disabled = false;
+  pinErrorsOnly(); refreshAll(); toast('Camera stored: Recall cam comes back to this view');
+};
 $('f-scan').onchange = e => { const f = e.target.files[0]; if (f) loadScanFile(f); e.target.value = ''; };
 $('f-plate').onchange = e => { const f = e.target.files[0]; if (f) loadPlateFile(f); e.target.value = ''; };
 $('unit').onchange = () => { setRootTransform(+$('unit').value, st.userScale, st.up); st.scaleOk = false; measWorld(); updateMeasureGeo(); refreshAll(); };

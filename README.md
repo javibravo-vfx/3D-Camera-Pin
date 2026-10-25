@@ -70,7 +70,7 @@ The **Naming** panel reads shot information from the plate's file name and uses 
 
 
 - **Top bar, first row**: viewer LUT on the left; centred over the image, **↓ EXR** + FOCAL + lock, then **↓ EXR** + TILT / ROLL + lock, then YAW and HEIGHT; camera badge on the right. **↓ EXR** pulls the value from the plate metadata.
-- **Top bar, second row**: mask on the left (under the viewer), the pin actions (Clear / Bake / Solved cam) centred, plate resolution (and RMS while pinning) on the right.
+- **Top bar, second row**: mask on the left (under the viewer), the pin actions (Clear / Bake / Recall cam / Store cam) centred, plate resolution (and RMS while pinning) on the right.
 - **Info bar** (under the viewport): cursor x/y on the left, the mode hint, and **Nav** (navigation preset) on the right.
 - **Panel**: every section starts collapsed. While no plate or scan is loaded, the Plate and Scan headers show a **Load** button; once loaded they show a green check, or an amber warning for a sample plate or an unverified scale.
 
@@ -83,7 +83,14 @@ The top bar has two locks for the solve (padlock buttons):
 - **EXR** next to tilt/roll sets them from the EXR metadata.
 - In the top bar, **HEIGHT / TILT / ROLL / YAW** are fields: drag them or click and type. Tilt and roll are disabled while locked.
 
-**Clear pins**, next to **Solved cam**, deletes every pin and leaves the camera where it is.
+**Clear pins**, next to **Recall cam**, deletes every pin and leaves the camera where it is.
+
+**The stored camera**: there is always one camera that counts.
+- Every solve stores the camera.
+- **Store cam** stores the current view instead: position, rotation and focal, for a camera you adjusted by hand or are designing from scratch.
+- **Recall cam** (formerly *Solved cam*) goes back to the stored camera exactly as stored, without re-solving, so you can look around freely and return.
+- **Export camera** writes the stored camera (or the current view if nothing is stored yet). The playblast renders the viewport as it is.
+- Moving pins solves again and replaces the stored camera. Undo brings back the previous one.
 
 **Bake pins** locks the current pins in place. They keep taking part in the solve, but they can't be dragged or deleted by accident (they turn violet). You can then add more pins on top to refine. **Unbake** releases them.
 
@@ -251,7 +258,7 @@ In Pins mode the camera is driven by the pins. The mouse works on the plate inst
 | `B` | Show / hide the plate |
 | `E` | Show / hide the environment |
 | `K` | Chroma key on / off |
-| `F` (Maya, Houdini, Nuke, Simple, Game) · `Z` (3ds Max) · `Home` or numpad `.` (Blender) | **Frame the scan in 3D**: keeps the view direction and backs the camera up until the scan fits, like Maya's F or Max's Z. **Solved cam** takes you back to the match. Also on the tool rail. |
+| `F` (Maya, Houdini, Nuke, Simple, Game) · `Z` (3ds Max) · `Home` or numpad `.` (Blender) | **Frame the scan in 3D**: keeps the view direction and backs the camera up until the scan fits, like Maya's F or Max's Z. **Recall cam** takes you back to the match. Also on the tool rail. |
 | `Shift+F` | Fit the plate in the viewport |
 | `Space` | Play / pause the timeline. Holding Space to navigate (Houdini preset, 2D pan) doesn't toggle it. |
 | `,` / `.` | Previous / next frame (`Shift`: first / last) |

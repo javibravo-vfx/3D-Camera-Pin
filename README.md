@@ -6,7 +6,7 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 **Live:** https://javibravo-vfx.github.io/3D-Camera-Pin/
 
-The version is shown at the right of the tab bar (`v1.003`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
+The version is shown at the right of the tab bar (`v1.004`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
 
 ## Workflow
 
@@ -216,6 +216,7 @@ The **Path Trace** tab renders the Camera Pin shot with a GPU path tracer ([thre
 - Background: the sky, the plate, or transparent (the PNG keeps the alpha). An optional ground plane at a set height catches the shadows when there is no environment.
 - Depth of field with an f-stop and a focus distance (**Focus center** focuses on what is in the middle of the frame); the film back is the one of Camera Pin.
 - Samples (it stops there), bounces, resolution, tiles, denoise and a glossy filter. Pause, Restart and Save PNG are in the bar.
+- **Playblast** (in the timeline bar) renders the frame range path traced to an MP4: size 720p, 1080p or the plate, and a quality preset (Draft 16 samples / 3 bounces, Preview 64 / 4, Good 256 / 5, Final 1024 / 8, or what the Render panel has). It uses the Path Trace camera and its light, background (over the plate when it is the plate), denoise and tone map; the dialog shows the time per frame and what is left.
 - Resolution: 720p (default) or 1080p, by width (1280 or 1920) with the height from the plate aspect, or the plate size. The render keeps that size and is only scaled to fit the view.
 - Gaussian splats and point clouds are not path traced (only meshes are). The library is loaded the first time the tab is opened.
 

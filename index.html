@@ -43,6 +43,7 @@ body { display: flex; flex-direction: column; }
 .apptab { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); font: 600 12.5px var(--f-ui); cursor: pointer; margin-bottom: -1px; }
 .apptab:hover { color: var(--fg); background: var(--panel); }
 .apptab[aria-selected="true"] { color: var(--fg); background: var(--panel); border-color: var(--line); box-shadow: inset 0 2px 0 var(--accent-hi); }
+.appver { margin: 0 0 8px auto; color: var(--muted, #8a8f98); font: 500 11px/1 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: .02em; }
 .apptab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 .apptab[aria-selected="true"] svg { stroke: var(--accent-fg); }
 [data-tabpage][hidden] { display: none !important; }
@@ -379,7 +380,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 
 <div class="start" id="start" role="dialog" aria-modal="true" aria-labelledby="start-t" hidden>
   <div class="start-card">
-    <div class="start-logo"><span class="chip"></span><b id="start-t">3D Camera Pin</b></div>
+    <div class="start-logo"><span class="chip"></span><b id="start-t">3D Camera Pin</b><span class="appver" data-appver style="margin: 0 0 0 8px"></span></div>
     <p class="note">Single-frame camera match: pin a scan to a plate with the lens fixed.</p>
     <div class="start-btns">
       <button class="btn primary" id="st-demo">Load demo scene</button>
@@ -425,6 +426,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 </div>
 <nav class="apptabs" role="tablist" aria-label="Modules">
   <button class="apptab" role="tab" aria-selected="true" data-tab="camerapin"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5c-.8-1.5-5-6.2-5-9.1a5 5 0 0 1 10 0c0 2.9-4.2 7.6-5 9.1z"/><circle cx="8" cy="5.4" r="1.8"/></svg>Camera Pin</button>
+  <span class="appver" id="app-ver" title="App version (see ChangeLog.md)"></span>
 </nav>
 <div class="app" data-tabpage="camerapin">
   <div class="viewer">
@@ -846,6 +848,10 @@ import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 window.THREE = Object.assign({}, THREE_NS, { OBJLoader, PLYLoader, GLTFLoader, DRACOLoader, FBXLoader, EXRLoader });
 window.MeshoptDecoder = MeshoptDecoder;
+// the app version: +0.001 with every change, with its line in ChangeLog.md
+window.APP_VERSION = '1.001';
+for (const el of document.querySelectorAll('#app-ver, [data-appver]')) el.textContent = 'v' + APP_VERSION;
+document.getElementById('app-ver').title = `3D Camera Pin v${APP_VERSION} · three.js r${THREE_NS.REVISION} (see ChangeLog.md)`;
 window.THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.187.0/';
 // keep the look of r147: hex colors are used as they are (no sRGB to linear conversion); textures and the output are still sRGB
 THREE.ColorManagement.enabled = false;
@@ -3762,7 +3768,7 @@ function projectState() {
   camera.updateMatrixWorld();
   const v3 = (v) => [v.x, v.y, v.z];
   return {
-    app: 'Camera Pin', version: PROJECT_VERSION, saved: new Date().toISOString(),
+    app: 'Camera Pin', version: PROJECT_VERSION, appVersion: APP_VERSION, saved: new Date().toISOString(),
     demo: !!st.plate.sample,
     plate: st.plate.empty ? null : { name: st.plate.name, W: st.plate.W, H: st.plate.H, exr: !!exrState, cs: $('cs').value, view: $('view').value, ev: +$('ev').value },
     scan: scanObj && !st.sample ? { name: st.scanName } : (st.sample ? { name: 'Sample' } : null),

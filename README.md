@@ -6,6 +6,8 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 **Live:** https://javibravo-vfx.github.io/3D-Camera-Pin/
 
+The version is shown at the right of the tab bar (`v1.001`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
+
 ## Workflow
 
 It opens empty. **Demo** (top of the panel) loads the demo scene, which is:

@@ -48,7 +48,9 @@ body { display: flex; flex-direction: column; }
 .apptab[aria-selected="true"] svg { stroke: var(--accent-fg); }
 [data-tabpage][hidden] { display: none !important; }
 /* ---------- Path Trace tab ---------- */
-.pt-viewer { grid-template-rows: auto minmax(0, 1fr); }
+.pt-viewer { grid-template-rows: auto minmax(0, 1fr) auto auto; }
+.pt-viewer #pb-open { display: none; }
+#pt-gl { touch-action: none; }
 .pt-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .pt-box { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden; }
 .pt-frame { position: relative; background: repeating-conic-gradient(#1b1b1e 0 25%, #222226 0 50%) 0 0 / 20px 20px; box-shadow: 0 0 0 1px var(--line); }
@@ -849,6 +851,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <button class="btn sm" id="pt-pause" aria-pressed="false" title="Pause / resume the samples">Pause</button>
         <button class="btn sm" id="pt-restart" title="Throw the samples away and start again">Restart</button>
         <button class="btn sm" id="pt-save" title="Save the current render as a PNG (with alpha when the background is not the sky)">Save PNG</button>
+        <button class="btn ghost sm" id="pt-camreset" title="Put the camera back where Camera Pin has it">Camera Pin view</button>
         <span class="fmt" id="pt-st">–</span>
       </div>
     </div>
@@ -859,6 +862,8 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
       </div>
       <p class="pt-msg" id="pt-msg" hidden></p>
     </div>
+    <div id="pt-tlslot"></div>
+    <div class="ibar"><span class="hint" id="pt-hint"></span></div>
   </div>
   <div></div>
   <aside class="props" aria-label="Path trace settings">
@@ -874,10 +879,9 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             <input type="number" id="pt-bounces" min="1" max="30" step="1" value="5">
           </label>
           <label class="fld" for="pt-scale">Resolution
-            <select id="pt-scale">
-              <option value="0.25">25 %</option>
-              <option value="0.5">50 %</option>
-              <option value="1" selected>100 %</option>
+            <select id="pt-scale" title="Size of the render: the width of 720p or 1080p with the height of the plate aspect. On screen it is scaled to fit the view.">
+              <option value="720" selected>720p (1280 wide)</option>
+              <option value="1080">1080p (1920 wide)</option>
               <option value="plate">Plate size</option>
             </select>
           </label>
@@ -942,7 +946,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
             <input type="number" id="pt-focus" min="0.01" step="0.01" value="3" title="Meters from the camera">
           </label>
           <div class="row k"><button class="btn sm" id="pt-focus-c" title="Focus on what is under the center of the frame">Focus center</button><button class="btn ghost sm" id="pt-reset">Reset</button></div>
-          <p class="note" id="pt-note">The camera, the scan and the environment come from Camera Pin as they are now (the frame of the timeline). Changing them there needs <b>Update from Camera Pin</b>.</p>
+          <p class="note" id="pt-note">The camera, the scan and the environment come from Camera Pin. The camera can be moved here with the Nav preset of Camera Pin (it renders coarse while it moves and completes when it stops); <b>Camera Pin view</b> puts it back. The timeline moves the environment here too. A change to the scan or the environment in Camera Pin needs <b>Update from Camera Pin</b>.</p>
         </div>
       </section>
     </div>
@@ -972,7 +976,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 window.THREE = Object.assign({}, THREE_NS, { OBJLoader, PLYLoader, GLTFLoader, DRACOLoader, FBXLoader, EXRLoader });
 window.MeshoptDecoder = MeshoptDecoder;
 // the app version: +0.001 with every change, with its line in ChangeLog.md
-window.APP_VERSION = '1.002';
+window.APP_VERSION = '1.003';
 for (const el of document.querySelectorAll('#app-ver, [data-appver]')) el.textContent = 'v' + APP_VERSION;
 document.getElementById('app-ver').title = `3D Camera Pin v${APP_VERSION} · three.js r${THREE_NS.REVISION} (see ChangeLog.md)`;
 window.THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.187.0/';
@@ -1963,6 +1967,7 @@ function tlUI() {
 function tlSet(f) {
   tl.frame = Math.round(Math.min(Math.max(f, tl.start), tl.end));
   applyMotion(); tlUI(); render(); drawOverlay();
+  if (window.CP && CP.onFrame) CP.onFrame(); // the Path Trace tab follows the timeline
 }
 function tlTick(now) {
   if (!tl.playing) return;
@@ -4514,7 +4519,7 @@ setPlate = function (...a) {
   }
 };
 // what the Path Trace tab reads from Camera Pin (read only: it copies, never changes the scene here)
-window.CP = { scene, camera, scanRoot, envRoot, sun, nav, st, tl, tlPlay, render, plateImg, platecv: $('platecv'), exr: () => exrState };
+window.CP = { scene, camera, scanRoot, envRoot, sun, nav, st, tl, tlPlay, render, plateImg, platecv: $('platecv'), exr: () => exrState, NAV, navPreset: () => navPreset, onFrame: null };
 })();
 </script>
 <!-- Path Trace tab: three-gpu-pathtracer (loaded only when the tab is opened) on a copy of the Camera Pin scene and camera -->
@@ -4522,23 +4527,34 @@ window.CP = { scene, camera, scanRoot, envRoot, sun, nav, st, tl, tlPlay, render
 (() => {
 const $ = (id) => document.getElementById(id);
 // ---------- tabs ----------
-let ptTab = 'camerapin';
+let ptTab = 'camerapin', ptTlHome = null;
 function showTab(id) {
   ptTab = id;
   document.querySelectorAll('.apptab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
   document.querySelectorAll('[data-tabpage]').forEach(p => { p.hidden = p.dataset.tabpage !== id; });
-  if (id === 'pathtrace') { if (CP.tl.playing) CP.tlPlay(false); ptEnter(); } else ptLeave();
+  // the timeline bar goes with the tab in front (the same controls)
+  const bar = $('tlbar');
+  if (!ptTlHome) { ptTlHome = document.createComment('tlbar'); bar.parentNode.insertBefore(ptTlHome, bar); }
+  if (id === 'pathtrace') $('pt-tlslot').replaceWith(bar), bar.dataset.inpt = '1';
+  else if (bar.dataset.inpt) { const slot = document.createElement('div'); slot.id = 'pt-tlslot'; bar.replaceWith(slot); ptTlHome.parentNode.insertBefore(bar, ptTlHome.nextSibling); delete bar.dataset.inpt; }
+  if (id === 'pathtrace') ptEnter(); else ptLeave();
   if (id === 'camerapin') { window.dispatchEvent(new Event('resize')); CP.render(); }
 }
 document.querySelectorAll('.apptab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 // the Camera Pin shortcuts (Space, W/A/S/D, F…) do not act while this tab is in front
-const ptKeyGuard = (e) => { if (ptTab === 'pathtrace') e.stopImmediatePropagation(); };
+const ptKeyGuard = (e) => {
+  if (ptTab !== 'pathtrace') return;
+  e.stopImmediatePropagation();
+  // Space: play / pause, as in Camera Pin
+  const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) && !/^(checkbox|range|button)$/.test(t.type));
+  if (e.type === 'keydown' && e.code === 'Space' && !typing && !e.repeat) { e.preventDefault(); CP.tlPlay(); }
+};
 window.addEventListener('keydown', ptKeyGuard, true); window.addEventListener('keyup', ptKeyGuard, true);
 
 // ---------- state ----------
-const PT_DEF = { target: 512, bounces: 5, scale: '1', tiles: '2', dn: true, dnS: 5, glossy: 0.5, env: 'sky', sky: '#dfe8f2', gnd: '#3a3328', envI: 1, envR: 0,
+const PT_DEF = { target: 512, bounces: 5, scale: '720', tiles: '2', dn: true, dnS: 5, glossy: 0.5, env: 'sky', sky: '#dfe8f2', gnd: '#3a3328', envI: 1, envR: 0,
   sunI: 1, exp: 0, tm: 'linear', bg: 'sky', floor: false, floorY: 0, dof: false, fstop: 2.8, focus: 3 };
-const pt = Object.assign({}, PT_DEF, { lib: null, renderer: null, tracer: null, scene: null, cam: null, paused: false, raf: 0, built: false, busy: false,
+const pt = Object.assign({}, PT_DEF, { lib: null, links: [], redraw: false, renderer: null, tracer: null, scene: null, cam: null, paused: false, raf: 0, built: false, busy: false,
   hdri: null, hdriName: '', gradient: null, denoise: null, tris: 0, t0: 0, plateURL: '' });
 const UI = [['target', 'pt-target', 'n'], ['bounces', 'pt-bounces', 'n'], ['scale', 'pt-scale', 's'], ['tiles', 'pt-tiles', 's'], ['dn', 'pt-dn', 'b'], ['dnS', 'pt-dn-s', 'n'],
   ['glossy', 'pt-glossy', 'n'], ['env', 'pt-env', 's'], ['sky', 'pt-sky', 's'], ['gnd', 'pt-gnd', 's'], ['envI', 'pt-envi', 'n'], ['envR', 'pt-envr', 'n'], ['sunI', 'pt-suni', 'n'],
@@ -4574,7 +4590,8 @@ function ptInit() {
   r.outputColorSpace = THREE.SRGBColorSpace; r.setClearColor(0x000000, 0);
   pt.renderer = r;
   const tr = new gpt.WebGLPathTracer(r);
-  tr.renderDelay = 0; tr.fadeDuration = 0; tr.minSamples = 1; tr.dynamicLowRes = false; tr.rasterizeScene = false;
+  // while the camera moves or the timeline plays: a quarter-size image of one sample; when it stops it fills in
+  tr.renderDelay = 80; tr.fadeDuration = 200; tr.minSamples = 2; tr.dynamicLowRes = true; tr.lowResScale = 0.25; tr.rasterizeScene = false;
   tr.textureSize.set(2048, 2048);
   pt.denoise = new FullScreenQuad(new gpt.DenoiseMaterial({ map: null, blending: THREE.NoBlending, premultipliedAlpha: r.getContextAttributes().premultipliedAlpha }));
   tr.renderToCanvasCallback = (target, renderer, quad) => {
@@ -4583,6 +4600,12 @@ function ptInit() {
     else quad.render(renderer);
     renderer.autoClear = ac;
   };
+  // the coarse image while moving also goes through the denoise, so it reads as a soft preview and not as dots
+  { const q = tr._quad, qr = q.render.bind(q);
+    q.render = (renderer) => {
+      if (pt.dn && q.material.map === tr._lowResPathTracer.target.texture) { const m = pt.denoise.material; m.map = q.material.map; m.sigma = pt.dnS; m.opacity = 1; pt.denoise.render(renderer); }
+      else qr(renderer);
+    }; }
   pt.tracer = tr;
   pt.gradient = new gpt.GradientEquirectTexture(256);
   new ResizeObserver(() => ptFit()).observe($('pt-box'));
@@ -4642,6 +4665,7 @@ function addCopy(dst, o, matrix, tint) {
   const mesh = new THREE.Mesh(ptGeometry(o.geometry, mats.some(m => m.vertexColors)), Array.isArray(o.material) ? pm : pm[0]);
   mesh.matrixAutoUpdate = false; mesh.matrix.copy(matrix);
   dst.add(mesh);
+  if (ptLinks) ptLinks.push([mesh, o, ptInst]);
   const g = o.geometry; return (g.index ? g.index.count : g.attributes.position.count) / 3;
 }
 function copyRoot(dst, root) {
@@ -4655,11 +4679,30 @@ function copyRoot(dst, root) {
       for (let i = 0; i < o.count; i++) {
         o.getMatrixAt(i, im); mw.multiplyMatrices(o.matrixWorld, im);
         let tint = null; if (o.instanceColor) { o.getColorAt(i, ic); tint = ic.clone().convertSRGBToLinear(); }
-        tris += addCopy(dst, o, mw, tint);
+        ptInst = i; tris += addCopy(dst, o, mw, tint);
       }
-    } else tris += addCopy(dst, o, o.matrixWorld);
+    } else { ptInst = -1; tris += addCopy(dst, o, o.matrixWorld); }
   });
   return tris;
+}
+// the environment copies remember their originals, so the timeline only moves them (the BVH is refit, not rebuilt)
+let ptLinks = null, ptInst = -1;
+function ptFrame() {
+  if (!pt.built || !pt.links.length || ptTab !== 'pathtrace') return;
+  CP.envRoot.updateMatrixWorld(true);
+  const im = new THREE.Matrix4();
+  for (const [mesh, o, i] of pt.links) {
+    if (i < 0) mesh.matrix.copy(o.matrixWorld);
+    else { o.getMatrixAt(i, im); mesh.matrix.multiplyMatrices(o.matrixWorld, im); }
+  }
+  pt.scene.updateMatrixWorld(true);
+  const tr = pt.tracer, res = tr._generator.generate(), m = tr._pathTracer.material;
+  if (res.bvhChanged) {
+    const a = res.geometry.attributes;
+    m.bvh.updateFrom(res.bvh); m.attributesArray.updateFrom(a.normal, a.tangent, a.uv, a.color);
+  }
+  if (res.needsMaterialIndexUpdate) m.materialIndexAttribute.updateFrom(res.geometry.attributes.materialIndex);
+  tr.reset(); ptGo();
 }
 function ptBuildScene() {
   geoCache.clear(); matCache.forEach(m => m.dispose()); matCache.clear();
@@ -4672,7 +4715,7 @@ function ptBuildScene() {
   tris += copyRoot(scan, CP.scanRoot);
   CP.scanRoot.traverse(o => { if (o.userData._ptm) { o.material = o.userData._ptm; delete o.userData._ptm; } });
   sc.add(scan);
-  tris += copyRoot(sc, CP.envRoot);
+  ptLinks = []; tris += copyRoot(sc, CP.envRoot); pt.links = ptLinks; ptLinks = null;
   if (pt.floor) {
     const f = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: lin('#808080'), roughness: 0.9 }));
     f.position.y = pt.floorY; sc.add(f); tris += 2;
@@ -4687,10 +4730,11 @@ function ptBuildScene() {
   pt.scene = sc; pt.tris = tris;
 }
 // the camera: the Camera Pin one as it is (position, rotation, field of view, plate aspect), as a physical camera for the depth of field
-function ptCamera() {
+function ptCamera(pose) {
   const { gpt } = pt.lib, c = CP.camera, st = CP.st;
-  const cam = pt.cam || (pt.cam = new gpt.PhysicalCamera());
-  cam.position.copy(c.position); cam.quaternion.copy(c.quaternion);
+  if (!pt.cam) { pt.cam = new gpt.PhysicalCamera(); pose = true; }
+  const cam = pt.cam;
+  if (pose) { cam.position.copy(c.position); cam.quaternion.copy(c.quaternion); ptPivot(); }
   cam.fov = c.fov; cam.aspect = c.aspect; cam.near = Math.max(c.near, 0.01); cam.far = Math.max(c.far, 5000); cam.zoom = 1; cam.clearViewOffset();
   cam.filmGauge = st.sw || 36; cam.setFocalLength(cam.getFocalLength()); // keep the field of view, set the film back for the f-stop
   cam.focusDistance = pt.focus; cam.apertureBlades = 0;
@@ -4732,6 +4776,11 @@ function ptOut() {
 
 // ---------- size: the frame has the plate aspect and fits the viewer ----------
 function ptAspect() { return CP.camera.aspect || 1.5; }
+function ptSize() {
+  const pl = CP.st.plate, a = ptAspect();
+  const W = pt.scale === 'plate' && pl && pl.W ? Math.round(pl.W * (CP.st.par > 0 ? CP.st.par : 1)) : pt.scale === '1080' ? 1920 : 1280;
+  return [W, Math.max(2, Math.round(W / a))];
+}
 function ptFit() {
   if (!pt.renderer || ptTab !== 'pathtrace') return;
   const box = $('pt-box'), bw = box.clientWidth - 16, bh = box.clientHeight - 16;
@@ -4740,26 +4789,25 @@ function ptFit() {
   let w = bw, h = bw / a; if (h > bh) { h = bh; w = bh * a; }
   w = Math.floor(w); h = Math.floor(h);
   const fr = $('pt-frame'); fr.style.width = w + 'px'; fr.style.height = h + 'px';
-  const r = pt.renderer, dpr = Math.min(window.devicePixelRatio || 1, 2);
-  if (pt.scale === 'plate' && CP.st.plate && CP.st.plate.W) {
-    // the full plate resolution, whatever the size on screen
-    r.setPixelRatio(1); r.setSize(Math.round(CP.st.plate.W * (CP.st.par > 0 ? CP.st.par : 1)), CP.st.plate.H, false); pt.tracer.renderScale = 1;
-  } else { r.setPixelRatio(dpr); r.setSize(w, h, false); pt.tracer.renderScale = +pt.scale || 1; }
-  pt.tracer.reset(); ptGo();
+  // the render has a fixed size (720p or 1080p wide, or the plate) and is only scaled on screen
+  const [W, H] = ptSize(), r = pt.renderer, cur = r.getSize(new THREE.Vector2());
+  pt.tracer.renderScale = 1;
+  if (cur.x !== W || cur.y !== H || r.getPixelRatio() !== 1) { r.setPixelRatio(1); r.setSize(W, H, false); pt.tracer.reset(); }
+  ptGo();
 }
 
 // ---------- apply and loop ----------
 function ptApply(kind) {
   if (!pt.built) return;
   const tr = pt.tracer;
-  if (kind === 'scene') { ptRebuild(); return; }
+  if (kind === 'scene') { ptRebuild(false); return; }
   if (kind === 'mat') { tr.bounces = pt.bounces; tr.filterGlossyFactor = pt.glossy; const n = +pt.tiles || 1; tr.tiles.set(n, n); tr.reset(); }
   if (kind === 'env') { ptEnv(); tr.updateEnvironment(); }
   if (kind === 'light') { pt.sun.intensity = pt.sun.userData.base * pt.sunI; tr.updateLights(); }
   if (kind === 'cam') { ptCamera(); tr.updateCamera(); }
   if (kind === 'out') { ptOut(); }
   if (kind === 'size') { ptFit(); return; }
-  if (kind === 'out' && (pt.paused || tr.samples >= pt.target)) { ptDrawOnce(); }
+  if (kind === 'out') pt.redraw = true;
   ptGo();
 }
 function ptDrawOnce() {
@@ -4775,23 +4823,24 @@ function ptLoop() {
   pt.raf = 0;
   if (ptTab !== 'pathtrace' || !pt.built) return;
   const tr = pt.tracer;
-  if (!pt.paused && tr.samples < pt.target) {
-    if (!tr.samples) pt.t0 = performance.now();
-    try { tr.renderSample(); } catch (e) { msg('Render failed: ' + (e.message || e), true); console.error(e); return; }
-  }
+  // it always draws (the coarse image, the fade in, a new tone map); it only adds samples when not paused and not done
+  tr.pausePathTracing = pt.paused || tr.samples >= pt.target;
+  if (!tr.samples) pt.t0 = performance.now();
+  pt.redraw = false;
+  try { tr.renderSample(); } catch (e) { msg('Render failed: ' + (e.message || e), true); console.error(e); return; }
   ptStatus();
-  if (!pt.paused && tr.samples < pt.target) pt.raf = requestAnimationFrame(ptLoop);
+  if (!pt.paused && (tr.samples < pt.target || tr._quad.material.opacity < 1)) pt.raf = requestAnimationFrame(ptLoop);
 }
 function ptStatus() {
   const tr = pt.tracer, n = Math.floor(tr.samples), r = pt.renderer, v = new THREE.Vector2(); r.getDrawingBufferSize(v);
-  const sz = `${Math.floor(v.x * tr.renderScale)}×${Math.floor(v.y * tr.renderScale)}`;
+  const sz = `${v.x}×${v.y}`;
   const sec = n ? ((performance.now() - pt.t0) / 1000) : 0;
-  const state = tr.isCompiling ? 'compiling shaders…' : pt.paused ? 'paused' : n >= pt.target ? 'done' : 'rendering';
+  const state = tr.isCompiling ? 'compiling shaders…' : pt.paused ? 'paused' : n >= pt.target ? 'done' : n < tr.minSamples ? 'preview' : 'rendering';
   $('pt-st').textContent = `${n} / ${pt.target} samples · ${state} · ${sz} · ${pt.tris.toLocaleString('en-US')} tris${n && state === 'done' ? '' : n ? ` · ${sec.toFixed(1)} s` : ''}`;
   $('pt-st2').textContent = state === 'done' ? 'done' : n ? n + ' spp' : '';
 }
 
-async function ptRebuild() {
+async function ptRebuild(copyPose = true) {
   if (pt.busy) return;
   pt.busy = true;
   try {
@@ -4801,7 +4850,7 @@ async function ptRebuild() {
     await new Promise(r => setTimeout(r, 30)); // let the message paint: the build blocks the page
     ptBuildScene();
     if (!pt.tris) { pt.built = false; msg('Nothing to render: load a scan or turn an environment on in Camera Pin.'); $('pt-st').textContent = '–'; return; }
-    const cam = ptCamera();
+    const cam = ptCamera(copyPose);
     ptEnv(); ptOut();
     pt.sun.intensity = pt.sun.userData.base * pt.sunI;
     const tr = pt.tracer;
@@ -4815,10 +4864,71 @@ async function ptRebuild() {
     msg(/Failed to fetch|import|module/i.test(String(e && e.message)) ? 'The path tracer could not be loaded (it comes from the internet the first time): ' + e.message : 'Path tracer error: ' + (e.message || e), true);
   } finally { pt.busy = false; }
 }
-function ptEnter() { if (!pt.built) ptRebuild(); else { ptFit(); ptGo(); } }
+function ptEnter() { ptNavHint(); if (!pt.built) ptRebuild(true); else { ptFrame(); ptFit(); ptGo(); } }
 function ptLeave() { cancelAnimationFrame(pt.raf); pt.raf = 0; }
 
-$('pt-update').addEventListener('click', () => ptRebuild());
+$('pt-update').addEventListener('click', () => ptRebuild(true));
+$('pt-camreset').addEventListener('click', () => { if (!pt.built) return; ptCamera(true); pt.tracer.updateCamera(); ptGo(); });
+
+// ---------- moving the camera here: the Nav preset of Camera Pin (orbit / pan / dolly / look), wheel to dolly ----------
+const ptNav = { act: null, x: 0, y: 0, target: new THREE.Vector3(), id: -1 };
+// the pivot: the Camera Pin one if it is in front of the camera, otherwise a point at the focus distance
+function ptPivot() {
+  const cam = pt.cam, fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion), t = CP.nav.target.clone();
+  const d = t.clone().sub(cam.position).dot(fwd);
+  ptNav.target.copy(d > 0.05 ? t : cam.position.clone().addScaledVector(fwd, pt.focus || 3));
+}
+function ptNavHint() { const id = CP.navPreset(), p = CP.NAV[id]; $('pt-hint').textContent = !p ? '' : 'Camera: ' + (id === 'game' ? 'RMB: look · MMB: pan · wheel: forward' : p.hint) + ' · Space: play'; }
+function ptMoved() { const cam = pt.cam; cam.updateMatrixWorld(true); if (pt.paused) { pt.paused = false; $('pt-pause').setAttribute('aria-pressed', 'false'); $('pt-pause').textContent = 'Pause'; } pt.tracer.updateCamera(); ptGo(); }
+function ptRotate(cam, dx, dy, around) {
+  const up = new THREE.Vector3(0, 1, 0), right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
+  const q = new THREE.Quaternion().setFromAxisAngle(up, -dx * 0.005).multiply(new THREE.Quaternion().setFromAxisAngle(right, -dy * 0.005));
+  if (around) { cam.position.sub(around).applyQuaternion(q).add(around); }
+  else { const off = ptNav.target.clone().sub(cam.position).applyQuaternion(q); ptNav.target.copy(cam.position).add(off); }
+  cam.quaternion.premultiply(q);
+}
+function ptDolly(cam, k) {
+  const off = cam.position.clone().sub(ptNav.target), d = off.length();
+  const nd = Math.max(0.05, d * k);
+  if (nd <= 0.05 && k < 1) { // past the pivot: push it ahead
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    cam.position.addScaledVector(fwd, d * (1 - k)); ptNav.target.addScaledVector(fwd, d * (1 - k)); return;
+  }
+  cam.position.copy(ptNav.target).addScaledVector(off.normalize(), nd);
+}
+const ptCv = $('pt-gl');
+ptCv.addEventListener('contextmenu', e => e.preventDefault());
+ptCv.addEventListener('pointerdown', e => {
+  if (!pt.built || ptNav.act) return;
+  const p = CP.NAV[CP.navPreset()], act = p && p.map(e.button, e);
+  if (!act) return;
+  e.preventDefault();
+  ptNav.act = act; ptNav.x = e.clientX; ptNav.y = e.clientY; ptNav.id = e.pointerId;
+  ptCv.setPointerCapture(e.pointerId);
+});
+ptCv.addEventListener('pointermove', e => {
+  if (!ptNav.act || e.pointerId !== ptNav.id) return;
+  const dx = e.clientX - ptNav.x, dy = e.clientY - ptNav.y; ptNav.x = e.clientX; ptNav.y = e.clientY;
+  if (!dx && !dy) return;
+  const cam = pt.cam;
+  if (ptNav.act === 'orbit') ptRotate(cam, dx, dy, ptNav.target);
+  else if (ptNav.act === 'look') ptRotate(cam, dx, dy, null);
+  else if (ptNav.act === 'pan') {
+    const d = cam.position.distanceTo(ptNav.target), h = $('pt-frame').clientHeight || 500;
+    const k = 2 * d * Math.tan(cam.fov * Math.PI / 360) / h;
+    const mv = new THREE.Vector3(-dx * k, dy * k, 0).applyQuaternion(cam.quaternion);
+    cam.position.add(mv); ptNav.target.add(mv);
+  } else if (ptNav.act === 'dolly') ptDolly(cam, Math.exp((dy - dx) * 0.01));
+  ptMoved();
+});
+const ptNavEnd = (e) => { if (e.pointerId !== ptNav.id) return; ptNav.act = null; ptNav.id = -1; };
+ptCv.addEventListener('pointerup', ptNavEnd); ptCv.addEventListener('pointercancel', ptNavEnd); ptCv.addEventListener('lostpointercapture', ptNavEnd);
+ptCv.addEventListener('wheel', e => {
+  if (!pt.built) return;
+  e.preventDefault();
+  ptDolly(pt.cam, Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0015)); ptMoved();
+}, { passive: false });
+CP.onFrame = ptFrame;
 $('pt-restart').addEventListener('click', () => { if (!pt.built) return; pt.tracer.reset(); ptGo(); });
 $('pt-pause').addEventListener('click', () => { pt.paused = !pt.paused; $('pt-pause').setAttribute('aria-pressed', String(pt.paused)); $('pt-pause').textContent = pt.paused ? 'Resume' : 'Pause'; if (pt.built) { ptStatus(); ptGo(); } });
 $('pt-save').addEventListener('click', () => {

@@ -6,7 +6,7 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 **Live:** https://javibravo-vfx.github.io/3D-Camera-Pin/
 
-The version is shown at the right of the tab bar (`v1.002`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
+The version is shown at the right of the tab bar (`v1.003`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
 
 ## Workflow
 
@@ -208,12 +208,15 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 
 The **Path Trace** tab renders the Camera Pin shot with a GPU path tracer ([three-gpu-pathtracer](https://github.com/gkjohnson/three-gpu-pathtracer)), to try it out on the scan and the environment.
 
-- It takes the camera of the Camera Pin tab as it is (position, rotation, field of view and plate aspect), the scan with its own materials, the environment at the current frame of the timeline and the sun. **Update from Camera Pin** copies them again after a change there.
+- It takes the camera of the Camera Pin tab as it is (position, rotation, field of view and plate aspect), the scan with its own materials, the environment and the sun. **Update from Camera Pin** copies them again after a change there.
+- The camera can be moved in the tab with the Nav preset of Camera Pin (orbit, pan, dolly, look; wheel to dolly). While it moves it shows a coarse image and when it stops it fills in up to the samples. **Camera Pin view** puts it back where Camera Pin has it.
+- The timeline bar is there too (Space plays): the environment moves with the frame, coarse while it plays, and the frame you stop on fills in. Only the positions change, so a new frame is quick.
 - The display materials become physical ones (Lambert: rough, Phong: a bit glossy, Basic: emissive); colors and color textures are read as sRGB. There is no ACES conversion here: the output is sRGB, with an optional tone map (None, ACES Filmic, AgX, Neutral) and an exposure in stops.
 - Light: the sky and ground colors (the hemisphere light of Camera Pin) or an HDRI (.hdr / .exr), with intensity and rotation, and the sun with its own multiplier.
 - Background: the sky, the plate, or transparent (the PNG keeps the alpha). An optional ground plane at a set height catches the shadows when there is no environment.
 - Depth of field with an f-stop and a focus distance (**Focus center** focuses on what is in the middle of the frame); the film back is the one of Camera Pin.
-- Samples (it stops there), bounces, resolution (25 / 50 / 100 % of the view, or the plate size), tiles, denoise and a glossy filter. Pause, Restart and Save PNG are in the bar.
+- Samples (it stops there), bounces, resolution, tiles, denoise and a glossy filter. Pause, Restart and Save PNG are in the bar.
+- Resolution: 720p (default) or 1080p, by width (1280 or 1920) with the height from the plate aspect, or the plate size. The render keeps that size and is only scaled to fit the view.
 - Gaussian splats and point clouds are not path traced (only meshes are). The library is loaded the first time the tab is opened.
 
 ## Scan orientation and scale

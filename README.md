@@ -6,7 +6,7 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 **Live:** https://javibravo-vfx.github.io/3D-Camera-Pin/
 
-The version is shown at the right of the tab bar (`v1.001`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
+The version is shown at the right of the tab bar (`v1.002`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
 
 ## Workflow
 
@@ -204,6 +204,18 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 - **Render again** goes back to the settings.
 - Works with or without a plate or scan. Encoding uses the browser's WebCodecs (Chrome, Edge, Firefox 130+, Safari 17+). Video is H.264. If the browser has no H.264 encoder it falls back to VP9 inside the MP4, which plays in browsers, VLC and Resolve but not QuickTime. The muxer is [mp4-muxer](https://github.com/Vanilagy/mp4-muxer), loaded from jsDelivr on first use.
 
+## Path Trace
+
+The **Path Trace** tab renders the Camera Pin shot with a GPU path tracer ([three-gpu-pathtracer](https://github.com/gkjohnson/three-gpu-pathtracer)), to try it out on the scan and the environment.
+
+- It takes the camera of the Camera Pin tab as it is (position, rotation, field of view and plate aspect), the scan with its own materials, the environment at the current frame of the timeline and the sun. **Update from Camera Pin** copies them again after a change there.
+- The display materials become physical ones (Lambert: rough, Phong: a bit glossy, Basic: emissive); colors and color textures are read as sRGB. There is no ACES conversion here: the output is sRGB, with an optional tone map (None, ACES Filmic, AgX, Neutral) and an exposure in stops.
+- Light: the sky and ground colors (the hemisphere light of Camera Pin) or an HDRI (.hdr / .exr), with intensity and rotation, and the sun with its own multiplier.
+- Background: the sky, the plate, or transparent (the PNG keeps the alpha). An optional ground plane at a set height catches the shadows when there is no environment.
+- Depth of field with an f-stop and a focus distance (**Focus center** focuses on what is in the middle of the frame); the film back is the one of Camera Pin.
+- Samples (it stops there), bounces, resolution (25 / 50 / 100 % of the view, or the plate size), tiles, denoise and a glossy filter. Pause, Restart and Save PNG are in the bar.
+- Gaussian splats and point clouds are not path traced (only meshes are). The library is loaded the first time the tab is opened.
+
 ## Scan orientation and scale
 
 - **File up axis** says how the file was written: Y up, Z up, or Y down (COLMAP). The app always works Y-up internally, and the export converts to Z-up for 3ds Max and Blender (Nuke, Maya and Houdini stay Y-up), so this setting never changes how you work in Max.
@@ -310,6 +322,7 @@ Each pin shows its reprojection error in pixels.
 
 Loaded from CDNs, so the first load needs a connection:
 - [three.js](https://threejs.org) r187 (0.187.0, ES modules from jsDelivr through an import map), for the viewer and the loaders.
+- [three-gpu-pathtracer](https://github.com/gkjohnson/three-gpu-pathtracer) 0.0.28 and [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh) 0.9.18 (MIT, jsDelivr), for the Path Trace tab, loaded only when the tab is opened.
 - Google Fonts (Inter, JetBrains Mono).
 
 ## Credits

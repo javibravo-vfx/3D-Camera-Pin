@@ -47,6 +47,18 @@ body { display: flex; flex-direction: column; }
 .apptab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 .apptab[aria-selected="true"] svg { stroke: var(--accent-fg); }
 [data-tabpage][hidden] { display: none !important; }
+/* ---------- Path Trace tab ---------- */
+.pt-viewer { grid-template-rows: auto minmax(0, 1fr); }
+.pt-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pt-box { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden; }
+.pt-frame { position: relative; background: repeating-conic-gradient(#1b1b1e 0 25%, #222226 0 50%) 0 0 / 20px 20px; box-shadow: 0 0 0 1px var(--line); }
+.pt-frame.sky { background: #000; }
+.pt-frame canvas, .pt-plate { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.pt-plate { object-fit: fill; }
+.pt-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; max-width: 80%; text-align: center; color: var(--muted); background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 10px 14px; border-radius: 8px; }
+.pt-msg.bad { color: var(--bad); }
+.btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-fg); }
+input[type=color] { width: 44px; height: 28px; padding: 1px 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); cursor: pointer; }
 body { background: var(--bg); color: var(--fg); font-family: var(--f-ui); font-size: 13px; overflow: hidden; -webkit-font-smoothing: antialiased; }
 .app {
   --side-w: 380px;
@@ -426,6 +438,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 </div>
 <nav class="apptabs" role="tablist" aria-label="Modules">
   <button class="apptab" role="tab" aria-selected="true" data-tab="camerapin"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.5c-.8-1.5-5-6.2-5-9.1a5 5 0 0 1 10 0c0 2.9-4.2 7.6-5 9.1z"/><circle cx="8" cy="5.4" r="1.8"/></svg>Camera Pin</button>
+  <button class="apptab" role="tab" aria-selected="false" data-tab="pathtrace"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>Path Trace</button>
   <span class="appver" id="app-ver" title="App version (see ChangeLog.md)"></span>
 </nav>
 <div class="app" data-tabpage="camerapin">
@@ -828,13 +841,123 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
     </div>
   </aside>
 </div>
+<div class="app" data-tabpage="pathtrace" hidden>
+  <div class="viewer pt-viewer">
+    <div class="vbar">
+      <div class="vrow pt-bar">
+        <button class="btn primary sm" id="pt-update" title="Copy the scan, the environment, the sun and the camera from Camera Pin again">Update from Camera Pin</button>
+        <button class="btn sm" id="pt-pause" aria-pressed="false" title="Pause / resume the samples">Pause</button>
+        <button class="btn sm" id="pt-restart" title="Throw the samples away and start again">Restart</button>
+        <button class="btn sm" id="pt-save" title="Save the current render as a PNG (with alpha when the background is not the sky)">Save PNG</button>
+        <span class="fmt" id="pt-st">–</span>
+      </div>
+    </div>
+    <div class="pt-box" id="pt-box">
+      <div class="pt-frame" id="pt-frame">
+        <img class="pt-plate" id="pt-plate" alt="" hidden>
+        <canvas id="pt-gl"></canvas>
+      </div>
+      <p class="pt-msg" id="pt-msg" hidden></p>
+    </div>
+  </div>
+  <div></div>
+  <aside class="props" aria-label="Path trace settings">
+    <div class="node"><span class="chip"></span><b>PathTrace1</b><span>GPU path tracer on the Camera Pin camera</span></div>
+    <div class="scroll">
+      <section class="step" id="pt-s-render">
+        <h2 tabindex="0">Render<span class="st" id="pt-st2"></span></h2>
+        <div class="body">
+          <label class="fld" for="pt-target">Samples
+            <input type="number" id="pt-target" min="1" max="100000" step="1" value="512" title="It stops here">
+          </label>
+          <label class="fld" for="pt-bounces">Bounces
+            <input type="number" id="pt-bounces" min="1" max="30" step="1" value="5">
+          </label>
+          <label class="fld" for="pt-scale">Resolution
+            <select id="pt-scale">
+              <option value="0.25">25 %</option>
+              <option value="0.5">50 %</option>
+              <option value="1" selected>100 %</option>
+              <option value="plate">Plate size</option>
+            </select>
+          </label>
+          <label class="fld" for="pt-tiles">Tiles
+            <select id="pt-tiles" title="More tiles: the page keeps responding with heavy scenes, each sample takes longer to show">
+              <option value="1">1 × 1</option>
+              <option value="2" selected>2 × 2</option>
+              <option value="3">3 × 3</option>
+              <option value="4">4 × 4</option>
+            </select>
+          </label>
+          <div class="knobrow"><span>Denoise</span>
+            <div class="row nowrap"><input type="checkbox" id="pt-dn" checked><input type="range" id="pt-dn-s" min="1" max="10" step="0.5" value="5" title="Denoise strength"></div>
+          </div>
+          <label class="fld" for="pt-glossy">Glossy filter
+            <input type="number" id="pt-glossy" min="0" max="1" step="0.05" value="0.5" title="Blurs very sharp reflections of small lights: fewer fireflies, a bit less sharp">
+          </label>
+        </div>
+      </section>
+      <section class="step" id="pt-s-light">
+        <h2 tabindex="0">Light</h2>
+        <div class="body">
+          <label class="fld" for="pt-env">Environment
+            <select id="pt-env"><option value="sky">Sky colors</option><option value="hdri">HDRI</option></select>
+          </label>
+          <div class="knobrow" id="pt-skyrow"><span>Sky / ground</span>
+            <div class="row nowrap"><input type="color" id="pt-sky" value="#dfe8f2"><input type="color" id="pt-gnd" value="#3a3328"></div>
+          </div>
+          <div class="knobrow" id="pt-hdrirow" hidden><span>HDRI</span>
+            <div class="row"><span class="file btn sm">Load .hdr / .exr<input id="pt-f-hdri" type="file" accept=".hdr,.exr"></span><span class="note" id="pt-hdri-n">none</span></div>
+          </div>
+          <label class="fld" for="pt-envi">Sky intensity
+            <input type="number" id="pt-envi" min="0" max="20" step="0.05" value="1">
+          </label>
+          <label class="fld" for="pt-envr">Sky rotation
+            <input type="number" id="pt-envr" min="-180" max="180" step="1" value="0">
+          </label>
+          <label class="fld" for="pt-suni">Sun intensity
+            <input type="number" id="pt-suni" min="0" max="20" step="0.05" value="1" title="× the sun of Camera Pin">
+          </label>
+          <label class="fld" for="pt-exp">Exposure
+            <input type="number" id="pt-exp" min="-10" max="10" step="0.1" value="0" title="Stops">
+          </label>
+          <label class="fld" for="pt-tm">Tone map
+            <select id="pt-tm"><option value="linear">None</option><option value="aces">ACES Filmic</option><option value="agx">AgX</option><option value="neutral">Neutral</option></select>
+          </label>
+        </div>
+      </section>
+      <section class="step" id="pt-s-scene">
+        <h2 tabindex="0">Scene</h2>
+        <div class="body">
+          <label class="fld" for="pt-bg">Background
+            <select id="pt-bg"><option value="sky">Sky</option><option value="plate">Plate</option><option value="none">Transparent</option></select>
+          </label>
+          <div class="knobrow"><span>Ground plane</span>
+            <div class="row nowrap"><input type="checkbox" id="pt-floor"><input type="number" id="pt-floor-y" step="0.01" value="0" title="Height (m)"></div>
+          </div>
+          <div class="knobrow"><span>Depth of field</span>
+            <div class="row nowrap"><input type="checkbox" id="pt-dof"><input type="number" id="pt-fstop" min="0.5" max="64" step="0.1" value="2.8" title="f-stop"></div>
+          </div>
+          <label class="fld" for="pt-focus">Focus distance
+            <input type="number" id="pt-focus" min="0.01" step="0.01" value="3" title="Meters from the camera">
+          </label>
+          <div class="row k"><button class="btn sm" id="pt-focus-c" title="Focus on what is under the center of the frame">Focus center</button><button class="btn ghost sm" id="pt-reset">Reset</button></div>
+          <p class="note" id="pt-note">The camera, the scan and the environment come from Camera Pin as they are now (the frame of the timeline). Changing them there needs <b>Update from Camera Pin</b>.</p>
+        </div>
+      </section>
+    </div>
+  </aside>
+</div>
 
 <!-- three.js 0.187.0: since r148 the loaders only exist as ES modules, so they are loaded with an import map and
      exposed as the global THREE the app was written for; then the app scripts below (type="text/x-app") run, in order -->
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/",
+  "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/",
+  "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.18/build/index.module.js",
+  "three-gpu-pathtracer": "https://cdn.jsdelivr.net/npm/three-gpu-pathtracer@0.0.28/build/index.module.js"
 } }
 </script>
 <script type="module">
@@ -849,7 +972,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 window.THREE = Object.assign({}, THREE_NS, { OBJLoader, PLYLoader, GLTFLoader, DRACOLoader, FBXLoader, EXRLoader });
 window.MeshoptDecoder = MeshoptDecoder;
 // the app version: +0.001 with every change, with its line in ChangeLog.md
-window.APP_VERSION = '1.001';
+window.APP_VERSION = '1.002';
 for (const el of document.querySelectorAll('#app-ver, [data-appver]')) el.textContent = 'v' + APP_VERSION;
 document.getElementById('app-ver').title = `3D Camera Pin v${APP_VERSION} · three.js r${THREE_NS.REVISION} (see ChangeLog.md)`;
 window.THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.187.0/';
@@ -4390,6 +4513,343 @@ setPlate = function (...a) {
     const fl = lsGet('focal', null); if (fl) { st.focal = fl; $('focal').value = fl; applyIntrinsics(); refreshAll(); }
   }
 };
+// what the Path Trace tab reads from Camera Pin (read only: it copies, never changes the scene here)
+window.CP = { scene, camera, scanRoot, envRoot, sun, nav, st, tl, tlPlay, render, plateImg, platecv: $('platecv'), exr: () => exrState };
+})();
+</script>
+<!-- Path Trace tab: three-gpu-pathtracer (loaded only when the tab is opened) on a copy of the Camera Pin scene and camera -->
+<script type="text/x-app">
+(() => {
+const $ = (id) => document.getElementById(id);
+// ---------- tabs ----------
+let ptTab = 'camerapin';
+function showTab(id) {
+  ptTab = id;
+  document.querySelectorAll('.apptab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
+  document.querySelectorAll('[data-tabpage]').forEach(p => { p.hidden = p.dataset.tabpage !== id; });
+  if (id === 'pathtrace') { if (CP.tl.playing) CP.tlPlay(false); ptEnter(); } else ptLeave();
+  if (id === 'camerapin') { window.dispatchEvent(new Event('resize')); CP.render(); }
+}
+document.querySelectorAll('.apptab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+// the Camera Pin shortcuts (Space, W/A/S/D, F…) do not act while this tab is in front
+const ptKeyGuard = (e) => { if (ptTab === 'pathtrace') e.stopImmediatePropagation(); };
+window.addEventListener('keydown', ptKeyGuard, true); window.addEventListener('keyup', ptKeyGuard, true);
+
+// ---------- state ----------
+const PT_DEF = { target: 512, bounces: 5, scale: '1', tiles: '2', dn: true, dnS: 5, glossy: 0.5, env: 'sky', sky: '#dfe8f2', gnd: '#3a3328', envI: 1, envR: 0,
+  sunI: 1, exp: 0, tm: 'linear', bg: 'sky', floor: false, floorY: 0, dof: false, fstop: 2.8, focus: 3 };
+const pt = Object.assign({}, PT_DEF, { lib: null, renderer: null, tracer: null, scene: null, cam: null, paused: false, raf: 0, built: false, busy: false,
+  hdri: null, hdriName: '', gradient: null, denoise: null, tris: 0, t0: 0, plateURL: '' });
+const UI = [['target', 'pt-target', 'n'], ['bounces', 'pt-bounces', 'n'], ['scale', 'pt-scale', 's'], ['tiles', 'pt-tiles', 's'], ['dn', 'pt-dn', 'b'], ['dnS', 'pt-dn-s', 'n'],
+  ['glossy', 'pt-glossy', 'n'], ['env', 'pt-env', 's'], ['sky', 'pt-sky', 's'], ['gnd', 'pt-gnd', 's'], ['envI', 'pt-envi', 'n'], ['envR', 'pt-envr', 'n'], ['sunI', 'pt-suni', 'n'],
+  ['exp', 'pt-exp', 'n'], ['tm', 'pt-tm', 's'], ['bg', 'pt-bg', 's'], ['floor', 'pt-floor', 'b'], ['floorY', 'pt-floor-y', 'n'], ['dof', 'pt-dof', 'b'], ['fstop', 'pt-fstop', 'n'], ['focus', 'pt-focus', 'n']];
+function uiFromState() { for (const [k, id, t] of UI) { const el = $(id); if (t === 'b') el.checked = !!pt[k]; else el.value = pt[k]; } $('pt-skyrow').hidden = pt.env !== 'sky'; $('pt-hdrirow').hidden = pt.env !== 'hdri'; }
+// what each control has to redo: 'scene' rebuilds the copy, 'env' the sky, 'light' the lights, 'cam' the camera, 'out' only the final image
+const UI_KIND = { target: 'go', bounces: 'mat', scale: 'size', tiles: 'mat', dn: 'out', dnS: 'out', glossy: 'mat', env: 'env', sky: 'env', gnd: 'env', envI: 'env', envR: 'env', sunI: 'light',
+  exp: 'out', tm: 'out', bg: 'env', floor: 'scene', floorY: 'scene', dof: 'cam', fstop: 'cam', focus: 'cam' };
+for (const [k, id, t] of UI) {
+  $(id).addEventListener(t === 'n' ? 'change' : 'input', () => {
+    const el = $(id); const v = t === 'b' ? el.checked : t === 'n' ? (Number.isFinite(+el.value) ? +el.value : PT_DEF[k]) : el.value;
+    pt[k] = v; uiFromState(); ptApply(UI_KIND[k]);
+  });
+}
+uiFromState();
+// the panels of this tab start open (the Camera Pin ones start collapsed)
+document.querySelectorAll('[data-tabpage="pathtrace"] .step').forEach(sec => { sec.classList.remove('closed'); sec.querySelector('h2').setAttribute('aria-expanded', 'true'); });
+
+const msg = (t, bad) => { const m = $('pt-msg'); m.hidden = !t; m.textContent = t || ''; m.classList.toggle('bad', !!bad); };
+const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+
+// ---------- the library, only when needed ----------
+async function ptLib() {
+  if (pt.lib) return pt.lib;
+  msg('Loading the path tracer…');
+  const [gpt, pass] = await Promise.all([import('three-gpu-pathtracer'), import('three/addons/postprocessing/Pass.js')]);
+  pt.lib = { gpt, FullScreenQuad: pass.FullScreenQuad };
+  return pt.lib;
+}
+function ptInit() {
+  const { gpt, FullScreenQuad } = pt.lib;
+  const r = new THREE.WebGLRenderer({ canvas: $('pt-gl'), antialias: false, alpha: true, preserveDrawingBuffer: true });
+  r.outputColorSpace = THREE.SRGBColorSpace; r.setClearColor(0x000000, 0);
+  pt.renderer = r;
+  const tr = new gpt.WebGLPathTracer(r);
+  tr.renderDelay = 0; tr.fadeDuration = 0; tr.minSamples = 1; tr.dynamicLowRes = false; tr.rasterizeScene = false;
+  tr.textureSize.set(2048, 2048);
+  pt.denoise = new FullScreenQuad(new gpt.DenoiseMaterial({ map: null, blending: THREE.NoBlending, premultipliedAlpha: r.getContextAttributes().premultipliedAlpha }));
+  tr.renderToCanvasCallback = (target, renderer, quad) => {
+    const ac = renderer.autoClear; renderer.autoClear = false;
+    if (pt.dn) { const m = pt.denoise.material; m.map = target.texture; m.sigma = pt.dnS; m.threshold = 0.03; m.kSigma = 1; m.opacity = quad.material.opacity; pt.denoise.render(renderer); }
+    else quad.render(renderer);
+    renderer.autoClear = ac;
+  };
+  pt.tracer = tr;
+  pt.gradient = new gpt.GradientEquirectTexture(256);
+  new ResizeObserver(() => ptFit()).observe($('pt-box'));
+}
+
+// ---------- copy of the Camera Pin scene ----------
+// materials: the Camera Pin ones are display materials (Lambert / Phong / Basic, colors written as screen values);
+// here they become physical ones, with the colors and the color textures read as sRGB
+function ptMaterial(m, tint) {
+  const o = new THREE.MeshStandardMaterial();
+  o.color.copy(m.color || new THREE.Color(1, 1, 1)).convertSRGBToLinear();
+  if (tint) o.color.multiply(tint);
+  if (m.map) { o.map = m.map.clone(); o.map.colorSpace = THREE.SRGBColorSpace; o.map.needsUpdate = true; }
+  if (m.emissive && (m.emissive.r || m.emissive.g || m.emissive.b)) { o.emissive.copy(m.emissive).convertSRGBToLinear(); o.emissiveIntensity = m.emissiveIntensity ?? 1; }
+  if (m.emissiveMap) { o.emissiveMap = m.emissiveMap.clone(); o.emissiveMap.colorSpace = THREE.SRGBColorSpace; o.emissiveMap.needsUpdate = true; }
+  if (m.isMeshStandardMaterial) { o.roughness = m.roughness; o.metalness = m.metalness; o.roughnessMap = m.roughnessMap; o.metalnessMap = m.metalnessMap; o.normalMap = m.normalMap; }
+  else if (m.isMeshPhongMaterial) { o.roughness = Math.max(0.15, Math.min(1, Math.sqrt(2 / ((m.shininess || 30) + 2)) * 1.6)); o.metalness = 0; }
+  else { o.roughness = 1; o.metalness = 0; }
+  if (m.isMeshBasicMaterial) { o.emissive.copy(o.color); o.emissiveMap = o.map; o.color.setRGB(0, 0, 0); } // unlit: it gives its own light
+  o.side = m.side; o.vertexColors = !!m.vertexColors;
+  o.transparent = !!m.transparent && (m.opacity ?? 1) < 1; o.opacity = m.opacity ?? 1; o.alphaMap = m.alphaMap || null;
+  return o;
+}
+// the geometry with what the path tracer merges: normals and, if the material uses them, the vertex colors as RGBA linear
+// (mixing 3- and 4-component colors breaks the merge)
+const geoCache = new Map();
+function ptGeometry(g, wantColor) {
+  const key = g.uuid + (wantColor ? 'c' : '');
+  if (geoCache.has(key)) return geoCache.get(key);
+  const o = new THREE.BufferGeometry();
+  for (const n of ['position', 'normal', 'uv']) if (g.attributes[n]) o.setAttribute(n, g.attributes[n]);
+  if (g.index) o.setIndex(g.index);
+  o.groups = g.groups.map(x => Object.assign({}, x));
+  if (!o.attributes.normal) o.computeVertexNormals();
+  const c = g.attributes.color;
+  if (wantColor && c) {
+    const n = c.count, a = new Float32Array(n * 4), s = c.normalized ? 1 : 1;
+    for (let i = 0; i < n; i++) {
+      const col = new THREE.Color(c.getX(i) * s, c.getY(i) * s, c.getZ(i) * s).convertSRGBToLinear();
+      a[i * 4] = col.r; a[i * 4 + 1] = col.g; a[i * 4 + 2] = col.b; a[i * 4 + 3] = c.itemSize === 4 ? c.getW(i) : 1;
+    }
+    o.setAttribute('color', new THREE.BufferAttribute(a, 4));
+  }
+  geoCache.set(key, o);
+  return o;
+}
+const matCache = new Map();
+function ptMat(m, tint) {
+  const key = m.uuid + (tint ? tint.getHexString() : '');
+  if (!matCache.has(key)) matCache.set(key, ptMaterial(m, tint));
+  return matCache.get(key);
+}
+function addCopy(dst, o, matrix, tint) {
+  const mats = Array.isArray(o.material) ? o.material : [o.material];
+  if (mats.some(m => !m || m.isShaderMaterial || m.isRawShaderMaterial || m.isPointsMaterial || m.isLineBasicMaterial || m.wireframe)) return 0;
+  const pm = mats.map(m => ptMat(m, tint));
+  const mesh = new THREE.Mesh(ptGeometry(o.geometry, mats.some(m => m.vertexColors)), Array.isArray(o.material) ? pm : pm[0]);
+  mesh.matrixAutoUpdate = false; mesh.matrix.copy(matrix);
+  dst.add(mesh);
+  const g = o.geometry; return (g.index ? g.index.count : g.attributes.position.count) / 3;
+}
+function copyRoot(dst, root) {
+  let tris = 0;
+  if (!root || !root.visible) return 0;
+  root.updateMatrixWorld(true);
+  const im = new THREE.Matrix4(), mw = new THREE.Matrix4(), ic = new THREE.Color();
+  root.traverseVisible(o => {
+    if (!o.isMesh || o.isPoints || !o.geometry || !o.geometry.attributes.position) return;
+    if (o.isInstancedMesh) {
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, im); mw.multiplyMatrices(o.matrixWorld, im);
+        let tint = null; if (o.instanceColor) { o.getColorAt(i, ic); tint = ic.clone().convertSRGBToLinear(); }
+        tris += addCopy(dst, o, mw, tint);
+      }
+    } else tris += addCopy(dst, o, o.matrixWorld);
+  });
+  return tris;
+}
+function ptBuildScene() {
+  geoCache.clear(); matCache.forEach(m => m.dispose()); matCache.clear();
+  const sc = new THREE.Scene();
+  let tris = 0;
+  // the scan: the meshes with their own materials (not the solid / wire / flat display of Camera Pin)
+  const scan = new THREE.Group();
+  CP.scanRoot.updateMatrixWorld(true);
+  CP.scanRoot.traverse(o => { if (o.isMesh && o.userData.orig) { o.userData._ptm = o.material; o.material = o.userData.orig; } });
+  tris += copyRoot(scan, CP.scanRoot);
+  CP.scanRoot.traverse(o => { if (o.userData._ptm) { o.material = o.userData._ptm; delete o.userData._ptm; } });
+  sc.add(scan);
+  tris += copyRoot(sc, CP.envRoot);
+  if (pt.floor) {
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: lin('#808080'), roughness: 0.9 }));
+    f.position.y = pt.floorY; sc.add(f); tris += 2;
+  }
+  // the sun of Camera Pin (a directional light pointing at its target)
+  const s = CP.sun; s.updateMatrixWorld(true);
+  const sun = new THREE.DirectionalLight(s.color.clone().convertSRGBToLinear(), s.intensity);
+  sun.position.copy(s.getWorldPosition(new THREE.Vector3())); sun.target.position.copy(s.target.getWorldPosition(new THREE.Vector3()));
+  sun.userData.base = s.intensity;
+  sc.add(sun, sun.target);
+  pt.sun = sun;
+  pt.scene = sc; pt.tris = tris;
+}
+// the camera: the Camera Pin one as it is (position, rotation, field of view, plate aspect), as a physical camera for the depth of field
+function ptCamera() {
+  const { gpt } = pt.lib, c = CP.camera, st = CP.st;
+  const cam = pt.cam || (pt.cam = new gpt.PhysicalCamera());
+  cam.position.copy(c.position); cam.quaternion.copy(c.quaternion);
+  cam.fov = c.fov; cam.aspect = c.aspect; cam.near = Math.max(c.near, 0.01); cam.far = Math.max(c.far, 5000); cam.zoom = 1; cam.clearViewOffset();
+  cam.filmGauge = st.sw || 36; cam.setFocalLength(cam.getFocalLength()); // keep the field of view, set the film back for the f-stop
+  cam.focusDistance = pt.focus; cam.apertureBlades = 0;
+  cam.fStop = pt.dof ? pt.fstop : Infinity; // f-stop: aperture = focal length / f-stop (mm), as in the lens
+  cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
+  return cam;
+}
+function ptEnv() {
+  const sc = pt.scene, g = pt.gradient;
+  let env;
+  if (pt.env === 'hdri' && pt.hdri) env = pt.hdri;
+  else {
+    g.topColor.copy(lin(pt.sky)); g.bottomColor.copy(lin(pt.gnd)); g.exponent = 1; g.update(); env = g;
+  }
+  // the hemisphere light of Camera Pin as a sky: 0.85 × π of light from the colors gives 0.85 of radiance
+  sc.environment = env; sc.environmentIntensity = pt.envI * (pt.env === 'hdri' && pt.hdri ? 1 : 0.85);
+  sc.environmentRotation.set(0, pt.envR * Math.PI / 180, 0); sc.backgroundRotation.copy(sc.environmentRotation);
+  sc.background = pt.bg === 'sky' ? env : null; sc.backgroundIntensity = sc.environmentIntensity;
+  $('pt-frame').classList.toggle('sky', pt.bg === 'sky');
+  ptPlate();
+}
+function ptPlate() {
+  const im = $('pt-plate');
+  if (pt.bg !== 'plate') { im.hidden = true; return; }
+  let src = '';
+  const cv = CP.platecv;
+  if (cv && !cv.hidden && cv.width) { try { src = cv.toDataURL('image/png'); } catch (e) { src = ''; } }
+  else if (CP.plateImg.complete && CP.plateImg.naturalWidth) src = CP.plateImg.src;
+  if (src && im.src !== src) im.src = src;
+  im.hidden = !src;
+}
+function ptOut() {
+  const r = pt.renderer;
+  r.toneMapping = { linear: THREE.LinearToneMapping, aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping, neutral: THREE.NeutralToneMapping }[pt.tm] || THREE.LinearToneMapping;
+  r.toneMappingExposure = Math.pow(2, pt.exp);
+  // the output shaders change with the tone map
+  pt.denoise.material.needsUpdate = true; pt.tracer._quad.material.needsUpdate = true;
+}
+
+// ---------- size: the frame has the plate aspect and fits the viewer ----------
+function ptAspect() { return CP.camera.aspect || 1.5; }
+function ptFit() {
+  if (!pt.renderer || ptTab !== 'pathtrace') return;
+  const box = $('pt-box'), bw = box.clientWidth - 16, bh = box.clientHeight - 16;
+  if (bw < 10 || bh < 10) return;
+  const a = ptAspect();
+  let w = bw, h = bw / a; if (h > bh) { h = bh; w = bh * a; }
+  w = Math.floor(w); h = Math.floor(h);
+  const fr = $('pt-frame'); fr.style.width = w + 'px'; fr.style.height = h + 'px';
+  const r = pt.renderer, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (pt.scale === 'plate' && CP.st.plate && CP.st.plate.W) {
+    // the full plate resolution, whatever the size on screen
+    r.setPixelRatio(1); r.setSize(Math.round(CP.st.plate.W * (CP.st.par > 0 ? CP.st.par : 1)), CP.st.plate.H, false); pt.tracer.renderScale = 1;
+  } else { r.setPixelRatio(dpr); r.setSize(w, h, false); pt.tracer.renderScale = +pt.scale || 1; }
+  pt.tracer.reset(); ptGo();
+}
+
+// ---------- apply and loop ----------
+function ptApply(kind) {
+  if (!pt.built) return;
+  const tr = pt.tracer;
+  if (kind === 'scene') { ptRebuild(); return; }
+  if (kind === 'mat') { tr.bounces = pt.bounces; tr.filterGlossyFactor = pt.glossy; const n = +pt.tiles || 1; tr.tiles.set(n, n); tr.reset(); }
+  if (kind === 'env') { ptEnv(); tr.updateEnvironment(); }
+  if (kind === 'light') { pt.sun.intensity = pt.sun.userData.base * pt.sunI; tr.updateLights(); }
+  if (kind === 'cam') { ptCamera(); tr.updateCamera(); }
+  if (kind === 'out') { ptOut(); }
+  if (kind === 'size') { ptFit(); return; }
+  if (kind === 'out' && (pt.paused || tr.samples >= pt.target)) { ptDrawOnce(); }
+  ptGo();
+}
+function ptDrawOnce() {
+  // draw the samples there are again (tone map, exposure, denoise) without adding one
+  const tr = pt.tracer, q = tr._quad;
+  if (!tr.samples) return;
+  pt.renderer.setRenderTarget(null); pt.renderer.clear();
+  q.material.map = tr._pathTracer.target.texture; q.material.opacity = 1;
+  tr.renderToCanvasCallback(tr._pathTracer.target, pt.renderer, q);
+}
+function ptGo() { if (!pt.raf && pt.built && ptTab === 'pathtrace') pt.raf = requestAnimationFrame(ptLoop); }
+function ptLoop() {
+  pt.raf = 0;
+  if (ptTab !== 'pathtrace' || !pt.built) return;
+  const tr = pt.tracer;
+  if (!pt.paused && tr.samples < pt.target) {
+    if (!tr.samples) pt.t0 = performance.now();
+    try { tr.renderSample(); } catch (e) { msg('Render failed: ' + (e.message || e), true); console.error(e); return; }
+  }
+  ptStatus();
+  if (!pt.paused && tr.samples < pt.target) pt.raf = requestAnimationFrame(ptLoop);
+}
+function ptStatus() {
+  const tr = pt.tracer, n = Math.floor(tr.samples), r = pt.renderer, v = new THREE.Vector2(); r.getDrawingBufferSize(v);
+  const sz = `${Math.floor(v.x * tr.renderScale)}×${Math.floor(v.y * tr.renderScale)}`;
+  const sec = n ? ((performance.now() - pt.t0) / 1000) : 0;
+  const state = tr.isCompiling ? 'compiling shaders…' : pt.paused ? 'paused' : n >= pt.target ? 'done' : 'rendering';
+  $('pt-st').textContent = `${n} / ${pt.target} samples · ${state} · ${sz} · ${pt.tris.toLocaleString('en-US')} tris${n && state === 'done' ? '' : n ? ` · ${sec.toFixed(1)} s` : ''}`;
+  $('pt-st2').textContent = state === 'done' ? 'done' : n ? n + ' spp' : '';
+}
+
+async function ptRebuild() {
+  if (pt.busy) return;
+  pt.busy = true;
+  try {
+    await ptLib();
+    if (!pt.renderer) ptInit();
+    msg('Building the scene (BVH)…');
+    await new Promise(r => setTimeout(r, 30)); // let the message paint: the build blocks the page
+    ptBuildScene();
+    if (!pt.tris) { pt.built = false; msg('Nothing to render: load a scan or turn an environment on in Camera Pin.'); $('pt-st').textContent = '–'; return; }
+    const cam = ptCamera();
+    ptEnv(); ptOut();
+    pt.sun.intensity = pt.sun.userData.base * pt.sunI;
+    const tr = pt.tracer;
+    tr.bounces = pt.bounces; tr.filterGlossyFactor = pt.glossy; { const n = +pt.tiles || 1; tr.tiles.set(n, n); }
+    tr.setScene(pt.scene, cam);
+    pt.built = true; msg('');
+    ptFit();
+  } catch (e) {
+    console.error(e);
+    pt.built = false;
+    msg(/Failed to fetch|import|module/i.test(String(e && e.message)) ? 'The path tracer could not be loaded (it comes from the internet the first time): ' + e.message : 'Path tracer error: ' + (e.message || e), true);
+  } finally { pt.busy = false; }
+}
+function ptEnter() { if (!pt.built) ptRebuild(); else { ptFit(); ptGo(); } }
+function ptLeave() { cancelAnimationFrame(pt.raf); pt.raf = 0; }
+
+$('pt-update').addEventListener('click', () => ptRebuild());
+$('pt-restart').addEventListener('click', () => { if (!pt.built) return; pt.tracer.reset(); ptGo(); });
+$('pt-pause').addEventListener('click', () => { pt.paused = !pt.paused; $('pt-pause').setAttribute('aria-pressed', String(pt.paused)); $('pt-pause').textContent = pt.paused ? 'Resume' : 'Pause'; if (pt.built) { ptStatus(); ptGo(); } });
+$('pt-save').addEventListener('click', () => {
+  if (!pt.built || !pt.tracer.samples) return;
+  ptDrawOnce();
+  const a = document.createElement('a'); a.download = `pathtrace_${Math.floor(pt.tracer.samples)}spp.png`; a.href = $('pt-gl').toDataURL('image/png'); a.click();
+});
+$('pt-reset').addEventListener('click', () => { Object.assign(pt, PT_DEF); uiFromState(); if (pt.built) ptRebuild(); });
+$('pt-focus-c').addEventListener('click', () => {
+  if (!pt.built) return;
+  const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(0, 0), pt.cam);
+  const hit = rc.intersectObjects(pt.scene.children, true).find(h => h.object.isMesh);
+  if (!hit) return;
+  pt.focus = +hit.distance.toFixed(3); uiFromState(); ptApply('cam');
+});
+$('pt-f-hdri').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const url = URL.createObjectURL(f);
+    let tex;
+    if (/\.exr$/i.test(f.name)) tex = await new THREE.EXRLoader().loadAsync(url);
+    else { const { HDRLoader } = await import('three/addons/loaders/HDRLoader.js'); tex = await new HDRLoader().loadAsync(url); }
+    URL.revokeObjectURL(url);
+    tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.LinearSRGBColorSpace;
+    if (pt.hdri) pt.hdri.dispose();
+    pt.hdri = tex; pt.hdriName = f.name; $('pt-hdri-n').textContent = f.name;
+    pt.env = 'hdri'; uiFromState(); ptApply('env');
+  } catch (err) { console.error(err); $('pt-hdri-n').textContent = 'could not read ' + f.name; }
+});
+// for tests
+window.PT = pt;
 })();
 </script>
 </body>

@@ -307,7 +307,7 @@ Each pin shows its reprojection error in pixels.
 ## Dependencies
 
 Loaded from CDNs, so the first load needs a connection:
-- [three.js](https://threejs.org) r147, for the viewer and the loaders.
+- [three.js](https://threejs.org) r187 (0.187.0, ES modules from jsDelivr through an import map), for the viewer and the loaders.
 - Google Fonts (Inter, JetBrains Mono).
 
 ## Credits

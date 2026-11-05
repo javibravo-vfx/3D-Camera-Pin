@@ -827,16 +827,33 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
   </aside>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/fflate.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/OBJLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/PLYLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/DRACOLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/meshopt_decoder.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/FBXLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/EXRLoader.js"></script>
-<script>
+<!-- three.js 0.187.0: since r148 the loaders only exist as ES modules, so they are loaded with an import map and
+     exposed as the global THREE the app was written for; then the app scripts below (type="text/x-app") run, in order -->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE_NS from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+window.THREE = Object.assign({}, THREE_NS, { OBJLoader, PLYLoader, GLTFLoader, DRACOLoader, FBXLoader, EXRLoader });
+window.MeshoptDecoder = MeshoptDecoder;
+window.THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.187.0/';
+// keep the look of r147: hex colors are used as they are (no sRGB to linear conversion); textures and the output are still sRGB
+THREE.ColorManagement.enabled = false;
+for (const s of document.querySelectorAll('script[type="text/x-app"]')) {
+  const n = document.createElement('script'); n.textContent = s.textContent; document.body.appendChild(n);
+}
+</script>
+<script type="text/x-app">
 // Camera Pin solver: pose from 2D-3D pins with known intrinsics.
 // Camera model: Xc = R (Xw - C), u = fx*Xc.x/Xc.z + cx, v = fy*Xc.y/Xc.z + cy (OpenCV: x right, y down, z forward)
 const Solver = (() => {
@@ -1067,7 +1084,7 @@ const Solver = (() => {
 
 
 </script>
-<script>
+<script type="text/x-app">
 (() => {
 const $ = (id) => document.getElementById(id);
 const lsGet = (k, d) => { try { const v = localStorage.getItem('pinmatch.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -1136,11 +1153,11 @@ const st = {
 const vp = $('vp'), stage = $('stage'), canvas = $('gl'), plateImg = $('plate'), ov = $('ov');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, logarithmicDepthBuffer: true });
 renderer.setClearColor(0x000000, 0);
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40, 1.5, 0.05, 5000);
-scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x3a3328, 0.85));
-const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(5, 10, 7); scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x3a3328, 0.85 * Math.PI));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75 * Math.PI); sun.position.set(5, 10, 7); scene.add(sun);
 const scanRoot = new THREE.Group(); scene.add(scanRoot);
 let scanObj = null;
 const grid = new THREE.GridHelper(60, 60, 0x5ccfe0, 0x3b4654);
@@ -1719,10 +1736,10 @@ const envRoot = new THREE.Group(); envRoot.visible = false; scene.add(envRoot);
 // ---------- Chroma key (color-difference keyer on the displayed plate) ----------
 // With the key on: environment renders under the plate (its own canvas), keyed plate in the middle, scan on top.
 const envScene = new THREE.Scene();
-envScene.add(new THREE.HemisphereLight(0xdfe8f2, 0x3a3328, 0.85));
-{ const l = new THREE.DirectionalLight(0xffffff, 0.75); l.position.set(5, 10, 7); envScene.add(l); }
+envScene.add(new THREE.HemisphereLight(0xdfe8f2, 0x3a3328, 0.85 * Math.PI));
+{ const l = new THREE.DirectionalLight(0xffffff, 0.75 * Math.PI); l.position.set(5, 10, 7); envScene.add(l); }
 const envRenderer = new THREE.WebGLRenderer({ canvas: $('glenv'), antialias: true, alpha: true, logarithmicDepthBuffer: true });
-envRenderer.setClearColor(0x000000, 0); envRenderer.outputEncoding = THREE.sRGBEncoding;
+envRenderer.setClearColor(0x000000, 0); envRenderer.outputColorSpace = THREE.SRGBColorSpace;
 const key = { on: false, screen: 'green', thr: 0.06, soft: 0.18, despill: true, view: 'comp' };
 const keySrc = document.createElement('canvas');
 function keySource() {
@@ -2065,7 +2082,7 @@ let _draco = null;
 function makeGLTFLoader() {
   const l = new THREE.GLTFLoader();
   try {
-    if (!_draco && THREE.DRACOLoader) { _draco = new THREE.DRACOLoader(); _draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/draco/gltf/'); _draco.setDecoderConfig({ type: 'js' }); }
+    if (!_draco && THREE.DRACOLoader) { _draco = new THREE.DRACOLoader(); _draco.setDecoderPath(THREE_CDN + 'examples/jsm/libs/draco/gltf/'); }
     if (_draco) l.setDRACOLoader(_draco);
     if (typeof MeshoptDecoder !== 'undefined') l.setMeshoptDecoder(MeshoptDecoder);
   } catch (e) {}
@@ -3911,7 +3928,7 @@ function applyTextureFile(file) {
   if (!scanObj) return;
   const url = URL.createObjectURL(file);
   new THREE.TextureLoader().load(url, tex => {
-    tex.encoding = THREE.sRGBEncoding;
+    tex.colorSpace = THREE.SRGBColorSpace;
     tex.flipY = !(st.scanFmt === 'glb' || st.scanFmt === 'gltf');
     let meshes = 0, withUV = 0;
     scanObj.traverse(o => {
@@ -4313,11 +4330,11 @@ function buildSample() {
   // plate rendered from a hidden "real" camera on a hood mount: Alexa Mini LF Open Gate, 24 mm, looking back through the windshield
   const W = 1920, H = 1336, f = 24, sw = 36.70;
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  r.setSize(W, H, false); r.setPixelRatio(1); r.outputEncoding = THREE.sRGBEncoding;
+  r.setSize(W, H, false); r.setPixelRatio(1); r.outputColorSpace = THREE.SRGBColorSpace;
   const sc = new THREE.Scene();
   sc.background = new THREE.Color(0x1fa64a); // green screen behind the car
-  sc.add(new THREE.HemisphereLight(0xeef3f8, 0x55504a, 0.8));
-  const s2 = new THREE.DirectionalLight(0xfff1dc, 0.85); s2.position.set(-6, 10, -8); sc.add(s2);
+  sc.add(new THREE.HemisphereLight(0xeef3f8, 0x55504a, 0.8 * Math.PI));
+  const s2 = new THREE.DirectionalLight(0xfff1dc, 0.85 * Math.PI); s2.position.set(-6, 10, -8); sc.add(s2);
   sc.add(sampleGeometry(true, true));
   // green stage floor
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1fa64a })); sc.add(ground);

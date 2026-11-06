@@ -11,7 +11,7 @@ This is the **3D Camera Pin edition of [BackplateLab](https://github.com/legandr
 - **3D Camera Pin | Environment** — pins on the scan, the street behind the car and its motion, and the camera export.
 - **Path Trace** — a GPU path tracer on that camera, scan and environment (below).
 
-The version is shown in the app (`v1.007`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces is the tag [`v1.006-single-file`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/v1.006-single-file).
+The version is shown in the app (`v1.007`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces (v1.006) is the branch [`single-file-v1.006`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/single-file-v1.006).
 
 ## Running it
 

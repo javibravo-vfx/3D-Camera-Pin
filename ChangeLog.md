@@ -3,6 +3,7 @@
 One line per change, newest first. The version is in the app, next to its name at the top left (the BackplateLab version
 it comes from is in its tooltip); it goes up by 0.001 with every change.
 
+v1.010: New Lookdev tab: drop a model (GLB, OBJ with its .mtl and textures, FBX, PLY) and it is set on the ground, framed and lit by an HDRI (18 from Poly Haven or yours), with a fixed turntable (the model turns, then the light), chrome and grey balls, ColorChecker, shadow catcher, clay, Raster or Path trace, Navigate with Back to camera, Measure, and a playblast to MP4 with a burn-in like VFX Shooting Sup, previewed on the viewport. [ Lookdev - New tab ]
 v1.009: The Path Trace tab is out: the path tracer is now the Path trace engine of 3D Render, the same as in BackplateLab. [ Edition - Path Trace out ]
 v1.008: The 3D Assets and 3D Render tabs of BackplateLab are in too, the same as there. [ Edition - 3D Assets and 3D Render ]
 v1.007: 3D Camera Pin is now the 3D Camera Pin edition of BackplateLab: its tabs Import and Measure, 2D Camera Match and 3D Camera Pin | Environment, the same as there, replace the Camera Pin and Import tabs; Path Trace stays, on that camera, scan and environment, with its playblast in its own bar. Updated from BackplateLab with tools/sync_backplatelab.mjs. [ Edition - BackplateLab tabs ]

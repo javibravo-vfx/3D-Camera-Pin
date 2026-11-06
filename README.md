@@ -11,8 +11,9 @@ This is the **3D Camera Pin edition of [BackplateLab](https://github.com/legandr
 - **3D Camera Pin | Environment** — pins on the scan, the street behind the car and its motion, and the camera export.
 - **3D Assets** — four 3D viewports with the pieces of the environment (cars, people, street lights, buildings…), to replace them with imported assets fitted to their pivot.
 - **3D Render** — the environment lit by an HDRI and a sun from the place, date and time of the shot, seen from the shot camera, from the top and from a free camera, with the raster and the path trace engines of BackplateLab (the path tracer of 3D Camera Pin lives there now).
+- **Lookdev** — this edition's own tab (below): a turntable of a model lit by an HDRI.
 
-The version is shown in the app (`v1.009`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces (v1.006) is the branch [`single-file-v1.006`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/single-file-v1.006).
+The version is shown in the app (`v1.010`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces (v1.006) is the branch [`single-file-v1.006`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/single-file-v1.006).
 
 ## Running it
 
@@ -34,6 +35,19 @@ node tools/sync_backplatelab.mjs <folder of the BackplateLab clone>
 
 It copies the files BackplateLab publishes and adds the hooks of `edition/`: `cp-edition.js` keeps only those tabs (the list is `CP_EDITION.tabs`) and `cp-edition-late.js` puts the name and version of the edition. `edition/BACKPLATELAB.txt` says which version and commit it came from. If BackplateLab changed one of the places a hook goes, the sync stops and says which.
 
+## Lookdev
+
+The **Lookdev** tab is the Lookdev Rig of the 3ds Max toolbar in the browser: drop a model and look at it turning under an HDRI.
+
+- **Model:** drop it on the viewport or **Load model**: GLB / GLTF (textures embedded, or the .gltf with its .bin and images), OBJ with its .mtl and images (drop or select them together; the texture paths of another machine are matched by file name), FBX, PLY. It is set on the ground, centred and framed. **Up axis** (Auto: glTF and FBX are Y up; an OBJ / PLY much taller in Z comes from a Z up program), **Facing** in 90° steps and **File units** (Auto by its size: cm or mm when it is very big).
+- **Light:** an HDRI from the library (18 small HDRIs of [Poly Haven](https://polyhaven.com/hdris), CC0, 512 px, in `edition/hdri/`) or one of yours (.hdr / .exr), with rotation, exposure (EV) and tone map. **HDRI** in the bar hides it behind the model (it keeps lighting it; the background color is in Light).
+- **Turntable:** always the same length, so every playblast turns the same way: frames 1–120 the camera and the light orbit the model together (it turns under a fixed light, like the root of the Max rig), frames 121–240 the light alone turns 360°, in the same direction. 24 fps, 10 s. Direction, lens (36 mm wide film, 16:9), camera height and framing.
+- **References**, like the rig: chrome ball, 18% grey ball and a ColorChecker (unlit, its sRGB values) fixed in the lower right corner of the frame, and a shadow catcher: a contact shadow in Raster; in Path trace an 18% grey floor with the real shadows of the HDRI (the path tracer has no shadow-only material). The references sit above the lower bar of the burn-in when it is on. **Clay** puts a grey material on the whole model.
+- **Navigate** (N, the Nav mouse style of the app; wheel to zoom) leaves the turntable camera; **Back to camera** (F) returns. **Measure** (M): two clicks on the model, in meters and centimeters.
+- **Raster** or **Path trace** (three-gpu-pathtracer, from `vendor/`): it renders 1280 × 720 on the viewport, coarse while the view moves and filling in up to the samples when it stops.
+- **Playblast:** the 240 frames from the turntable camera to an MP4 (1080p or 720p), with the engine of the viewport (Path trace with a quality preset: Draft 16 samples / 3 bounces, Preview 64 / 4, Good 256 / 6, Final 1024 / 8, or the ones of the panel) and the **burn-in**: the letters of VFX Shooting Sup (Monitor or Mono, small or large, info and title align, bar darkness) with project, asset, HDRI with its rotation and EV, lens, engine, frame and pass, date and artist, each one on or off. **Burn-in** in the bar previews it on the viewport.
+- Its settings are remembered in the browser; the model is not (drop it again).
+
 ## Credits
 
-BackplateLab: Lega Pugliese, Charly Villafañe and Javi Bravo. 3D Camera Pin: Javi Bravo. Third-party libraries and their licenses: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+BackplateLab: Lega Pugliese, Charly Villafañe and Javi Bravo. 3D Camera Pin: Javi Bravo. Third-party libraries and their licenses: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md); the HDRIs of Lookdev are from [Poly Haven](https://polyhaven.com) (CC0), resized by [pmndrs/assets](https://github.com/pmndrs/assets) (`edition/hdri/LICENSE.txt`).

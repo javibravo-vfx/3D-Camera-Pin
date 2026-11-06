@@ -1,0 +1,5 @@
+HDRIs of the Lookdev tab (edition/hdri/*.exr)
+
+From Poly Haven (https://polyhaven.com/hdris), CC0 1.0 Universal (public domain): free to use for any purpose,
+no attribution required. Resized to 512 px and converted to EXR (DWAB) by pmndrs/assets
+(https://github.com/pmndrs/assets, package @pmndrs/assets 1.7.0, CC0-1.0).

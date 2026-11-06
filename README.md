@@ -9,9 +9,11 @@ This is the **3D Camera Pin edition of [BackplateLab](https://github.com/legandr
 - **Import and Measure** — the plate, its set report and metadata, and the scan, each in its pane; measure and scale the scan.
 - **2D Camera Match** — the perspective from vanishing lines on the plate, like Perspective Match in 3ds Max.
 - **3D Camera Pin | Environment** — pins on the scan, the street behind the car and its motion, and the camera export.
+- **3D Assets** — four 3D viewports with the pieces of the environment (cars, people, street lights, buildings…), to replace them with imported assets fitted to their pivot.
+- **3D Render** — the environment lit by an HDRI and a sun from the place, date and time of the shot, seen from the shot camera, from the top and from a free camera, with the raster and the path trace engines of BackplateLab.
 - **Path Trace** — a GPU path tracer on that camera, scan and environment (below).
 
-The version is shown in the app (`v1.007`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces (v1.006) is the branch [`single-file-v1.006`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/single-file-v1.006).
+The version is shown in the app (`v1.008`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces (v1.006) is the branch [`single-file-v1.006`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/single-file-v1.006).
 
 ## Running it
 
@@ -31,7 +33,7 @@ The app files (`index.html`, `js/`, `css/`, `fonts/`, `vendor/`, `tours/`, `asse
 node tools/sync_backplatelab.mjs <folder of the BackplateLab clone>
 ```
 
-It copies the files BackplateLab publishes and adds the hooks of `edition/`: `cp-edition.js` keeps only the three tabs (the list is `CP_EDITION.tabs`), `cp-pathtrace.js` is the Path Trace tab and `cp-edition-late.js` puts it in the tab bar with the name and version of the edition. `edition/BACKPLATELAB.txt` says which version and commit it came from. If BackplateLab changed one of the places a hook goes, the sync stops and says which.
+It copies the files BackplateLab publishes and adds the hooks of `edition/`: `cp-edition.js` keeps only those tabs (the list is `CP_EDITION.tabs`), `cp-pathtrace.js` is the Path Trace tab and `cp-edition-late.js` puts it in the tab bar with the name and version of the edition. `edition/BACKPLATELAB.txt` says which version and commit it came from. If BackplateLab changed one of the places a hook goes, the sync stops and says which.
 
 ## Path Trace
 

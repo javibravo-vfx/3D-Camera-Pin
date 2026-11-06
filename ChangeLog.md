@@ -3,6 +3,7 @@
 One line per change, newest first. The version is in the app, next to its name at the top left (the BackplateLab version
 it comes from is in its tooltip); it goes up by 0.001 with every change.
 
+v1.011: Lookdev: Lens, Height, Framing and Exp on the viewport (slider and number); the Viewer of 3D Render (ACES 1.0 · Rec.709 / sRGB, Rec.709, sRGB, Raw) with Raster in ACEScg; USDZ / USD, a dropped folder and the ZIP of Sketchfab (the .gltf with its textures/ folder); Offset to move the model off the centre; Back to camera highlighted while the view is moved; the playblast with the encoder of the other tabs (it failed with "track.info.decoderConfig is null"). The 18 HDRIs of Lookdev are in 3D Render too (HDRI › Library). [ Lookdev - Viewer, USDZ and playblast ]
 v1.010: New Lookdev tab: drop a model (GLB, OBJ with its .mtl and textures, FBX, PLY) and it is set on the ground, framed and lit by an HDRI (18 from Poly Haven or yours), with a fixed turntable (the model turns, then the light), chrome and grey balls, ColorChecker, shadow catcher, clay, Raster or Path trace, Navigate with Back to camera, Measure, and a playblast to MP4 with a burn-in like VFX Shooting Sup, previewed on the viewport. [ Lookdev - New tab ]
 v1.009: The Path Trace tab is out: the path tracer is now the Path trace engine of 3D Render, the same as in BackplateLab. [ Edition - Path Trace out ]
 v1.008: The 3D Assets and 3D Render tabs of BackplateLab are in too, the same as there. [ Edition - 3D Assets and 3D Render ]

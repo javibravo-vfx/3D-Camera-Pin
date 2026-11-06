@@ -1,12 +1,14 @@
 // 3D Camera Pin edition: the Lookdev tab, the turntable of the Lookdev Rig of the 3ds Max toolbar in the browser.
-// Drop a model (GLB / GLTF with its textures embedded, OBJ with its .mtl and images, FBX, PLY): it is set on the ground,
+// Drop a model (GLB, GLTF, USDZ / USD, FBX, OBJ with its .mtl and images, PLY; a whole folder or a ZIP as Sketchfab gives
+// them): it is set on the ground,
 // centred and framed by a camera; an HDRI lights it (a library of small HDRIs from Poly Haven in edition/hdri/, or one
 // of yours). Play runs the turntable, always the same length: first the camera and the light orbit the model together
 // (the model turns under a fixed light, like the root of the Max rig), then the light alone turns 360°, in the same
 // direction. References like the rig: chrome ball, 18% grey ball and a ColorChecker in a corner of the frame, fixed on
 // screen, and a shadow catcher under the model. Raster or Path trace (three-gpu-pathtracer, from vendor/), a measuring
 // tool, free navigation with Back to camera, and a playblast to MP4 with a burn-in like the one of VFX Shooting Sup
-// (previewed on the viewport).
+// (previewed on the viewport). Color like 3D Render: Raster works in ACEScg, the path tracer in linear Rec.709, and
+// the Viewer (js/render3d-color.js: ACES 1.0 · Rec.709 / sRGB, Rec.709, sRGB, Raw) takes the image to the screen.
 // It is a tab of the module bar (edition/cp-edition.js adds it) with its own page in place of the app: it has its own
 // scene and renderer and does not touch the rest of the app.
 (() => {
@@ -14,9 +16,7 @@ const $ = (id) => document.getElementById(id);
 // ---------- constants ----------
 // the turntable: fixed, so every playblast turns the same way and at the same speed
 const LK_FPS = 24, LK_OBJ = 120, LK_LIGHT = 120, LK_N = LK_OBJ + LK_LIGHT; // frames 1–120: model; 121–240: light
-const LK_HDRIS = [['studio', 'Studio'], ['apartment', 'Apartment'], ['lobby', 'Lobby'], ['hall', 'Hall'], ['lab', 'Lab'], ['warehouse', 'Warehouse'], ['workshop', 'Workshop'],
-  ['city', 'City'], ['bridge', 'Bridge'], ['esplanade', 'Esplanade'], ['venice', 'Venice'], ['park', 'Park'], ['forest', 'Forest'], ['sky', 'Sky'],
-  ['dawn', 'Dawn'], ['sunrise', 'Sunrise'], ['sunset', 'Sunset'], ['night', 'Night']];
+const LK_HDRIS = CP_HDRIS; // edition/cp-edition.js (the 3D Render tab has them too)
 const LK_FILM_W = 36, LK_ASPECT = 16 / 9;
 // ColorChecker Classic, sRGB 8 bit (the 24 patches, row by row)
 const LK_CHART = [[115, 82, 68], [194, 150, 130], [98, 122, 157], [87, 108, 67], [133, 128, 177], [103, 189, 170],
@@ -27,17 +27,21 @@ const LK_PB_Q = { draft: [16, 3], preview: [64, 4], good: [256, 6], final: [1024
 const LK_FONT = { monitor: { css: '--f-ui', w: 500, wv: 700, track: 0.07 }, mono: { css: '--f-num', w: 400, wv: 600, track: 0.02 } };
 const LK_TEXT = { small: 0.0125, large: 0.016 };
 const LK_FIELDS = [['project', 'Project'], ['asset', 'Asset'], ['hdri', 'HDRI'], ['lens', 'Lens'], ['frame', 'Frame'], ['date', 'Date'], ['artist', 'Artist']];
-const LK_DEF = { hdri: 'studio', rot: 0, ev: 0, show: true, bg: '#3a3a3a', blur: 0, tm: 'aces', up: 'auto', yaw: 0, units: 'auto', clay: false,
+const LK_DEF = { hdri: 'studio', rot: 0, ev: 0, show: true, bg: '#3a3a3a', blur: 0, view: 'aces709', up: 'auto', yaw: 0, units: 'auto', clay: false, offX: 0, offY: 0, offZ: 0,
   chrome: true, grey: true, chart: true, shadow: true, dir: 'ccw', lens: 50, elev: 10, fill: 0.8, engine: 'raster', spp: 512, bounces: 6, dn: true,
   burn: true, project: '', artist: '', fields: { project: true, asset: true, hdri: true, lens: true, frame: true, date: true, artist: false },
   text: 'small', font: 'monitor', align: 'left', talign: 'left', bars: 0.6, pbSize: '1080', pbQ: 'preview' };
 const lkSaved = (() => { const v = lsGet('lkd', {}); return v && typeof v === 'object' ? v : {}; })();
 const lk = Object.assign({}, LK_DEF, lkSaved, { fields: Object.assign({}, LK_DEF.fields, lkSaved.fields || {}) });
+if (!R3_VIEWS.some(v => v[0] === lk.view)) lk.view = LK_DEF.view;
+// the model formats (the main file of what is dropped) and what the file pickers take
+const LK_MODEL_RE = /\.(glb|gltf|usdz|usdc|usda|usd|fbx|obj|ply)$/i;
+const LK_ACCEPT = '.glb,.gltf,.bin,.usdz,.usdc,.usda,.usd,.fbx,.obj,.mtl,.ply,.zip,image/*';
 const lkSave = () => { const o = {}; for (const k of Object.keys(LK_DEF)) o[k] = lk[k]; lsSet('lkd', o); };
 // runtime
 const L = { on: false, frame: 1, playing: false, t0: 0, f0: 1, raf: 0, dirty: true, model: null, modelName: '', fileUnit: 1, root: null, pivot: null,
   r: 1, c: new THREE.Vector3(), free: false, freeCam: null, nav: null, measure: false, mA: null, mB: null, hdriTex: null, hdriName: '', pmrem: null, envMap: null,
-  userHdri: null, tracer: null, ptLib: null, ptBuilt: false, ptBusy: false, pbBusy: false, tris: 0, refs: null, shadowR: null, shadowPT: null, clayMat: null, keyT: 0 };
+  userHdri: null, hdriWs: null, rtB: null, rtD: null, qView: null, tracer: null, ptLib: null, ptBuilt: false, ptBusy: false, pbBusy: false, tris: 0, refs: null, shadowR: null, shadowPT: null, clayMat: null, keyT: 0 };
 
 // ---------- page ----------
 const lkIcon = (p) => `<svg viewBox="0 0 24 24">${p}</svg>`;
@@ -47,7 +51,7 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
     <div class="vbar"><div class="lkd-bar">
       <button class="tool" id="lkd-nav" aria-pressed="true" title="Navigate (N): the Nav mouse style of the app (it leaves the turntable camera; Back to camera returns)" aria-label="Navigate">${lkIcon('<ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M17.5 6.2 21 8.3l-1.2 3.6"/><circle cx="12" cy="12" r="1.6"/><path d="M12 3v3M12 18v3"/>')}<kbd>N</kbd></button>
       <button class="tool" id="lkd-meas" aria-pressed="false" title="Measure (M): click two points on the model" aria-label="Measure">${lkIcon('<rect x="2.5" y="8" width="19" height="8" rx="1" transform="rotate(-30 12 12)"/><path d="m7.3 13.9-1-1.7M10.3 12.2l-1.5-2.6M13.3 10.4l-1-1.7M16.3 8.7l-1.5-2.6"/>')}<kbd>M</kbd></button>
-      <button class="btn sm" id="lkd-back" title="Back to the turntable camera (F)" disabled>Back to camera</button>
+      <button class="btn sm primary r3back lkd-back" id="lkd-back" hidden title="The view was moved: this is a free camera. Back to the turntable camera (F); the turntable itself never changed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg>Back to camera</button>
       <span class="sep"></span>
       <button class="vpchip" id="lkd-c-show" aria-pressed="true" title="Show the HDRI behind the model; hidden, it still lights it (the background color is in Light)">${lkIcon('<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>')}HDRI</button>
       <button class="vpchip" id="lkd-c-clay" aria-pressed="false" title="Clay: a grey material on the whole model">${lkIcon('<path d="M12 3c4 0 7 3 7 7 0 5-3 11-7 11S5 15 5 10c0-4 3-7 7-7z"/>')}Clay</button>
@@ -55,16 +59,24 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <button class="vpchip" id="lkd-c-burn" aria-pressed="true" title="Preview the burn-in of the playblast on the viewport (Burn-in)">${lkIcon('<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 8.5h18M3 15.5h18"/>')}Burn-in</button>
       <span class="sep"></span>
       <div class="seg" role="group" aria-label="Engine"><button id="lkd-e-raster" aria-pressed="true" title="Raster: fast; the shadow under the model is a contact shadow">Raster</button><button id="lkd-e-pt" aria-pressed="false" title="Path trace: light that really bounces and real shadows (the catcher is an 18% grey floor); it fills in while the view is still">Path trace</button></div>
+      <select class="lkd-vt" id="lkd-view" aria-label="Viewer" title="Viewer: how the render goes to the screen, as in 3D Render and the Viewer of the plate (Raster works in ACEScg, Path trace in linear Rec.709). ACES 1.0 · Rec.709 or sRGB: the ACES output transform for that display">${R3_VIEWS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <span class="fmt" id="lkd-st">–</span>
+    </div>
+    <div class="lkd-bar lkd-bar2">
+      ${[['lens', 'Lens', 12, 300, 1, 'mm', 'Lens of the turntable camera, full frame (36 mm wide), 16:9 (double click: 50)'],
+        ['elev', 'Height', -30, 80, 1, '°', 'Height of the camera: its angle above the centre of the model (double click: 10)'],
+        ['fill', 'Framing', 0.3, 1.2, 0.01, '', 'How much of the frame the model takes (double click: 0.8)'],
+        ['ev', 'Exp', -6, 6, 0.1, 'EV', 'Exposure, in stops (EV), before the Viewer: both engines (double click: 0)']].map(([k, n, mn, mx, st, u, t]) =>
+        `<label class="vpchip lkd-vk" title="${t}">${n} <input id="lkd-v-${k}-r" type="range" min="${mn}" max="${mx}" step="${st}" aria-label="${n}"><input id="lkd-v-${k}" class="lkd-vnum" type="number" min="${mn}" max="${mx}" step="${st}" aria-label="${n}${u ? ' (' + u + ')' : ''}">${u ? `<span class="note">${u}</span>` : ''}</label>`).join('')}
     </div></div>
     <div class="lkd-box" id="lkd-box">
       <div class="lkd-frame" id="lkd-frame">
         <canvas id="lkd-gl"></canvas><canvas id="lkd-burncv"></canvas><svg class="lkd-ov" id="lkd-ov"></svg>
         <div class="lkd-mpop" id="lkd-mpop" hidden><span id="lkd-md">–</span><button class="btn sm ghost" id="lkd-mx" title="Clear (Esc)">×</button></div>
       </div>
-      <div class="lkd-empty" id="lkd-empty"><b>Drop a 3D model here</b><span class="note">GLB / GLTF (textures embedded), OBJ with its .mtl and images (select or drop them together), FBX, PLY</span><span class="file btn primary">Load model<input id="lkd-f" type="file" multiple accept=".glb,.gltf,.bin,.obj,.mtl,.fbx,.ply,image/*"></span></div>
+      <div class="lkd-empty" id="lkd-empty"><b>Drop a 3D model here</b><span class="note">GLB, GLTF, USDZ / USD, FBX, OBJ with its .mtl and images, PLY. A model with its textures apart: drop its whole folder or the ZIP (like the downloads of Sketchfab), or select the files together</span><span class="file btn primary">Load model<input id="lkd-f" type="file" multiple accept="${LK_ACCEPT}"></span></div>
       <p class="lkd-busy" id="lkd-busy" hidden></p>
-      <div class="lkd-drop" id="lkd-drop" hidden>Drop the model (and its .mtl and textures)</div>
+      <div class="lkd-drop" id="lkd-drop" hidden>Drop the model, its folder or its ZIP</div>
     </div>
     <div class="lkd-play">
       <button class="btn sm ghost" id="lkd-p-first" title="First frame (Home)" aria-label="First frame">${lkIcon('<path d="M6 5v14M18 6l-9 6 9 6z"/>')}</button>
@@ -79,24 +91,24 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
   <div></div>
   <aside class="props" aria-label="Lookdev settings"><div class="scroll">
     <section class="step" id="lkd-s-model"><h2 tabindex="0">Model<span class="st" id="lkd-model-st">none</span></h2><div class="body">
-      <div class="knobrow"><span>File</span><div class="row"><span class="file btn">Load model<input id="lkd-f2" type="file" multiple accept=".glb,.gltf,.bin,.obj,.mtl,.fbx,.ply,image/*"></span><span class="note" id="lkd-model-n">none</span></div></div>
+      <div class="knobrow"><span>File</span><div class="row"><span class="file btn">Load model<input id="lkd-f2" type="file" multiple accept="${LK_ACCEPT}"></span><span class="note" id="lkd-model-n">none</span></div></div>
       <p class="note" id="lkd-model-msg" hidden></p>
       <label class="fld" for="lkd-up">Up axis<select id="lkd-up"><option value="auto">Auto (from the file)</option><option value="y">Y up</option><option value="z">Z up</option><option value="-z">−Z up</option><option value="x">X up</option></select></label>
       <label class="fld" for="lkd-yaw">Facing<select id="lkd-yaw"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label>
       <label class="fld" for="lkd-units">File units<select id="lkd-units"><option value="auto">Auto (by size)</option><option value="1">Meters</option><option value="0.01">Centimeters</option><option value="0.001">Millimeters</option><option value="0.0254">Inches</option></select></label>
       <div class="knobrow"><span>Size</span><span class="note" id="lkd-dims">–</span></div>
+      <div class="knobrow" title="Moves the model away from the centre of the turntable, in meters: the camera keeps looking at the centre, so the model turns off-centre"><span>Offset (m)</span><div class="lkd-off">${['X', 'Y', 'Z'].map(a => `<label for="lkd-off${a.toLowerCase()}">${a}<input id="lkd-off${a.toLowerCase()}" type="number" step="0.01"></label>`).join('')}<button class="btn sm ghost" id="lkd-off0" title="No offset">0</button></div></div>
       <div class="row k"><button class="btn sm ghost" id="lkd-remove" disabled>Remove model</button></div>
     </div></section>
     <section class="step" id="lkd-s-light"><h2 tabindex="0">Light<span class="st" id="lkd-light-st"></span></h2><div class="body">
       <label class="fld" for="lkd-hdri">HDRI<select id="lkd-hdri">${LK_HDRIS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}<option value="user" disabled>Your HDRI</option></select></label>
       <div class="knobrow"><span>Your HDRI</span><div class="row"><span class="file btn sm">Load .hdr / .exr<input id="lkd-fh" type="file" accept=".hdr,.exr"></span><span class="note" id="lkd-hdri-n">–</span></div></div>
       <label class="fld" for="lkd-rot">Rotation<input id="lkd-rot" type="number" step="1" min="-180" max="180"></label>
-      <label class="fld" for="lkd-ev">Exposure (EV)<input id="lkd-ev" type="number" step="0.1" min="-10" max="10"></label>
-      <label class="fld" for="lkd-tm">Tone map<select id="lkd-tm"><option value="aces">ACES Filmic</option><option value="agx">AgX</option><option value="neutral">Neutral</option><option value="none">None</option></select></label>
+      <label class="fld" for="lkd-ev">Exposure (EV)<input id="lkd-ev" type="number" step="0.1" min="-10" max="10" title="Before the Viewer (the Viewer is on the bar of the view)"></label>
       <div class="knobrow"><label for="lkd-show">Show the HDRI</label><input id="lkd-show" type="checkbox"></div>
       <div class="knobrow"><label for="lkd-bgc">Background</label><div class="row"><input id="lkd-bgc" type="color"><span class="note">when the HDRI is hidden</span></div></div>
       <label class="fld" for="lkd-blur" title="Blur of the HDRI behind the model (Raster)">Blur<input id="lkd-blur" type="number" step="0.05" min="0" max="1"></label>
-      <p class="note">HDRIs: a selection of <a href="https://polyhaven.com/hdris" target="_blank" rel="noopener">Poly Haven</a> (CC0), 512 px, for the light. Load one of yours for a sharp background.</p>
+      <p class="note">Color: the HDRI is linear Rec.709; Raster lights in ACEScg and Path trace in linear Rec.709, and the Viewer on the bar of the view takes it to the screen. HDRIs: a selection of <a href="https://polyhaven.com/hdris" target="_blank" rel="noopener">Poly Haven</a> (CC0), 512 px, for the light. Load one of yours for a sharp background.</p>
     </div></section>
     <section class="step" id="lkd-s-turn"><h2 tabindex="0">Turntable &amp; camera</h2><div class="body">
       <p class="note">Fixed length, always the same: frames 1–${LK_OBJ} the camera and the light orbit the model together (it turns under a fixed light), frames ${LK_OBJ + 1}–${LK_N} the light alone turns 360°, in the same direction. ${LK_FPS} fps, ${LK_N / LK_FPS} s.</p>
@@ -143,7 +155,7 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
     <div class="lkd-pbbar"><i id="lkd-pb-bar"></i></div>
     <p class="note" id="lkd-pb-st"></p>
     <video id="lkd-pb-video" controls muted playsinline hidden></video>
-    <div class="start-btns"><a class="btn" id="lkd-pb-save" hidden>Save MP4</a><button class="btn ghost" id="lkd-pb-x">Cancel</button></div>
+    <div class="start-btns"><button class="btn" id="lkd-pb-save" hidden title="Save it again (Downloads; the desktop app asks where)">Save MP4</button><button class="btn" id="lkd-pb-saveas" hidden title="Pick the folder">Save as…</button><button class="btn ghost" id="lkd-pb-x">Cancel</button></div>
   </div>
 </div>`);
 document.querySelectorAll('#lkdapp .step > h2').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('closed')));
@@ -155,24 +167,100 @@ const canvas = $('lkd-gl'), burnCv = $('lkd-burncv');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = false;
+renderer.toneMapping = THREE.NoToneMapping; // the Viewer does the tone mapping (lkView)
 const scene = new THREE.Scene();
 const cam = new THREE.PerspectiveCamera(30, LK_ASPECT, 0.01, 1000);
 scene.add(cam);
 const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+// ---------- color: Raster in ACEScg, Path trace in linear Rec.709; the Viewer of 3D Render to the screen ----------
+// the materials of the model and of the references: color, textures, vertex colors and emissive to AP1 in the shader
+// (Raster only: the path tracer reads the same materials in Rec.709)
+function lkWs(m) {
+  if (!m || m.userData.lkWs || !(m.isMeshStandardMaterial || m.isMeshPhysicalMaterial)) return m;
+  m.userData.lkWs = true;
+  r3WsPatch(m);
+  const base = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    base(sh, r);
+    sh.fragmentShader = sh.fragmentShader.replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( R3_TO_AP1 * diffuse, opacity );')
+      .replace('vec3 totalEmissiveRadiance = emissive;', 'vec3 totalEmissiveRadiance = R3_TO_AP1 * emissive;');
+  };
+  m.customProgramCacheKey = () => 'lkws';
+  m.needsUpdate = true;
+  return m;
+}
+const LK_VIEW_SHADER = {
+  uniforms: { tSrc: { value: null }, view: { value: 0 }, exposure: { value: 1 }, in709: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tSrc; uniform int view; uniform float exposure, in709; varying vec2 vUv;
+    ${R3_VIEW_GLSL}
+    ${R3_TO_AP1_GLSL}
+    void main() {
+      vec4 s = texture2D(tSrc, vUv); vec3 c = s.rgb;
+      // the path tracer: linear Rec.709, premultiplied by its alpha
+      if (in709 > 0.5) { if (s.a > 1e-4) c /= s.a; c = R3_TO_AP1 * c; }
+      gl_FragColor = vec4(r3ViewEnc(r3ViewLin(max(c, 0.0) * exposure, view), view), 1.0);
+    }`,
+};
+// a float target the size of the canvas (the image before the Viewer)
+function lkRT(key, samples) {
+  const sz = renderer.getDrawingBufferSize(new THREE.Vector2());
+  let t = L[key];
+  if (!t || t.width !== sz.x || t.height !== sz.y) {
+    if (t) t.dispose();
+    t = L[key] = new THREE.WebGLRenderTarget(sz.x, sz.y, { type: THREE.HalfFloatType, samples: samples || 0, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+    t.texture.colorSpace = THREE.LinearSRGBColorSpace;
+  }
+  return t;
+}
+function lkView(tex, in709) {
+  if (!L.qView) { L.qView = new THREE.FullScreenQuad(new THREE.ShaderMaterial(LK_VIEW_SHADER)); L.qView.material.depthTest = false; }
+  const u = L.qView.material.uniforms;
+  u.tSrc.value = tex; u.view.value = r3ViewIndex(lk.view); u.exposure.value = r3ExpGain(lk.ev); u.in709.value = in709 ? 1 : 0;
+  renderer.setRenderTarget(null); L.qView.render(renderer);
+}
+function lkRasterDraw() {
+  const t = lkRT('rtB', 4);
+  renderer.setRenderTarget(t); renderer.render(scene, cam); renderer.setRenderTarget(null);
+  lkView(t.texture, false);
+}
+// one sample of the path tracer, into a float target, and the Viewer
+function lkPtSample() {
+  const t = lkRT('rtP', 0);
+  renderer.setRenderTarget(t);
+  try { L.tracer.renderSample(); } finally { renderer.setRenderTarget(null); }
+  lkView(t.texture, true);
+}
 const lkVfov = () => 2 * Math.atan((LK_FILM_W / LK_ASPECT) / 2 / lk.lens) * 180 / Math.PI;
 
 // ---------- HDRI ----------
 async function lkLoadHdri(name) {
   let tex, label;
   if (name === 'user' && L.userHdri) { tex = L.userHdri.tex; label = L.userHdri.name; }
-  else { tex = await new THREE.EXRLoader().loadAsync(`edition/hdri/${name}.exr`); label = (LK_HDRIS.find(h => h[0] === name) || [name, name])[1]; }
+  else { const ld = new THREE.EXRLoader(); ld.setDataType(THREE.FloatType); tex = await ld.loadAsync(`edition/hdri/${name}.exr`); label = (LK_HDRIS.find(h => h[0] === name) || [name, name])[1]; }
   tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.LinearSRGBColorSpace;
   if (L.hdriTex && L.hdriTex !== tex && !(L.userHdri && L.hdriTex === L.userHdri.tex)) L.hdriTex.dispose();
   L.hdriTex = tex; L.hdriName = label;
+  // Raster: the same HDRI in ACEScg (the path tracer takes it as it is, linear Rec.709)
+  if (L.hdriWs) L.hdriWs.dispose();
+  L.hdriWs = lkHdriWs(tex);
   if (!L.pmrem) L.pmrem = new THREE.PMREMGenerator(renderer);
   if (L.envMap) L.envMap.dispose();
-  L.envMap = L.pmrem.fromEquirectangular(tex).texture;
+  L.envMap = L.pmrem.fromEquirectangular(L.hdriWs).texture;
   lkEnv(); if (lk.engine === 'pt' && L.ptBuilt && L.tracer) L.tracer.updateEnvironment(); lkDirty();
+}
+function lkHdriWs(tex) {
+  const im = tex.image, n = im.width * im.height, src = im.data, ch = Math.round(src.length / n), M = R3_709_TO_AP1;
+  const half = src instanceof Uint16Array, rd = half ? (i) => THREE.DataUtils.fromHalfFloat(src[i]) : (i) => src[i];
+  const out = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    const r = rd(i * ch), g = rd(i * ch + 1), b = rd(i * ch + 2), o = i * 4;
+    out[o] = M[0] * r + M[1] * g + M[2] * b; out[o + 1] = M[3] * r + M[4] * g + M[5] * b; out[o + 2] = M[6] * r + M[7] * g + M[8] * b; out[o + 3] = 1;
+  }
+  const t = new THREE.DataTexture(out, im.width, im.height, THREE.RGBAFormat, THREE.FloatType);
+  t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.LinearSRGBColorSpace; t.flipY = tex.flipY;
+  t.magFilter = t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  return t;
 }
 // the light of the turntable: the HDRI rotation plus the orbit of the rig (and the light pass)
 function lkAngles(f = L.frame) {
@@ -183,12 +271,12 @@ function lkAngles(f = L.frame) {
 }
 function lkEnv() {
   const a = lkAngles(), ry = (lk.rot + a.light) * Math.PI / 180;
-  scene.environment = lk.engine === 'pt' ? L.hdriTex : L.envMap;
+  const pt = lk.engine === 'pt';
+  scene.environment = pt ? L.hdriTex : L.envMap;
   scene.environmentRotation.set(0, ry, 0); scene.backgroundRotation.set(0, ry, 0);
-  scene.background = lk.show ? (lk.engine !== 'pt' && lk.blur > 0 ? L.envMap : L.hdriTex) : lin(lk.bg);
-  scene.backgroundBlurriness = lk.engine !== 'pt' ? lk.blur : 0;
-  renderer.toneMapping = { aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping, neutral: THREE.NeutralToneMapping, none: THREE.LinearToneMapping }[lk.tm] || THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = Math.pow(2, lk.ev);
+  // the background color: a screen color, to linear Rec.709 (Path trace) or ACEScg (Raster)
+  scene.background = lk.show ? (pt ? L.hdriTex : lk.blur > 0 ? L.envMap : L.hdriWs) : pt ? lin(lk.bg) : new THREE.Color(...r3HexToWs(lk.bg));
+  scene.backgroundBlurriness = pt ? 0 : lk.blur;
   $('lkd-light-st').textContent = L.hdriName;
 }
 
@@ -214,9 +302,40 @@ function lkManager(files, name) {
   });
   return { m, used, missing, urls };
 }
+// a ZIP (a download of Sketchfab, a model with its textures): its files, as if they were dropped
+async function lkUnzip(files) {
+  const out = [];
+  for (const f of files) {
+    if (!/\.zip$/i.test(f.name)) { out.push(f); continue; }
+    try {
+      const z = fflate.unzipSync(new Uint8Array(await f.arrayBuffer()));
+      for (const [path, bytes] of Object.entries(z)) {
+        if (path.endsWith('/') || /(^|\/)(__MACOSX|\.)/.test(path) || !bytes.length) continue;
+        const nf = new File([bytes], path.split('/').pop(), { type: lkIsImg({ name: path, type: '' }) ? 'image/' + path.split('.').pop().toLowerCase().replace('jpg', 'jpeg') : '' });
+        nf.lkPath = path; nf.lkFrom = f.name.replace(/\.zip$/i, ''); out.push(nf);
+      }
+    } catch (e) { console.error(e); toast('Could not open ' + f.name + ': ' + (e.message || e), true); }
+  }
+  return out;
+}
+// a dropped folder: all the files inside it (and its subfolders, like textures/)
+async function lkDropFiles(dt) {
+  const entries = [...(dt.items || [])].map(it => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+  if (!entries.some(en => en.isDirectory)) return [...dt.files];
+  const out = [];
+  const walk = async (en, path) => {
+    if (en.isFile) { const f = await new Promise((res, rej) => en.file(res, rej)); f.lkPath = path + f.name; out.push(f); return; }
+    const rd = en.createReader();
+    for (;;) { const batch = await new Promise((res, rej) => rd.readEntries(res, rej)); if (!batch.length) break; for (const c of batch) await walk(c, path + en.name + '/'); }
+  };
+  for (const en of entries) await walk(en, '');
+  return out;
+}
+// the main file when there are several models (a ZIP of Sketchfab can bring the glTF and the original): glTF first
+const LK_ORDER = ['glb', 'gltf', 'usdz', 'usdc', 'usda', 'usd', 'fbx', 'obj', 'ply'];
 async function lkLoadFiles(files) {
-  files = [...files];
-  const main = files.find(f => /\.(glb|gltf|obj|fbx|ply)$/i.test(f.name));
+  files = await lkUnzip([...files]);
+  const main = files.filter(f => LK_MODEL_RE.test(f.name)).sort((a, b) => LK_ORDER.indexOf(a.name.split('.').pop().toLowerCase()) - LK_ORDER.indexOf(b.name.split('.').pop().toLowerCase()))[0];
   if (!main) {
     const img = files.find(lkIsImg);
     if (img && L.model) { lkApplyImage(img); return; }
@@ -243,6 +362,10 @@ async function lkLoadFiles(files) {
         const mats = new MTLLoader(mg.m).parse(await mtl.text(), ''); mats.preload(); ol.setMaterials(mats);
       }
       obj = ol.parse(text); srgbColors = true;
+    } else if (/^usd[zca]?$/.test(ext)) {
+      const { USDLoader } = await import('./vendor/USDLoader.js') /* relative to this script: edition/vendor/ */;
+      const buf = await main.arrayBuffer();
+      obj = await new Promise((res, rej) => { try { const g = new USDLoader(mg.m).parse(ext === 'usda' ? new TextDecoder().decode(buf) : buf, '', res, rej); if (g && !g.then) res(g); } catch (e) { rej(e); } });
     } else if (ext === 'fbx') {
       obj = new THREE.FBXLoader(mg.m).parse(await main.arrayBuffer(), ''); srgbColors = true;
     } else if (ext === 'ply') {
@@ -257,7 +380,9 @@ async function lkLoadFiles(files) {
   // textures that come after the model: draw again when they are in
   mg.m.onLoad = () => { lkDirty(); if (lk.engine === 'pt') lkPtRebuild(); };
   const imgs = files.filter(lkIsImg);
-  lkSetModel(obj, main.name, srgbColors);
+  // the name of the asset (burn-in, playblast): the one of the ZIP or the folder, not scene.gltf
+  const from = main.lkFrom || (main.lkPath && main.lkPath.includes('/') ? main.lkPath.split('/')[0] : '');
+  lkSetModel(obj, from ? `${from}.${ext}` : main.name, srgbColors);
   const missing = [...mg.missing].filter(x => lkIsImg({ name: x, type: '' }));
   let note = '';
   if (mg.used.size) note = 'Textures: ' + [...mg.used].filter(n => lkIsImg({ name: n, type: '' })).join(', ');
@@ -292,7 +417,7 @@ function lkSetModel(obj, name, srgb) {
     if (!o.isMesh) return;
     meshes++;
     if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
-    o.material = Array.isArray(o.material) ? o.material.map(m => lkPbr(m, srgb)) : lkPbr(o.material, srgb);
+    o.material = Array.isArray(o.material) ? o.material.map(m => lkWs(lkPbr(m, srgb))) : lkWs(lkPbr(o.material, srgb));
     o.userData.lkMat = o.material;
     const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
   });
@@ -319,14 +444,15 @@ function lkClearModel() {
 function lkApplyImage(file) {
   new THREE.TextureLoader().load(URL.createObjectURL(file), tex => {
     tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = L.ext !== 'glb' && L.ext !== 'gltf';
-    L.model.traverse(o => { if (o.isMesh) { o.material = o.userData.lkMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, side: THREE.DoubleSide }); } });
+    const m = lkWs(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, side: THREE.DoubleSide }));
+    L.model.traverse(o => { if (o.isMesh) { o.material = o.userData.lkMat = m; } });
     lkClay(); lkDirty(); if (lk.engine === 'pt') lkPtRebuild();
   });
 }
 // orientation: the up axis of the file (glTF is always Y up; Max and some OBJ / FBX are Z up), the units, on the
 // ground and centred, and the framing of the camera
 function lkUpAuto() {
-  if (L.ext === 'glb' || L.ext === 'gltf' || L.ext === 'fbx') return 'y'; // glTF is Y up; the FBX loader turns Z up files to Y up
+  if (L.ext === 'glb' || L.ext === 'gltf' || L.ext === 'fbx' || /^usd/.test(L.ext)) return 'y'; // USD: the loader turns a Z up stage to Y up // glTF is Y up; the FBX loader turns Z up files to Y up
   // OBJ / PLY: a model much taller in Z than in Y, and flat in Y, comes from a Z up program
   const b = new THREE.Box3().setFromObject(L.model), s = b.getSize(new THREE.Vector3());
   return s.z > s.y * 1.3 && s.y < Math.max(s.x, s.z) * 0.9 && Math.abs(b.min.z) < s.z * 0.15 ? 'z' : 'y';
@@ -346,15 +472,19 @@ function lkPlace(reframe) {
   L.root.position.set(-c.x, -b.min.y, -c.z); L.root.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(L.root), s = bb.getSize(new THREE.Vector3());
   L.c.copy(bb.getCenter(new THREE.Vector3())); L.r = Math.max(s.length() / 2, 0.01); L.size = s;
+  // the offset: the model moves off the centre of the turntable; the camera keeps looking at the centre (L.c)
+  L.off = new THREE.Vector3(+lk.offX || 0, +lk.offY || 0, +lk.offZ || 0);
+  L.root.position.add(L.off); L.root.updateMatrixWorld(true);
+  L.mc = L.c.clone().add(L.off); // the centre of the model itself (its shadow)
   $('lkd-dims').textContent = `${s.x.toFixed(3)} × ${s.y.toFixed(3)} × ${s.z.toFixed(3)} m` + (lk.up === 'auto' ? ` · ${up.toUpperCase()} up` : '') + (+lk.units > 0 ? '' : ` · ${({ 1: 'm', 0.01: 'cm', 0.001: 'mm' })[k] || k}`);
   lkShadow(); lkRefs();
-  if (reframe) { L.free = false; $('lkd-back').disabled = true; }
+  if (reframe) { L.free = false; lkBackUI(); }
   lkCam(); lkDirty();
   if (lk.engine === 'pt' && L.ptBuilt) lkPtRebuild();
 }
 function lkClay() {
   if (!L.model) return;
-  if (!L.clayMat) L.clayMat = new THREE.MeshStandardMaterial({ color: lin('#8c8c8c'), roughness: 0.65, metalness: 0 });
+  if (!L.clayMat) L.clayMat = lkWs(new THREE.MeshStandardMaterial({ color: lin('#8c8c8c'), roughness: 0.65, metalness: 0 }));
   L.model.traverse(o => { if (o.isMesh) o.material = lk.clay ? L.clayMat : o.userData.lkMat; });
 }
 
@@ -380,11 +510,11 @@ function lkRefs() {
   if (L.refs) { cam.remove(L.refs); L.refs.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } }); }
   const g = new THREE.Group(); g.name = 'refs';
   const sph = new THREE.SphereGeometry(0.5, 64, 32);
-  const chrome = new THREE.Mesh(sph, new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0 })); chrome.name = 'chrome';
-  const grey = new THREE.Mesh(sph.clone(), new THREE.MeshStandardMaterial({ color: new THREE.Color(0.18, 0.18, 0.18), metalness: 0, roughness: 0.85 })); grey.name = 'grey';
+  const chrome = new THREE.Mesh(sph, lkWs(new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0 }))); chrome.name = 'chrome';
+  const grey = new THREE.Mesh(sph.clone(), lkWs(new THREE.MeshStandardMaterial({ color: new THREE.Color(0.18, 0.18, 0.18), metalness: 0, roughness: 0.85 }))); grey.name = 'grey';
   // the chart: self-lit patches with their sRGB values (what the colors should read, whatever the light)
   const chart = new THREE.Group(); chart.name = 'chart';
-  const patch = (c) => new THREE.MeshStandardMaterial({ color: 0x000000, emissive: c, emissiveIntensity: 1, roughness: 1, metalness: 0, toneMapped: false });
+  const patch = (c) => lkWs(new THREE.MeshStandardMaterial({ color: 0x000000, emissive: c, emissiveIntensity: 1, roughness: 1, metalness: 0 }));
   const pw = 1, gap = 0.12, back = new THREE.Mesh(new THREE.PlaneGeometry(6 * pw + 7 * gap, 4 * pw + 5 * gap), patch(new THREE.Color(0.012, 0.012, 0.012)));
   chart.add(back);
   LK_CHART.forEach(([r, gg, b], i) => {
@@ -418,15 +548,14 @@ function lkShadow() {
   if (L.shadowPT) { scene.remove(L.shadowPT); L.shadowPT = null; }
   if (!L.model) return;
   const s = L.size, R = Math.max(s.x, s.z) * 0.75 + L.r * 0.3, N = 256;
-  const oc = new THREE.OrthographicCamera(-R, R, R, -R, 0.001, s.y * 4 + 1);
-  oc.position.set(L.c.x, s.y * 2 + 0.5, L.c.z); oc.up.set(0, 0, -1); oc.lookAt(L.c.x, 0, L.c.z);
+  const oc = new THREE.OrthographicCamera(-R, R, R, -R, 0.001, s.y * 4 + 1 + Math.abs(+lk.offY || 0));
+  const mc = L.mc || L.c, y0 = mc.y - s.y / 2; // the ground under the model (with Offset Y, it floats over its shadow)
+  oc.position.set(mc.x, y0 + s.y * 2 + 0.5, mc.z); oc.up.set(0, 0, -1); oc.lookAt(mc.x, y0, mc.z);
   const rt = new THREE.WebGLRenderTarget(N, N);
   const keep = { bg: scene.background, env: scene.environment, ov: scene.overrideMaterial, refs: L.refs && L.refs.visible };
   scene.background = new THREE.Color(1, 1, 1); scene.environment = null; scene.overrideMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
   if (L.refs) L.refs.visible = false;
-  const tm = renderer.toneMapping; renderer.toneMapping = THREE.NoToneMapping;
   renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, oc); renderer.setRenderTarget(null);
-  renderer.toneMapping = tm;
   scene.background = keep.bg; scene.environment = keep.env; scene.overrideMaterial.dispose(); scene.overrideMaterial = keep.ov; if (L.refs) L.refs.visible = keep.refs;
   const px = new Uint8Array(N * N * 4); renderer.readRenderTargetPixels(rt, 0, 0, N, N, px); rt.dispose();
   const c0 = document.createElement('canvas'); c0.width = c0.height = N; const x0 = c0.getContext('2d'), id = x0.createImageData(N, N);
@@ -437,7 +566,7 @@ function lkShadow() {
   x1.filter = `blur(${Math.round(N * 0.008)}px)`; x1.globalAlpha = 0.5; x1.drawImage(c0, 0, 0);
   const tex = new THREE.CanvasTexture(c1); tex.flipY = true;
   const pl = new THREE.Mesh(new THREE.PlaneGeometry(2 * R, 2 * R), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }));
-  pl.rotation.x = -Math.PI / 2; pl.position.set(L.c.x, 0.0005 * L.r, L.c.z); pl.renderOrder = -1;
+  pl.rotation.x = -Math.PI / 2; pl.position.set(mc.x, 0.0005 * L.r, mc.z); pl.renderOrder = -1;
   L.shadowR = pl; scene.add(pl);
   // Path trace: its "matte" material only cuts the object out, it takes no shadows; so the catcher there is a floor
   // of 18% grey that takes the real shadows (and bounces a little light, like a studio floor)
@@ -486,12 +615,12 @@ function lkLoop() {
     if (L.ptBuilt && L.tracer) {
       const tr = L.tracer;
       tr.pausePathTracing = tr.samples >= lk.spp;
-      try { tr.renderSample(); } catch (e) { console.error(e); }
-      if (tr.samples < lk.spp || tr._quad.material.opacity < 1) more = true;
+      try { lkPtSample(); } catch (e) { console.error(e); }
+      if (tr.samples < lk.spp) more = true;
       lkStatus();
     } else more = false;
   } else if (L.dirty) {
-    renderer.render(scene, cam);
+    lkRasterDraw();
     lkStatus();
   }
   L.dirty = false;
@@ -534,9 +663,10 @@ async function lkPtRebuild() {
     const { gpt } = await lkPtLib();
     if (!L.tracer) {
       const tr = new gpt.WebGLPathTracer(renderer);
-      tr.renderDelay = 80; tr.fadeDuration = 200; tr.minSamples = 2; tr.dynamicLowRes = true; tr.lowResScale = 0.25; tr.rasterizeScene = false;
+      tr.renderDelay = 80; tr.fadeDuration = 0; tr.minSamples = 2; tr.dynamicLowRes = true; tr.lowResScale = 0.25; tr.rasterizeScene = false;
       tr.textureSize.set(2048, 2048); tr.tiles.set(2, 2);
       const dn = new THREE.FullScreenQuad(new gpt.DenoiseMaterial({ map: null, blending: THREE.NoBlending, premultipliedAlpha: renderer.getContextAttributes().premultipliedAlpha }));
+      // it draws into the float target of lkPtSample (linear Rec.709); the Viewer takes it to the screen after
       tr.renderToCanvasCallback = (target, r, quad) => {
         const ac = r.autoClear; r.autoClear = false;
         if (lk.dn) { const m = dn.material; m.map = target.texture; m.sigma = 5; m.threshold = 0.03; m.kSigma = 1; m.opacity = quad.material.opacity; dn.render(r); } else quad.render(r);
@@ -577,8 +707,10 @@ function lkEngine(e) {
 
 // ---------- navigation (free camera) and measure ----------
 const nav = { act: null, x: 0, y: 0, id: -1, tgt: new THREE.Vector3(), x0: 0, y0: 0, b: 0 };
-function lkFree() { if (!L.free) { L.free = true; nav.tgt.copy(L.c); $('lkd-back').disabled = false; } }
-function lkBack() { L.free = false; $('lkd-back').disabled = true; lkCam(); if (lk.engine === 'pt' && L.ptBuilt) lkPtMoved(true); else lkDirty(); }
+// moved off the turntable camera: Back to camera stands out on the bar and the frame gets the accent color (like 3D Render)
+function lkBackUI() { $('lkd-back').hidden = !L.free; $('lkd-frame').classList.toggle('free', !!L.free); }
+function lkFree() { if (!L.free) { L.free = true; nav.tgt.copy(L.c); lkBackUI(); } }
+function lkBack() { if (!L.free) return; L.free = false; lkBackUI(); lkCam(); if (lk.engine === 'pt' && L.ptBuilt) lkPtMoved(true); else lkDirty(); }
 function lkRotate(dx, dy, around) {
   const up = new THREE.Vector3(0, 1, 0), right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
   const q = new THREE.Quaternion().setFromAxisAngle(up, -dx * 0.005).multiply(new THREE.Quaternion().setFromAxisAngle(right, -dy * 0.005));
@@ -668,6 +800,7 @@ function lkBurnRows(f) {
   const r1 = [], r2 = [];
   if (F.hdri) r1.push(['HDRI', L.hdriName], ['Rot', `${Math.round(lk.rot)}°`], ['EV', (lk.ev >= 0 ? '+' : '') + (+lk.ev).toFixed(1)]);
   if (F.lens) r1.push(['Lens', `${lk.lens} mm`]);
+  r1.push(['View', (R3_VIEWS.find(v => v[0] === lk.view) || ['', ''])[1].replace(' (no tone map)', '')]);
   r1.push(['Engine', lk.engine === 'pt' ? 'Path trace' : 'Raster']);
   if (F.frame) r2.push(['Frame', `${String(f).padStart(4, '0')} / ${LK_N}`], ['', f <= LK_OBJ ? 'Model turns' : 'Light turns']);
   if (F.date) r2.push(['Date', new Date().toISOString().slice(0, 10)]);
@@ -718,83 +851,135 @@ function lkBurnPreview() {
 }
 
 // ---------- playblast ----------
-const pb = { cancel: false, url: '' };
+const pb = { cancel: false, url: '', blob: null };
 function lkPbLoadMuxer() {
   if (window.Mp4Muxer) return Promise.resolve();
   return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/mp4-muxer.js'; sc.onload = res; sc.onerror = () => rej(new Error('Could not load the MP4 muxer')); document.head.appendChild(sc); });
 }
-async function lkPbCodec(W, H, bitrate) {
-  for (const [codec, mux] of [['avc1.640033', 'avc'], ['avc1.4d0033', 'avc'], ['avc1.42003e', 'avc'], ['vp09.00.50.08', 'vp9'], ['av01.0.08M.08', 'av1']]) {
-    try { const s = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: LK_FPS }); if (s.supported) return { codec, mux }; } catch (e) { /* the next one */ }
-  }
-  return null;
-}
+// the encoder like the Playblast of the app (js/playblast.js): H.264 first, VP9 in the same MP4 if this browser has no
+// usable H.264; the first chunk always goes to the muxer with a whole decoder config (some browsers give none, or one
+// without colorSpace: "track.info.decoderConfig is null"), and an H.264 without its avcC goes on to VP9
+const LK_PB_CANDS = [['avc1.640034', 'avc'], ['avc1.640033', 'avc'], ['avc1.4d0034', 'avc'], ['avc1.42003e', 'avc'], ['vp09.00.50.08', 'vp9'], ['vp09.00.41.08', 'vp9']];
+const LK_PB_CS = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false };
 const lkPbName = () => ((L.modelName || 'model').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_')) + '_lookdev.mp4';
+// save: the desktop app asks where; the browser, to Downloads
+async function lkPbSave(blob, name) {
+  try {
+    if (window.bplDesktop && typeof desktopSave === 'function') { const r = await desktopSave(blob, name); toast(r.msg, !!r.error); return r.canceled ? 'not saved' : r.error ? 'not saved' : 'saved to ' + r.path; }
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads').catch(() => null) : null;
+    if (dl) { await dl.save({ filename: name, data: blob }); return 'saved to Downloads'; }
+  } catch (e) { if (e && e.code === 'declined') return 'not saved'; }
+  const a = document.createElement('a'); a.href = pb.url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  return 'saved to Downloads';
+}
 async function lkPlayblast() {
   if (!L.model || L.pbBusy) return;
-  if (typeof VideoEncoder === 'undefined') { toast('This browser cannot encode video (WebCodecs): use Chrome or Edge', true); return; }
+  if (typeof VideoEncoder === 'undefined') { toast('This browser cannot encode video (needs WebCodecs: Chrome, Edge or Safari 17+)', true); return; }
   const W = lk.pbSize === '720' ? 1280 : 1920, H = lk.pbSize === '720' ? 720 : 1080, pt = lk.engine === 'pt';
   const q = pt ? (LK_PB_Q[lk.pbQ] ? { spp: LK_PB_Q[lk.pbQ][0], bounces: LK_PB_Q[lk.pbQ][1] } : { spp: lk.spp, bounces: lk.bounces }) : null;
   lkPlay(false); L.pbBusy = true; pb.cancel = false;
   if (pb.url) { URL.revokeObjectURL(pb.url); pb.url = ''; }
-  $('lkd-pbdlg').hidden = false; $('lkd-pb-save').hidden = $('lkd-pb-video').hidden = true; $('lkd-pb-x').textContent = 'Cancel';
-  $('lkd-pb-info').textContent = `${lkPbName()} · ${LK_N} frames at ${LK_FPS} fps · ${W} × ${H} · ${pt ? `path trace, ${q.spp} samples, ${q.bounces} bounces per frame` : 'raster'}${lk.burn ? ' · burn-in' : ''}`;
+  $('lkd-pbdlg').hidden = false; $('lkd-pb-save').hidden = $('lkd-pb-saveas').hidden = $('lkd-pb-video').hidden = true; $('lkd-pb-x').textContent = 'Cancel';
+  $('lkd-pb-bar').style.width = '0';
+  $('lkd-pb-info').textContent = `${lkPbName()} · ${LK_N} frames at ${LK_FPS} fps · ${W} × ${H} · ${pt ? `path trace, ${q.spp} samples, ${q.bounces} bounces per frame` : 'raster'} · ${(R3_VIEWS.find(v => v[0] === lk.view) || ['', ''])[1]}${lk.burn ? ' · burn-in' : ''}`;
   const keep = { frame: L.frame, free: L.free, pos: cam.position.clone(), quat: cam.quaternion.clone() };
   const out = document.createElement('canvas'); out.width = W; out.height = H; const ctx = out.getContext('2d');
-  let enc = null, err = null; const t0 = performance.now();
-  const tr = L.tracer, trKeep = tr && { d: tr.renderDelay, f: tr.fadeDuration, l: tr.dynamicLowRes, m: tr.minSamples, b: tr.bounces };
+  let enc = null; const t0 = performance.now();
+  const tr = L.tracer, trKeep = tr && { d: tr.renderDelay, l: tr.dynamicLowRes, m: tr.minSamples, b: tr.bounces };
   try {
     await lkPbLoadMuxer();
-    const bitrate = Math.round(W * H * LK_FPS * 0.15), cd = await lkPbCodec(W, H, bitrate);
-    if (!cd) throw new Error(`no video codec for ${W} × ${H}`);
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: cd.mux, width: W, height: H, frameRate: LK_FPS }, fastStart: 'in-memory' });
-    enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: (e) => { err = e; } });
-    enc.configure({ codec: cd.codec, width: W, height: H, bitrate, framerate: LK_FPS });
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     L.free = false;
-    if (pt) { tr.renderDelay = 0; tr.fadeDuration = 0; tr.dynamicLowRes = false; tr.minSamples = 1; tr.bounces = q.bounces; tr.reset(); }
-    for (let f = 1; f <= LK_N; f++) {
-      if (pb.cancel) throw new Error('cancelled');
-      if (err) throw err;
-      L.frame = f; lkCam();
-      if (pt) {
-        lkPtMoved(true); tr.reset(); tr.pausePathTracing = false;
-        let t = performance.now();
-        while (tr.samples < q.spp) {
+    if (pt) { tr.renderDelay = 0; tr.dynamicLowRes = false; tr.minSamples = 1; tr.bounces = q.bounces; tr.reset(); }
+    const bitrate = Math.min(60e6, Math.max(4e6, W * H * LK_FPS * 0.12));
+    let muxer = null, lastErr = null, used = '';
+    for (const [codec, mux] of LK_PB_CANDS) {
+      const sup = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: LK_FPS }).catch(() => null);
+      if (!sup || !sup.supported) continue;
+      if (mux === 'avc' && lastErr && lastErr.fallback === 'vp9') continue;
+      try {
+        muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: LK_FPS }, fastStart: 'in-memory' });
+        let encErr = null, first = true;
+        enc = new VideoEncoder({
+          output: (chunk, meta) => {
+            if (encErr) return;
+            try {
+              if (first) {
+                first = false; meta = meta || {};
+                const dc = meta.decoderConfig;
+                if (mux === 'avc' && !(dc && dc.description)) { const e = new Error('H.264 without decoder description'); e.fallback = 'vp9'; throw e; }
+                meta = { ...meta, decoderConfig: { codec, codedWidth: W, codedHeight: H, ...(dc || {}), colorSpace: (dc && dc.colorSpace && dc.colorSpace.primaries) ? dc.colorSpace : LK_PB_CS } };
+              }
+              muxer.addVideoChunk(chunk, meta);
+            } catch (e) { encErr = e; }
+          },
+          error: e => { encErr = encErr || e; },
+        });
+        enc.configure(Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
+        for (let f = 1; f <= LK_N; f++) {
           if (pb.cancel) throw new Error('cancelled');
-          tr.renderSample();
-          if (performance.now() - t > 40) { await new Promise(r => setTimeout(r, 0)); t = performance.now(); }
+          if (encErr) throw encErr;
+          L.frame = f; lkCam();
+          if (pt) {
+            lkPtMoved(true); tr.reset(); tr.pausePathTracing = false;
+            let t = performance.now();
+            while (tr.samples < q.spp) {
+              if (pb.cancel) throw new Error('cancelled');
+              lkPtSample();
+              if (performance.now() - t > 40) { await new Promise(r => setTimeout(r, 0)); t = performance.now(); }
+            }
+          } else lkRasterDraw();
+          ctx.drawImage(canvas, 0, 0, W, H);
+          if (lk.burn) lkBurnDraw(ctx, W, H, f);
+          const fr = new VideoFrame(out, { timestamp: Math.round((f - 1) * 1e6 / LK_FPS), duration: Math.round(1e6 / LK_FPS) });
+          enc.encode(fr, { keyFrame: (f - 1) % LK_FPS === 0 }); fr.close();
+          while (enc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
+          if (encErr) throw encErr;
+          const per = (performance.now() - t0) / 1000 / f, left = per * (LK_N - f);
+          $('lkd-pb-bar').style.width = (f / LK_N * 100).toFixed(1) + '%';
+          $('lkd-pb-st').textContent = `Frame ${f} / ${LK_N} · ${per.toFixed(2)} s per frame · ${left >= 90 ? Math.round(left / 60) + ' min' : Math.round(left) + ' s'} left`;
+          if (!pt && f % 4 === 0) await new Promise(r => setTimeout(r, 0));
         }
-      } else renderer.render(scene, cam);
-      ctx.drawImage(canvas, 0, 0, W, H);
-      if (lk.burn) lkBurnDraw(ctx, W, H, f);
-      const fr = new VideoFrame(out, { timestamp: Math.round((f - 1) * 1e6 / LK_FPS), duration: Math.round(1e6 / LK_FPS) });
-      enc.encode(fr, { keyFrame: (f - 1) % LK_FPS === 0 }); fr.close();
-      while (enc.encodeQueueSize > 2) await new Promise(r => setTimeout(r, 5));
-      const per = (performance.now() - t0) / 1000 / f, left = per * (LK_N - f);
-      $('lkd-pb-bar').style.width = (f / LK_N * 100).toFixed(1) + '%';
-      $('lkd-pb-st').textContent = `Frame ${f} / ${LK_N} · ${per.toFixed(2)} s per frame · ${left >= 90 ? Math.round(left / 60) + ' min' : Math.round(left) + ' s'} left`;
-      if (!pt && f % 4 === 0) await new Promise(r => setTimeout(r, 0));
+        await enc.flush();
+        if (encErr) throw encErr;
+        muxer.finalize(); used = mux; lastErr = null;
+        break;
+      } catch (e) {
+        try { if (enc && enc.state !== 'closed') enc.close(); } catch (_) { /* closed */ }
+        if (e && e.message === 'cancelled') throw e;
+        console.warn('lookdev playblast encoder', codec, e); lastErr = e; muxer = null;
+      }
     }
-    await enc.flush(); if (err) throw err;
-    muxer.finalize();
+    if (!muxer) throw lastErr || new Error(`no video encoder for ${W} × ${H} here: try 720p`);
     const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
-    pb.url = URL.createObjectURL(blob);
-    const a = $('lkd-pb-save'); a.href = pb.url; a.download = lkPbName(); a.hidden = false; a.click();
-    const v = $('lkd-pb-video'); v.src = pb.url; v.hidden = false;
-    $('lkd-pb-st').textContent = `${lkPbName()} · ${(blob.size / 1048576).toFixed(1)} MB · ${cd.mux.toUpperCase()} · ${((performance.now() - t0) / 1000).toFixed(0)} s (saved to Downloads)`;
+    pb.url = URL.createObjectURL(blob); pb.blob = blob;
+    const v = $('lkd-pb-video'); v.src = pb.url; v.hidden = false; v.play().catch(() => {});
+    $('lkd-pb-save').hidden = false; $('lkd-pb-saveas').hidden = !!window.bplDesktop || !(window.showSaveFilePicker && window.self === window.top);
+    const info = `${lkPbName()} · ${(blob.size / 1048576).toFixed(1)} MB · ${used === 'vp9' ? 'VP9 (this browser has no usable H.264: plays in browsers, VLC and Resolve, not QuickTime)' : 'H.264'} · ${((performance.now() - t0) / 1000).toFixed(0)} s`;
+    $('lkd-pb-st').textContent = info;
+    const where = await lkPbSave(blob, lkPbName());
+    $('lkd-pb-st').textContent = `${info} · ${where}`;
   } catch (e) {
     $('lkd-pb-st').textContent = e.message === 'cancelled' ? 'Cancelled.' : 'The playblast failed: ' + (e.message || e);
     if (e.message !== 'cancelled') console.error(e);
   } finally {
     try { if (enc && enc.state !== 'closed') enc.close(); } catch (e) { /* closed */ }
-    if (tr && trKeep) { tr.renderDelay = trKeep.d; tr.fadeDuration = trKeep.f; tr.dynamicLowRes = trKeep.l; tr.minSamples = trKeep.m; tr.bounces = trKeep.b; }
+    if (tr && trKeep) { tr.renderDelay = trKeep.d; tr.dynamicLowRes = trKeep.l; tr.minSamples = trKeep.m; tr.bounces = trKeep.b; }
     L.pbBusy = false; $('lkd-pb-x').textContent = 'Close';
-    L.frame = keep.frame; L.free = keep.free;
+    L.frame = keep.frame; L.free = keep.free; lkBackUI();
     if (keep.free) { cam.position.copy(keep.pos); cam.quaternion.copy(keep.quat); cam.updateMatrixWorld(true); }
     lkCam(); lkFit(); if (pt) { lkPtMoved(true); tr.reset(); } lkDirty();
   }
 }
+$('lkd-pb-save').onclick = async () => { if (pb.blob) $('lkd-pb-st').textContent = `${lkPbName()} · ${await lkPbSave(pb.blob, lkPbName())}`; };
+$('lkd-pb-saveas').onclick = async () => {
+  if (!pb.blob) return;
+  try {
+    const h = await window.showSaveFilePicker({ suggestedName: lkPbName(), startIn: 'desktop', types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }] });
+    const w = await h.createWritable(); await w.write(pb.blob); await w.close();
+    $('lkd-pb-st').textContent = `Saved as ${h.name} in the folder you picked`;
+  } catch (e) { if (!e || e.name !== 'AbortError') $('lkd-pb-st').textContent = 'Could not save there: ' + (e && e.message || e); }
+};
 $('lkd-pb-x').onclick = () => { if (L.pbBusy) pb.cancel = true; else $('lkd-pbdlg').hidden = true; };
 $('lkd-pbdlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); $('lkd-pb-x').click(); } });
 
@@ -803,8 +988,10 @@ function lkBusy(t) { $('lkd-busy').hidden = !t; $('lkd-busy').textContent = t ||
 function lkUI() {
   $('lkd-hdri').value = lk.hdri === 'user' && !L.userHdri ? 'studio' : lk.hdri;
   for (const [id, k] of [['lkd-rot', 'rot'], ['lkd-ev', 'ev'], ['lkd-blur', 'blur'], ['lkd-lens', 'lens'], ['lkd-elev', 'elev'], ['lkd-fill', 'fill'], ['lkd-spp', 'spp'], ['lkd-bounces', 'bounces'], ['lkd-bars', 'bars']]) $(id).value = lk[k];
-  for (const [id, k] of [['lkd-tm', 'tm'], ['lkd-up', 'up'], ['lkd-yaw', 'yaw'], ['lkd-units', 'units'], ['lkd-dir', 'dir'], ['lkd-text', 'text'], ['lkd-font', 'font'], ['lkd-align', 'align'], ['lkd-talign', 'talign'], ['lkd-pbsize', 'pbSize'], ['lkd-pbq', 'pbQ']]) $(id).value = String(lk[k]);
+  for (const [id, k] of [['lkd-view', 'view'], ['lkd-up', 'up'], ['lkd-yaw', 'yaw'], ['lkd-units', 'units'], ['lkd-dir', 'dir'], ['lkd-text', 'text'], ['lkd-font', 'font'], ['lkd-align', 'align'], ['lkd-talign', 'talign'], ['lkd-pbsize', 'pbSize'], ['lkd-pbq', 'pbQ']]) $(id).value = String(lk[k]);
   for (const [id, k] of [['lkd-show', 'show'], ['lkd-chrome', 'chrome'], ['lkd-grey', 'grey'], ['lkd-chart', 'chart'], ['lkd-shadow', 'shadow'], ['lkd-dn', 'dn'], ['lkd-burn', 'burn']]) $(id).checked = !!lk[k];
+  for (const k of ['lens', 'elev', 'fill', 'ev']) { if (document.activeElement !== $('lkd-v-' + k)) $('lkd-v-' + k).value = lk[k]; $('lkd-v-' + k + '-r').value = lk[k]; }
+  for (const a of ['x', 'y', 'z']) $('lkd-off' + a).value = lk['off' + a.toUpperCase()];
   $('lkd-bgc').value = lk.bg; $('lkd-project').value = lk.project; $('lkd-artist').value = lk.artist;
   for (const [k] of LK_FIELDS) $('lkd-fd-' + k).checked = !!lk.fields[k];
   $('lkd-c-show').setAttribute('aria-pressed', String(!!lk.show)); $('lkd-c-clay').setAttribute('aria-pressed', String(!!lk.clay));
@@ -821,15 +1008,28 @@ function lkChanged(kind) {
   else if (kind === 'refs') { lkRefsPlace(); lkShadowVis(); if (lk.engine === 'pt' && L.ptBuilt) lkPtRebuild(); else lkDirty(); }
   else if (kind === 'clay') { lkClay(); if (lk.engine === 'pt' && L.ptBuilt) { L.tracer.updateMaterials(); lkGo(); } else lkDirty(); }
   else if (kind === 'burn') { lkRefsPlace(); if (lk.engine === 'pt' && L.ptBuilt) lkPtMoved(true); else lkDirty(); }
+  else if (kind === 'view') lkDirty();
   else if (kind === 'pt') { if (L.tracer) { L.tracer.bounces = lk.bounces; L.tracer.reset(); } lkGo(); }
   else lkDirty();
 }
 const bindNum = (id, k, kind, min, max) => $(id).addEventListener('change', () => { const v = +$(id).value; lk[k] = Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : LK_DEF[k]; lkChanged(kind); });
-bindNum('lkd-rot', 'rot', 'env', -360, 360); bindNum('lkd-ev', 'ev', 'env', -10, 10); bindNum('lkd-blur', 'blur', 'env', 0, 1);
+bindNum('lkd-rot', 'rot', 'env', -360, 360); bindNum('lkd-ev', 'ev', 'view', -10, 10); bindNum('lkd-blur', 'blur', 'env', 0, 1);
 bindNum('lkd-lens', 'lens', 'cam', 12, 300); bindNum('lkd-elev', 'elev', 'cam', -30, 80); bindNum('lkd-fill', 'fill', 'cam', 0.3, 1.2);
 bindNum('lkd-spp', 'spp', 'pt', 1, 100000); bindNum('lkd-bounces', 'bounces', 'pt', 1, 30); bindNum('lkd-bars', 'bars', 'burn', 0, 1);
+// on the view: Lens, Height, Framing and Exp, a slider and its number (the same settings as Turntable & camera / Light)
+{
+  const VK = { lens: ['cam', 12, 300, 50], elev: ['cam', -30, 80, 10], fill: ['cam', 0.3, 1.2, 0.8], ev: ['view', -10, 10, 0] };
+  for (const [k, [kind, mn, mx, d]] of Object.entries(VK)) {
+    const set = (v) => { v = +v; lk[k] = Number.isFinite(v) ? Math.min(mx, Math.max(mn, k === 'lens' || k === 'elev' ? Math.round(v) : Math.round(v * 100) / 100)) : LK_DEF[k]; lkChanged(kind); };
+    $('lkd-v-' + k + '-r').addEventListener('input', e => set(e.target.value));
+    $('lkd-v-' + k + '-r').addEventListener('dblclick', () => set(d));
+    $('lkd-v-' + k).addEventListener('change', e => set(e.target.value));
+  }
+}
+for (const a of ['x', 'y', 'z']) $('lkd-off' + a).addEventListener('change', e => { const v = +e.target.value; lk['off' + a.toUpperCase()] = Number.isFinite(v) ? Math.max(-1000, Math.min(1000, v)) : 0; lkChanged('place'); });
+$('lkd-off0').onclick = () => { lk.offX = lk.offY = lk.offZ = 0; lkChanged('place'); };
 const bindSel = (id, k, kind) => $(id).addEventListener('change', () => { lk[k] = $(id).value; lkChanged(kind); });
-bindSel('lkd-tm', 'tm', 'env'); bindSel('lkd-up', 'up', 'place'); bindSel('lkd-yaw', 'yaw', 'place'); bindSel('lkd-units', 'units', 'place'); bindSel('lkd-dir', 'dir', 'cam');
+bindSel('lkd-view', 'view', 'view'); bindSel('lkd-up', 'up', 'place'); bindSel('lkd-yaw', 'yaw', 'place'); bindSel('lkd-units', 'units', 'place'); bindSel('lkd-dir', 'dir', 'cam');
 bindSel('lkd-text', 'text', 'burn'); bindSel('lkd-font', 'font', 'burn'); bindSel('lkd-align', 'align', 'burn'); bindSel('lkd-talign', 'talign', 'burn');
 bindSel('lkd-pbsize', 'pbSize', 'none'); bindSel('lkd-pbq', 'pbQ', 'none');
 const bindChk = (id, k, kind) => $(id).addEventListener('change', () => { lk[k] = $(id).checked; lkChanged(kind); });
@@ -871,7 +1071,11 @@ $('lkd-pb').onclick = $('lkd-pb2').onclick = () => lkPlayblast();
   box.addEventListener('dragenter', e => { e.preventDefault(); depth++; $('lkd-drop').hidden = false; });
   box.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; $('lkd-drop').hidden = true; } });
   box.addEventListener('dragover', e => e.preventDefault());
-  box.addEventListener('drop', e => { e.preventDefault(); depth = 0; $('lkd-drop').hidden = true; if (e.dataTransfer.files.length) lkLoadFiles(e.dataTransfer.files); });
+  box.addEventListener('drop', async e => {
+    e.preventDefault(); depth = 0; $('lkd-drop').hidden = true;
+    const files = await lkDropFiles(e.dataTransfer);
+    if (files.length) lkLoadFiles(files);
+  });
 }
 // the keys of this tab while it is in front (the ones of the app don't act): Space, N, M, F, Esc, Home, arrows
 const lkKeys = (e) => {
@@ -907,5 +1111,5 @@ function lkShow(on) {
 }
 window.cpLkShow = lkShow;
 // for tests
-window.LKD = { lk, L, load: lkLoadFiles, frame: lkSetFrame, engine: lkEngine, playblast: lkPlayblast };
+window.LKD = { lk, L, load: lkLoadFiles, dropFiles: lkDropFiles, frame: lkSetFrame, engine: lkEngine, playblast: lkPlayblast };
 })();

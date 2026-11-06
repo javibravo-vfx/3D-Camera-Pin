@@ -1,15 +1,4 @@
-// 3D Camera Pin edition, after the modules of the app (before js/boot.js): the Path Trace tab in the module bar and the
-// name and version of the edition.
-{
-  const f = mtabShow;
-  mtabShow = function (id, save = true) {
-    const pt = id === 'pathtrace';
-    // Path Trace is not remembered as the tab to open with (it builds its scene when it is opened)
-    f(id, save && !pt);
-    if (typeof cpPtShow === 'function') cpPtShow(mtabCur === 'pathtrace');
-  };
-  if (mtabCur === 'pathtrace') mtabShow('camerapin', false);
-}
+// 3D Camera Pin edition, after the modules of the app (before js/boot.js): the name and version of the edition.
 document.title = `${CP_EDITION.name} v${CP_EDITION.version}`;
 {
   for (const el of document.querySelectorAll('#start-t, .ab-name')) el.textContent = CP_EDITION.name;

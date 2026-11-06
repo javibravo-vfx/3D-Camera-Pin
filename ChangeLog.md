@@ -3,6 +3,7 @@
 One line per change, newest first. The version is in the app, next to its name at the top left (the BackplateLab version
 it comes from is in its tooltip); it goes up by 0.001 with every change.
 
+v1.009: The Path Trace tab is out: the path tracer is now the Path trace engine of 3D Render, the same as in BackplateLab. [ Edition - Path Trace out ]
 v1.008: The 3D Assets and 3D Render tabs of BackplateLab are in too, the same as there. [ Edition - 3D Assets and 3D Render ]
 v1.007: 3D Camera Pin is now the 3D Camera Pin edition of BackplateLab: its tabs Import and Measure, 2D Camera Match and 3D Camera Pin | Environment, the same as there, replace the Camera Pin and Import tabs; Path Trace stays, on that camera, scan and environment, with its playblast in its own bar. Updated from BackplateLab with tools/sync_backplatelab.mjs. [ Edition - BackplateLab tabs ]
 v1.006: An OBJ loads with its texture: select or drop the .obj, its .mtl and the image together (also on the Import tab); the MTL path from another machine is matched by file name, and the note says which image was used or is missing. [ Scan - OBJ with its .mtl and texture ]

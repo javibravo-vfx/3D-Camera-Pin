@@ -10,10 +10,9 @@ This is the **3D Camera Pin edition of [BackplateLab](https://github.com/legandr
 - **2D Camera Match** — the perspective from vanishing lines on the plate, like Perspective Match in 3ds Max.
 - **3D Camera Pin | Environment** — pins on the scan, the street behind the car and its motion, and the camera export.
 - **3D Assets** — four 3D viewports with the pieces of the environment (cars, people, street lights, buildings…), to replace them with imported assets fitted to their pivot.
-- **3D Render** — the environment lit by an HDRI and a sun from the place, date and time of the shot, seen from the shot camera, from the top and from a free camera, with the raster and the path trace engines of BackplateLab.
-- **Path Trace** — a GPU path tracer on that camera, scan and environment (below).
+- **3D Render** — the environment lit by an HDRI and a sun from the place, date and time of the shot, seen from the shot camera, from the top and from a free camera, with the raster and the path trace engines of BackplateLab (the path tracer of 3D Camera Pin lives there now).
 
-The version is shown in the app (`v1.008`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces (v1.006) is the branch [`single-file-v1.006`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/single-file-v1.006).
+The version is shown in the app (`v1.009`, with the BackplateLab version it comes from in its tooltip); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md). The single-file 3D Camera Pin it replaces (v1.006) is the branch [`single-file-v1.006`](https://github.com/javibravo-vfx/3D-Camera-Pin/tree/single-file-v1.006).
 
 ## Running it
 
@@ -33,24 +32,8 @@ The app files (`index.html`, `js/`, `css/`, `fonts/`, `vendor/`, `tours/`, `asse
 node tools/sync_backplatelab.mjs <folder of the BackplateLab clone>
 ```
 
-It copies the files BackplateLab publishes and adds the hooks of `edition/`: `cp-edition.js` keeps only those tabs (the list is `CP_EDITION.tabs`), `cp-pathtrace.js` is the Path Trace tab and `cp-edition-late.js` puts it in the tab bar with the name and version of the edition. `edition/BACKPLATELAB.txt` says which version and commit it came from. If BackplateLab changed one of the places a hook goes, the sync stops and says which.
-
-## Path Trace
-
-The **Path Trace** tab renders the 3D Camera Pin shot with a GPU path tracer ([three-gpu-pathtracer](https://github.com/gkjohnson/three-gpu-pathtracer)), to try it out on the scan and the environment.
-
-- It takes the camera of the 3D Camera Pin | Environment tab as it is (position, rotation, field of view and plate aspect), the scan with its own materials, the environment and the sun. **Update from Camera Pin** copies them again after a change there.
-- The camera can be moved in the tab with the Nav preset of the app (orbit, pan, dolly, look; wheel to dolly). While it moves it shows a coarse image and when it stops it fills in up to the samples. **Camera Pin view** puts it back where Camera Pin has it.
-- The timeline bar is there too (Space plays): the environment moves with the frame, coarse while it plays, and the frame you stop on fills in. Only the positions change, so a new frame is quick.
-- The display materials become physical ones (Lambert: rough, Phong: a bit glossy, Basic: emissive); colors and color textures are read as sRGB. There is no ACES conversion here: the output is sRGB, with an optional tone map (None, ACES Filmic, AgX, Neutral) and an exposure in stops.
-- Light: the sky and ground colors (the hemisphere light of Camera Pin) or an HDRI (.hdr / .exr), with intensity and rotation, and the sun with its own multiplier.
-- Background: the sky, the plate, or transparent (the PNG keeps the alpha). An optional ground plane at a set height catches the shadows when there is no environment.
-- Depth of field with an f-stop and a focus distance (**Focus center** focuses on what is in the middle of the frame); the film back is the one of Camera Pin.
-- Samples (it stops there), bounces, resolution, tiles, denoise and a glossy filter. Pause, Restart and Save PNG are in the bar.
-- **Playblast** (in the bar of the tab) renders the frame range path traced to an MP4: size 720p, 1080p or the plate, and a quality preset (Draft 16 samples / 3 bounces, Preview 64 / 4, Good 256 / 5, Final 1024 / 8, or what the Render panel has). It uses the Path Trace camera and its light, background (over the plate when it is the plate), denoise and tone map; the dialog shows the time per frame and what is left.
-- Resolution: 720p (default) or 1080p, by width (1280 or 1920) with the height from the plate aspect, or the plate size. The render keeps that size and is only scaled to fit the view.
-- Gaussian splats and point clouds are not path traced (only meshes are). The library (in `vendor/`) is loaded the first time the tab is opened.
+It copies the files BackplateLab publishes and adds the hooks of `edition/`: `cp-edition.js` keeps only those tabs (the list is `CP_EDITION.tabs`) and `cp-edition-late.js` puts the name and version of the edition. `edition/BACKPLATELAB.txt` says which version and commit it came from. If BackplateLab changed one of the places a hook goes, the sync stops and says which.
 
 ## Credits
 
-BackplateLab: Lega Pugliese, Charly Villafañe and Javi Bravo. 3D Camera Pin and the Path Trace tab: Javi Bravo. Third-party libraries and their licenses: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+BackplateLab: Lega Pugliese, Charly Villafañe and Javi Bravo. 3D Camera Pin: Javi Bravo. Third-party libraries and their licenses: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

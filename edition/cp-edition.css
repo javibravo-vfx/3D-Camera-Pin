@@ -1,23 +1,2 @@
 /* 3D Camera Pin edition */
 .cp-off { display: none !important; }
-/* ---------- Path Trace tab: its own page in place of .app ---------- */
-.ptapp { --side-w: 38rem; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0.6rem min(var(--side-w), 60vw); }
-.ptapp[hidden] { display: none; }
-.ptapp > aside.props { min-height: 0; }
-.pt-viewer { display: flex; flex-direction: column; }
-.pt-viewer > .pt-box { flex: 1 1 auto; }
-#pt-gl { touch-action: none; }
-.pt-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.pt-box { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden; }
-.pt-frame { position: relative; background: repeating-conic-gradient(#1b1b1e 0 25%, #222226 0 50%) 0 0 / 20px 20px; box-shadow: 0 0 0 1px var(--line); }
-.pt-frame.sky { background: #000; }
-.pt-frame canvas, .pt-plate { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.pt-plate { object-fit: fill; }
-.pt-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; max-width: 80%; text-align: center; color: var(--muted); background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 10px 14px; border-radius: 8px; }
-.pt-msg.bad { color: var(--bad); }
-#ptapp .btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-fg); }
-#ptapp input[type=color] { width: 44px; height: 28px; padding: 1px 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); cursor: pointer; }
-.pt-pbcard { width: min(52rem, 92vw); display: flex; flex-direction: column; gap: 1rem; }
-.pt-pbbar { height: 0.6rem; border-radius: 0.3rem; background: var(--panel-2); overflow: hidden; }
-.pt-pbbar > i { display: block; height: 100%; width: 0; background: var(--accent-hi); }
-#pt-pb-video { width: 100%; max-height: 40vh; background: #000; border-radius: 0.6rem; }

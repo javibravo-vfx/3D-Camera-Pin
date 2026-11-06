@@ -1,7 +1,7 @@
 // Brings the app of BackplateLab into this repo as the 3D Camera Pin edition: its web files (the same list that
 // BackplateLab publishes, tools/build_web.mjs there) replace js/, css/, fonts/, vendor/, tours/, assets/, phone/ and
 // index.html here, and then index.html and js/module-tabs.js get the hooks of edition/ (only the tabs Import and
-// Measure, 2D Camera Match and 3D Camera Pin | Environment, plus Path Trace). edition/ is never touched.
+// Measure, 2D Camera Match, 3D Camera Pin | Environment, 3D Assets and 3D Render). edition/ is never touched.
 // Usage: node tools/sync_backplatelab.mjs <folder of the BackplateLab clone>
 import fs from 'fs'; import path from 'path'; import { execSync } from 'child_process'; import { fileURLToPath } from 'url';
 const here = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -27,7 +27,7 @@ patch(path.join(here, 'index.html'), [
   ['<title>BackplateLab</title>', '<title>3D Camera Pin</title>'],
   ['</head>', '<link rel="stylesheet" href="edition/cp-edition.css">\n</head>'],
   ['<script defer src="js/module-tabs.js"></script>', '<script defer src="edition/cp-edition.js"></script>\n<script defer src="js/module-tabs.js"></script>'],
-  ['<script defer src="js/boot.js"></script>', '<script defer src="edition/cp-pathtrace.js"></script>\n<script defer src="edition/cp-edition-late.js"></script>\n<script defer src="js/boot.js"></script>'],
+  ['<script defer src="js/boot.js"></script>', '<script defer src="edition/cp-edition-late.js"></script>\n<script defer src="js/boot.js"></script>'],
 ]);
 // the list of tabs, trimmed right after it is written (before the tab bar is built from it)
 {

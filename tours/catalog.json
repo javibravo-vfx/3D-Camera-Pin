@@ -1,0 +1,2228 @@
+{
+  "version": 1,
+  "order": [
+    "complete",
+    "pin_match",
+    "car_gs",
+    "street",
+    "focus"
+  ],
+  "tutorials": {
+    "complete": {
+      "group": "workflow",
+      "title": {
+        "en": "Complete walkthrough",
+        "es": "Recorrido completo"
+      },
+      "summary": {
+        "en": "Every part of BackplateLab in the order of the work: align the car and the camera, build the street in 3D, play it, and only then put the filmed background behind and judge it against the 3D.",
+        "es": "Todo BackplateLab en el orden de trabajo: alinear el auto y la cámara, armar la calle en 3D, reproducirla, y recién ahí poner el fondo filmado detrás y juzgarlo contra el 3D."
+      },
+      "chapters": [
+        "basics.screen",
+        "plate.image",
+        "plate.video",
+        "camera.set",
+        "scan.load",
+        "pins.match",
+        "scene.cargs",
+        "street.env",
+        "street.motion",
+        "focus.bokeh",
+        "focus.zdefocus",
+        "drive.plate",
+        "compare.ghost",
+        "playblast.render",
+        "depth.passes",
+        "export.camera"
+      ]
+    },
+    "pin_match": {
+      "group": "topic",
+      "title": {
+        "en": "Camera match with pins",
+        "es": "Match de cámara con pins"
+      },
+      "summary": {
+        "en": "Load a plate and a scan, pin one to the other and export the camera to your 3D app.",
+        "es": "Cargar un plate y un scan, pinear uno sobre el otro y exportar la cámara a tu programa 3D."
+      },
+      "chapters": [
+        "basics.screen",
+        "plate.image",
+        "scan.load",
+        "pins.match",
+        "export.camera"
+      ]
+    },
+    "car_gs": {
+      "group": "topic",
+      "title": {
+        "en": "Car green screen",
+        "es": "Car green screen"
+      },
+      "summary": {
+        "en": "Camera from the set data, horizon and vanishing points over the plate, a street in 3D seen through the green, and the filmed background last, judged against the 3D.",
+        "es": "La cámara desde la data de set, horizonte y puntos de fuga sobre el plate, una calle en 3D vista a través del verde, y el fondo filmado al final, juzgado contra el 3D."
+      },
+      "chapters": [
+        "basics.screen",
+        "camera.set",
+        "scene.cargs",
+        "street.env",
+        "street.motion",
+        "focus.zdefocus",
+        "drive.plate",
+        "compare.ghost"
+      ]
+    },
+    "street": {
+      "group": "topic",
+      "title": {
+        "en": "Street, speed and previs",
+        "es": "Calle, velocidad y previs"
+      },
+      "summary": {
+        "en": "A street with traffic behind the car, the speed of the shot, a filmed background judged against it and an MP4 of the frame range.",
+        "es": "Una calle con tráfico detrás del auto, la velocidad del plano, un fondo filmado juzgado contra ella y un MP4 del rango de cuadros."
+      },
+      "chapters": [
+        "basics.screen",
+        "street.env",
+        "street.motion",
+        "drive.plate",
+        "compare.ghost",
+        "playblast.render",
+        "depth.passes"
+      ]
+    },
+    "focus": {
+      "group": "topic",
+      "title": {
+        "en": "Focus, blur and Nuke",
+        "es": "Foco, desenfoque y Nuke"
+      },
+      "summary": {
+        "en": "How much the lens blurs each distance, a Defocus node for Nuke and the street blurred by depth.",
+        "es": "Cuánto desenfoca la lente cada distancia, un nodo Defocus para Nuke y la calle desenfocada por profundidad."
+      },
+      "chapters": [
+        "basics.screen",
+        "focus.bokeh",
+        "focus.zdefocus"
+      ]
+    }
+  },
+  "welcome": {
+    "title": {
+      "en": "Welcome to BackplateLab",
+      "es": "Bienvenido a BackplateLab"
+    },
+    "text": {
+      "en": "This is a practice copy of BackplateLab with the demo scene: a car on a green screen, shot from the hood looking back at two passengers, and a scan of the car. Nothing you do here touches your project or your settings.\nThe tour follows the order of the work: **the 3D is the reference**. First the car and the camera are aligned, then the street is built in 3D and played; the filmed background goes in last and is judged against the 3D.\n**Next** moves through the explanations. When the bubble says **Do this:**, do it yourself in the app: the tour moves on as soon as it is done.",
+      "es": "Esta es una copia de práctica de BackplateLab con la escena demo: un auto en green screen, filmado desde el capó mirando hacia atrás a dos pasajeros, y un scan del auto. Nada de lo que hagas acá toca tu proyecto ni tus ajustes.\nEl recorrido sigue el orden de trabajo: **el 3D es la referencia**. Primero se alinean el auto y la cámara, después se arma la calle en 3D y se reproduce; el fondo filmado va al final y se lo juzga contra el 3D.\n**Siguiente** avanza por las explicaciones. Cuando el globo dice **Hacé esto:**, hacelo vos en la app: el recorrido sigue en cuanto está hecho."
+    }
+  },
+  "final": {
+    "title": {
+      "en": "That is the tour",
+      "es": "Fin del recorrido"
+    },
+    "text": {
+      "en": "The practice copy closes and your project comes back as you left it. **Help** (F1) has every chapter, to go back to any of them.",
+      "es": "La copia de práctica se cierra y tu proyecto vuelve como lo dejaste. En **Help** (F1) están todos los capítulos, para volver a cualquiera."
+    }
+  },
+  "chapters": {
+    "basics.screen": {
+      "contentVersion": 26,
+      "minutes": 2,
+      "title": {
+        "en": "The screen",
+        "es": "La pantalla"
+      },
+      "summary": {
+        "en": "Viewer, tools, camera bar, side panel and frames.",
+        "es": "Visor, herramientas, barra de cámara, panel lateral y cuadros."
+      },
+      "steps": [
+        {
+          "id": "basics.screen.viewer",
+          "mode": "info",
+          "anchor": "viewer",
+          "place": "right",
+          "enter": [
+            {
+              "op": "mode",
+              "name": "nav"
+            }
+          ],
+          "title": {
+            "en": "The viewer",
+            "es": "El visor"
+          },
+          "text": {
+            "en": "The plate fills the viewer and the scan of the car is drawn over it (Flat when it loads; the menu over the viewer changes it). Dragging moves the 3D view and the **wheel** zooms; **Nav**, at the bottom right, picks the mouse style of your 3D app.",
+            "es": "El plate ocupa el visor y el scan del auto se dibuja encima (en Flat al cargarlo; el menú de arriba del visor lo cambia). Arrastrar mueve la vista 3D y la **rueda** acerca; **Nav**, abajo a la derecha, elige el manejo del mouse de tu programa 3D."
+          }
+        },
+        {
+          "id": "basics.screen.tools",
+          "mode": "info",
+          "anchor": "tools",
+          "place": "right",
+          "title": {
+            "en": "The tools",
+            "es": "Las herramientas"
+          },
+          "text": {
+            "en": "Each tool changes what a click on the viewer does, and each tab shows its own: **Navigate** (N) and **Pins** (P) in **3D Camera Pin**, **Lines** (L) and **Slate solve** (C) in **2D Camera Match**, **Distance to camera** (O) in **DepthLab**; **Measure** (M) and **Figure** (S) work in those three. The small axis at the bottom left shows where X, Y and Z point. A tool's key goes to its tab (in **Import and Measure**, N, M and F work on its scan pane). Below them, frame the scan (F), fit the plate (Shift+F), undo and redo.",
+            "es": "Cada herramienta cambia lo que hace un click en el visor, y cada pestaña muestra las suyas: **Navigate** (N) y **Pins** (P) en **3D Camera Pin**, **Lines** (L) y **Slate solve** (C) en **2D Camera Match**, **Distance to camera** (O) en **DepthLab**; **Measure** (M) y **Figure** (S) andan en las tres. El ejecito de abajo a la izquierda muestra hacia dónde van X, Y y Z. La tecla de una herramienta pasa a su pestaña (en **Import and Measure**, N, M y F trabajan en su cuadro del scan). Debajo, encuadrar el scan (F), ajustar el plate (Shift+F), deshacer y rehacer."
+          }
+        },
+        {
+          "id": "basics.screen.camera",
+          "mode": "info",
+          "anchor": "camera.set",
+          "place": "bottom",
+          "title": {
+            "en": "The camera bar",
+            "es": "La barra de cámara"
+          },
+          "text": {
+            "en": "Focal length, tilt, roll, yaw and height of the camera. Type a number or drag over a field. It is the same camera the pins, the scene and the export use. A number in violet matches the metadata (EXR, set report or typed in Import and Measure); once you change it, it goes back to the usual color.",
+            "es": "Focal, tilt, roll, yaw y altura de la cámara. Escribí un número o arrastrá sobre un campo. Es la misma cámara que usan los pins, la escena y el export. Un número en violeta coincide con la metadata (EXR, set report o lo tipeado en Import and Measure); si lo cambiás, vuelve al color de siempre."
+          }
+        },
+        {
+          "id": "basics.screen.panel",
+          "mode": "info",
+          "anchor": "panel",
+          "place": "left",
+          "title": {
+            "en": "The side panel",
+            "es": "El panel lateral"
+          },
+          "text": {
+            "en": "Every setting lives here, split by the module tabs at the top: **Import and Measure** (plate, set report, scan, each in its own pane; the scan pane navigates and measures), **2D Camera Match** (the vanishing lines X red, Y green, Z blue, and **Move camera** to slide or turn the camera without changing the perspective, like Perspective Match in 3ds Max), **3D Camera Pin | Environment** (pins, street, motion, and the **Car box** the traffic slows down for), **VFX Shooting Sup** (a sheet per shooting setup), **Compare and Match** (the driving plate, fitted by its metadata or with a corner pin, the 3D Guides and cars in the lanes), **DepthLab** (lens, focus rail, scene overlay, and its own layers at the right of the viewer, with the driving plate set up in Compare and Match), **Shakelab** (a phone moved by hand, recorded as camera motion with a soft limit per axis), **3D Assets** (a better model for each piece of the environment) and **3D Render** (the environment lit by an HDRI and the sun of the place, date and time of the shot, rendered as a still or a sequence); both camera tabs export the camera. DepthLab and Compare and Match show the camera stored with **Store cam** or, without one, the last framing, and their camera bar is read-only; back in 2D Camera Match or 3D Camera Pin, the view is the one you left. **Open**, **Save**, **Reset all** and the **Settings** gear (naming of the outputs and **Load demo scene**) sit at the right of the tabs. With a plate loaded, **Next:** at the top names the first step of the work still missing (**1 Align**, **2 Build 3D**, **3 Play**, **4 Judge background**, **Deliver**); a click opens it in its tab. A click on a section title opens or folds it.",
+            "es": "Acá están todos los ajustes, separados por las pestañas de módulo de arriba: **Import and Measure** (plate, set report y scan, cada uno en su cuadro; el del scan navega y mide), **2D Camera Match** (las líneas de fuga X roja, Y verde, Z azul, y **Move camera** para correr o girar la cámara sin cambiar la perspectiva, como Perspective Match de 3ds Max), **3D Camera Pin | Environment** (pins, calle, velocidad, y la **Car box** ante la que frena el tráfico), **VFX Shooting Sup** (una hoja por setup de rodaje), **Compare and Match** (el driving plate, encajado por su metadata o con un corner pin, las 3D Guides y autos en los carriles), **DepthLab** (lente, focus rail, escena sobre el plate, y sus capas a la derecha del visor, con el driving plate que se arma en Compare and Match), **Shakelab** (un teléfono movido a mano, grabado como movimiento de cámara con un límite suave por eje), **3D Assets** (un modelo mejor para cada pieza del entorno) y **3D Render** (el entorno iluminado por un HDRI y el sol del lugar, la fecha y la hora de la toma, renderizado como still o secuencia); las dos pestañas de cámara exportan la cámara. DepthLab y Compare and Match muestran la cámara guardada con **Store cam** o, sin ella, el último encuadre, y su barra de cámara no se edita; al volver a 2D Camera Match o 3D Camera Pin, la vista es la que dejaste. **Open**, **Save**, **Reset all** y el engranaje de **Settings** (el naming de las salidas y **Load demo scene**) están a la derecha de las pestañas. Con un plate cargado, **Next:** arriba de todo nombra el primer paso del trabajo que falta (**1 Align**, **2 Build 3D**, **3 Play**, **4 Judge background**, **Deliver**); un click lo abre en su pestaña. Un click en el título de una sección la abre o la pliega."
+          }
+        },
+        {
+          "id": "basics.screen.timeline",
+          "mode": "info",
+          "anchor": "timeline",
+          "place": "top",
+          "title": {
+            "en": "Frames",
+            "es": "Los cuadros"
+          },
+          "text": {
+            "en": "Play, step and drag through the frame range. **IN**, **OUT** and **FPS** set the range; **Playblast** renders it to an MP4.",
+            "es": "Reproducir, avanzar y arrastrar por el rango de cuadros. **IN**, **OUT** y **FPS** fijan el rango; **Playblast** lo renderiza a un MP4."
+          }
+        },
+        {
+          "id": "basics.screen.help",
+          "mode": "info",
+          "anchor": "app.help",
+          "place": "bottom",
+          "title": {
+            "en": "Help",
+            "es": "Help"
+          },
+          "text": {
+            "en": "**Help** (F1) has these tours, the shortcuts and the credits. The buttons next to it change the interface size and show or hide the side panel.",
+            "es": "**Help** (F1) tiene estos recorridos, los atajos y los créditos. Los botones de al lado cambian el tamaño de la interfaz y muestran u ocultan el panel lateral."
+          }
+        }
+      ]
+    },
+    "plate.image": {
+      "contentVersion": 2,
+      "minutes": 2,
+      "title": {
+        "en": "The plate and the camera",
+        "es": "El plate y la cámara"
+      },
+      "summary": {
+        "en": "Load a plate, check the camera and the focal length, and frame it with a mask.",
+        "es": "Cargar un plate, revisar la cámara y la focal, y encuadrarlo con una máscara."
+      },
+      "steps": [
+        {
+          "id": "plate.image.load",
+          "mode": "info",
+          "anchor": "plate.load",
+          "place": "left",
+          "title": {
+            "en": "Load a plate",
+            "es": "Cargar un plate"
+          },
+          "text": {
+            "en": "**Load plate** opens an EXR, a JPG or PNG, or a video; you can also drop it on the viewer. An EXR with camera metadata (ARRI) sets the camera, the lens and the tilt and roll.",
+            "es": "**Load plate** abre un EXR, un JPG o PNG, o un video; también podés soltarlo sobre el visor. Un EXR con metadata de cámara (ARRI) fija la cámara, la lente y el tilt y el roll."
+          }
+        },
+        {
+          "id": "plate.image.camera",
+          "mode": "info",
+          "anchor": "cam-body",
+          "place": "left",
+          "title": {
+            "en": "Camera and mode",
+            "es": "Cámara y modo"
+          },
+          "text": {
+            "en": "The camera body and its recording mode give the size of the sensor area the plate covers. The field of view comes from that size and the focal length, so check both against the camera report.",
+            "es": "El cuerpo de cámara y su modo de grabación dan el tamaño del área del sensor que cubre el plate. El campo de visión sale de ese tamaño y de la focal: revisá los dos contra el reporte de cámara."
+          }
+        },
+        {
+          "id": "plate.image.focal",
+          "mode": "info",
+          "anchor": "#focal",
+          "place": "left",
+          "title": {
+            "en": "Focal length",
+            "es": "Focal"
+          },
+          "text": {
+            "en": "The lens of the shot, in mm. With **Estimate focal** on, six pins or more refine it; off, it stays fixed while solving.",
+            "es": "La lente del plano, en mm. Con **Estimate focal** prendido, seis pins o más la ajustan; apagado, queda fija al resolver."
+          }
+        },
+        {
+          "id": "plate.image.delivery",
+          "mode": "info",
+          "anchor": "cam.delivery",
+          "place": "left",
+          "title": {
+            "en": "Reframed in the comp",
+            "es": "Reencuadrado en el comp"
+          },
+          "text": {
+            "en": "When the comp does not use the plate 1:1 (another format, scaled, rotated or moved), **Reframed in the comp** takes the comp format and the Transform as in Nuke. The comp frame shows over the plate, and **Numbers in** › **Comp px** gives the blur, Copy Defocus, the drive analysis and Copy CornerPin in pixels of the comp.",
+            "es": "Cuando el comp no usa el plate 1:1 (otro formato, agrandado, girado o corrido), **Reframed in the comp** toma el formato del comp y el Transform como en Nuke. El cuadro del comp se ve sobre el plate, y **Numbers in** › **Comp px** da el desenfoque, Copy Defocus, el análisis del driving y Copy CornerPin en píxeles del comp."
+          }
+        },
+        {
+          "id": "plate.image.mask",
+          "mode": "do",
+          "anchor": "view.mask",
+          "place": "bottom",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "#mask",
+              "value": "0"
+            }
+          ],
+          "title": {
+            "en": "Frame it",
+            "es": "Encuadralo"
+          },
+          "text": {
+            "en": "**Mask** darkens the plate outside the delivery format, and the export can use that format.",
+            "es": "**Mask** oscurece el plate fuera del formato de entrega, y el export puede usar ese formato."
+          },
+          "turn": {
+            "en": "pick **2.39** in **Mask**",
+            "es": "elegí **2.39** en **Mask**"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#mask",
+              "value": "2.39"
+            }
+          ],
+          "until": {
+            "what": "value",
+            "anchor": "#mask",
+            "equals": "2.39"
+          }
+        }
+      ]
+    },
+    "plate.video": {
+      "contentVersion": 1,
+      "minutes": 2,
+      "title": {
+        "en": "A video plate",
+        "es": "Un plate de video"
+      },
+      "summary": {
+        "en": "MP4 and MOV plates, their frames and an EXR of the same shot for the metadata.",
+        "es": "Plates MP4 y MOV, sus cuadros y un EXR del mismo plano para la metadata."
+      },
+      "steps": [
+        {
+          "id": "plate.video.load",
+          "mode": "info",
+          "anchor": "plate.load",
+          "place": "left",
+          "title": {
+            "en": "Video files",
+            "es": "Archivos de video"
+          },
+          "text": {
+            "en": "A video opens with **Load plate** too. Its frames are numbered from 1001 and play along with the timeline; the frame range and the fps come from the file.",
+            "es": "Un video también se abre con **Load plate**. Sus cuadros se numeran desde 1001 y se reproducen con la línea de tiempo; el rango y los fps salen del archivo."
+          }
+        },
+        {
+          "id": "plate.video.timecode",
+          "mode": "info",
+          "anchor": "timeline",
+          "place": "top",
+          "title": {
+            "en": "Frame and timecode",
+            "es": "Cuadro y timecode"
+          },
+          "text": {
+            "en": "With a video plate, the timeline also shows the timecode of the frame on screen, so you can find it in the edit.",
+            "es": "Con un plate de video, la línea de tiempo muestra además el timecode del cuadro en pantalla, para encontrarlo en el montaje."
+          }
+        },
+        {
+          "id": "plate.video.reference",
+          "mode": "info",
+          "anchor": "#s2",
+          "place": "left",
+          "enter": [
+            {
+              "op": "open",
+              "anchor": "plate.load"
+            }
+          ],
+          "title": {
+            "en": "A reference EXR",
+            "es": "Un EXR de referencia"
+          },
+          "text": {
+            "en": "A video has no camera metadata. When the plate is a video, a **Reference EXR** row shows up in this section: load one EXR frame of the same shot and its metadata sets the camera, the lens, the focus and the tilt and roll.",
+            "es": "Un video no trae metadata de cámara. Cuando el plate es un video, en esta sección aparece la fila **Reference EXR**: cargá un cuadro EXR del mismo plano y su metadata fija la cámara, la lente, el foco y el tilt y el roll."
+          }
+        }
+      ]
+    },
+    "camera.set": {
+      "contentVersion": 1,
+      "minutes": 2,
+      "title": {
+        "en": "The camera from the set data",
+        "es": "La cámara desde la data de set"
+      },
+      "summary": {
+        "en": "Height, tilt and roll from the set notes, and what is left for the pins.",
+        "es": "Altura, tilt y roll de las notas de set, y lo que queda para los pins."
+      },
+      "steps": [
+        {
+          "id": "camera.set.bar",
+          "mode": "info",
+          "anchor": "camera.set",
+          "place": "bottom",
+          "title": {
+            "en": "Set data",
+            "es": "Data de set"
+          },
+          "text": {
+            "en": "On set you usually know the lens, the camera height and the tilt and roll from the camera inclinometer. Type them here and the camera starts close to the real one.",
+            "es": "En el set normalmente se sabe la lente, la altura de cámara y el tilt y el roll del inclinómetro de la cámara. Escribilos acá y la cámara arranca cerca de la real."
+          }
+        },
+        {
+          "id": "camera.set.height",
+          "mode": "do",
+          "anchor": "#cam-h",
+          "place": "bottom",
+          "title": {
+            "en": "Camera height",
+            "es": "Altura de cámara"
+          },
+          "text": {
+            "en": "**HEIGHT** is the camera above the ground, in meters. Changing it moves only the camera.",
+            "es": "**HEIGHT** es la cámara sobre el piso, en metros. Cambiarla mueve sólo la cámara."
+          },
+          "turn": {
+            "en": "type **1.2** in **HEIGHT** and press Enter",
+            "es": "escribí **1.2** en **HEIGHT** y apretá Enter"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#cam-h",
+              "value": "1.2"
+            }
+          ],
+          "until": {
+            "what": "value",
+            "anchor": "#cam-h",
+            "min": 1.15,
+            "max": 1.25
+          }
+        },
+        {
+          "id": "camera.set.lock",
+          "mode": "info",
+          "anchor": "camera.set",
+          "place": "bottom",
+          "title": {
+            "en": "Lock what you know",
+            "es": "Fijá lo que sabés"
+          },
+          "text": {
+            "en": "The lock next to **TILT** and **ROLL** keeps them fixed while solving: then two pins are enough to find the yaw and the position. The lock next to **FOCAL** does the same with the lens.",
+            "es": "El candado al lado de **TILT** y **ROLL** los deja fijos al resolver: así dos pins alcanzan para encontrar el yaw y la posición. El candado al lado de **FOCAL** hace lo mismo con la lente."
+          }
+        }
+      ]
+    },
+    "scan.load": {
+      "contentVersion": 4,
+      "minutes": 2,
+      "title": {
+        "en": "The scan",
+        "es": "El scan"
+      },
+      "summary": {
+        "en": "Load the car scan, check its units and how it is drawn, and measure it.",
+        "es": "Cargar el scan del auto, revisar sus unidades y cómo se dibuja, y medirlo."
+      },
+      "steps": [
+        {
+          "id": "scan.load.file",
+          "mode": "info",
+          "anchor": "scan.load",
+          "place": "left",
+          "title": {
+            "en": "Load a scan",
+            "es": "Cargar un scan"
+          },
+          "text": {
+            "en": "**Load scan** opens an OBJ, PLY, GLB or FBX of the car (a Gaussian splat comes as a PLY, .splat, .spz or .ksplat). The demo already has one: the car without the passengers.",
+            "es": "**Load scan** abre un OBJ, PLY, GLB o FBX del auto (un Gaussian splat viene como PLY, .splat, .spz o .ksplat). La demo ya tiene uno: el auto sin los pasajeros."
+          }
+        },
+        {
+          "id": "scan.load.units",
+          "mode": "info",
+          "anchor": "scan.units",
+          "place": "left",
+          "title": {
+            "en": "Units and up axis",
+            "es": "Unidades y eje vertical"
+          },
+          "text": {
+            "en": "Say how the file was written: its **Units** and its **File up axis**. The app works in meters with Y up and converts when it exports.",
+            "es": "Indicá cómo se escribió el archivo: sus **Units** y su **File up axis**. La app trabaja en metros con Y arriba y convierte al exportar."
+          }
+        },
+        {
+          "id": "scan.load.display",
+          "mode": "do",
+          "anchor": "scan.display",
+          "place": "bottom",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "#disp",
+              "value": "flat"
+            }
+          ],
+          "title": {
+            "en": "How the scan is drawn",
+            "es": "Cómo se dibuja el scan"
+          },
+          "text": {
+            "en": "A new scan comes in as **Flat (unlit)**: its colors without light, at any size. **Solid** shows its shape with light and shade.",
+            "es": "Un scan nuevo entra en **Flat (unlit)**: sus colores sin luz, de cualquier tamaño. **Solid** muestra su forma con luz y sombra."
+          },
+          "turn": {
+            "en": "pick **Solid** in the menu",
+            "es": "elegí **Solid** en el menú"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#disp",
+              "value": "solid"
+            }
+          ],
+          "until": {
+            "what": "value",
+            "anchor": "#disp",
+            "equals": "solid"
+          }
+        },
+        {
+          "id": "scan.load.measure",
+          "mode": "info",
+          "anchor": "#m-measure",
+          "place": "right",
+          "title": {
+            "en": "Check the scale",
+            "es": "Comprobar la escala"
+          },
+          "text": {
+            "en": "**Measure** (M): click two points of the scan, type the real length between them and **Scale**. A wheelbase or a door you measured on set is enough.",
+            "es": "**Measure** (M): hacé click en dos puntos del scan, escribí el largo real entre ellos y **Scale**. Alcanza con una distancia entre ejes o una puerta medida en el set."
+          }
+        }
+      ]
+    },
+    "pins.match": {
+      "contentVersion": 3,
+      "minutes": 4,
+      "title": {
+        "en": "Match the camera with pins",
+        "es": "Matchear la cámara con pins"
+      },
+      "summary": {
+        "en": "Pin points of the scan to the plate and solve the camera.",
+        "es": "Pinear puntos del scan sobre el plate y resolver la cámara."
+      },
+      "steps": [
+        {
+          "id": "pins.match.tool",
+          "mode": "do",
+          "anchor": "tool.pins",
+          "place": "right",
+          "enter": [
+            {
+              "op": "mode",
+              "name": "nav"
+            },
+            {
+              "op": "clear_pins"
+            }
+          ],
+          "title": {
+            "en": "The Pins tool",
+            "es": "La herramienta Pins"
+          },
+          "text": {
+            "en": "A pin ties a point of the scan to the spot where that point is on the plate. The camera is solved from the pins.",
+            "es": "Un pin ata un punto del scan al lugar donde ese punto está en el plate. La cámara se resuelve a partir de los pins."
+          },
+          "turn": {
+            "en": "click **Pins** (or press P)",
+            "es": "hacé click en **Pins** (o apretá P)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "tool.pins"
+            }
+          ],
+          "until": {
+            "what": "mode",
+            "name": "pins"
+          }
+        },
+        {
+          "id": "pins.match.drop",
+          "mode": "do",
+          "anchor": "viewer",
+          "place": "left",
+          "title": {
+            "en": "Drop a pin",
+            "es": "Poné un pin"
+          },
+          "text": {
+            "en": "Pick a corner you can also see on the plate: the top of the windshield or a door pillar.",
+            "es": "Elegí una esquina que también se vea en el plate: el borde de arriba del parabrisas o un parante."
+          },
+          "turn": {
+            "en": "click on the scan of the car",
+            "es": "hacé click sobre el scan del auto"
+          },
+          "do": [
+            {
+              "op": "add_pin"
+            }
+          ],
+          "until": {
+            "what": "pins",
+            "min": 1
+          }
+        },
+        {
+          "id": "pins.match.drag",
+          "mode": "info",
+          "anchor": "viewer",
+          "place": "left",
+          "title": {
+            "en": "Drag it to the plate",
+            "es": "Arrastralo al plate"
+          },
+          "text": {
+            "en": "Drag each pin to where that point is on the plate; the camera follows as you drag. With a fixed lens, **4 to 6 pins** spread in depth are enough. Right-click or Delete removes a pin.",
+            "es": "Arrastrá cada pin hasta donde está ese punto en el plate; la cámara acompaña mientras arrastrás. Con la lente fija alcanzan **4 a 6 pins** repartidos en profundidad. Click derecho o Delete borra un pin."
+          }
+        },
+        {
+          "id": "pins.match.solve",
+          "mode": "do",
+          "anchor": "pins.solve",
+          "place": "left",
+          "enter": [
+            {
+              "op": "demo_pins"
+            }
+          ],
+          "title": {
+            "en": "Solve",
+            "es": "Resolver"
+          },
+          "text": {
+            "en": "The tour put six pins where they belong on the plate, as you would by hand. **Solve from scratch** finds the camera that best fits all of them.",
+            "es": "El recorrido puso seis pins donde van en el plate, como lo harías a mano. **Solve from scratch** busca la cámara que mejor cumple con todos."
+          },
+          "turn": {
+            "en": "click **Solve from scratch**",
+            "es": "hacé click en **Solve from scratch**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "pins.solve"
+            }
+          ],
+          "until": {
+            "what": "rms",
+            "max": 2
+          }
+        },
+        {
+          "id": "pins.match.list",
+          "mode": "info",
+          "anchor": "pins.list",
+          "place": "left",
+          "title": {
+            "en": "The error of each pin",
+            "es": "El error de cada pin"
+          },
+          "text": {
+            "en": "Each pin shows how many pixels it misses by. Low numbers mean the camera fits; a pin far above the rest is usually on the wrong spot.",
+            "es": "Cada pin dice por cuántos píxeles falla. Números bajos quieren decir que la cámara encaja; un pin muy por encima del resto suele estar en el lugar equivocado."
+          }
+        },
+        {
+          "id": "pins.match.bake",
+          "mode": "info",
+          "anchor": "pins.bake",
+          "place": "bottom",
+          "title": {
+            "en": "Keep them safe",
+            "es": "Protegelos"
+          },
+          "text": {
+            "en": "**Bake pins** locks the pins you have: they keep solving but cannot be dragged by accident. **Store cam** makes the current view the shot camera and **Recall cam** goes back to it after you look around (**Ctrl+Z** also undoes each move); Export camera and DepthLab use that camera.",
+            "es": "**Bake pins** traba los pins que tenés: siguen resolviendo pero no se pueden arrastrar sin querer. **Store cam** fija la vista actual como la cámara de la toma y **Recall cam** vuelve a ella después de mirar alrededor (**Ctrl+Z** también deshace cada movimiento); Export camera y DepthLab usan esa cámara."
+          }
+        }
+      ]
+    },
+    "scene.cargs": {
+      "contentVersion": 8,
+      "minutes": 4,
+      "title": {
+        "en": "Horizon and vanishing points",
+        "es": "Horizonte y puntos de fuga"
+      },
+      "summary": {
+        "en": "The Car GS scene over the plate: horizon, vanishing grid and figures at real size.",
+        "es": "La escena Car GS sobre el plate: horizonte, grilla de fuga y figuras en tamaño real."
+      },
+      "steps": [
+        {
+          "id": "scene.cargs.panel",
+          "mode": "info",
+          "anchor": "panel.scene",
+          "place": "left",
+          "enter": [
+            {
+              "op": "open",
+              "anchor": "panel.scene"
+            }
+          ],
+          "title": {
+            "en": "The scene",
+            "es": "La escena"
+          },
+          "text": {
+            "en": "Over the plate: the **horizon** at the camera height, a **vanishing grid** along the car (**Walls** in the viewer bar, off by default) and **figures** at real size. They use the same camera as the pins and the section lives in **DepthLab**.",
+            "es": "Sobre el plate: el **horizonte** a la altura de cámara, una **grilla de fuga** a lo largo del auto (**Walls** en la barra del visor, apagada de arranque) y **figuras** en tamaño real. Usan la misma cámara que los pins y la sección está en **DepthLab**."
+          }
+        },
+        {
+          "id": "scene.cargs.lines",
+          "mode": "do",
+          "anchor": "tool.lines",
+          "place": "right",
+          "enter": [
+            {
+              "op": "mode",
+              "name": "nav"
+            }
+          ],
+          "title": {
+            "en": "The Lines tool",
+            "es": "La herramienta Lines"
+          },
+          "text": {
+            "en": "**Lines** (L) opens **2D Camera Match**: only the plate and the vanishing lines, like Perspective Match in 3ds Max. Two edges that run along the car (sills, window frames, roof rails) solve the turn of the camera; the buttons over the image (top right) pick the axes the lines solve with: **XYZ**, **XY**, **XZ** or **YZ** (X red across, Y green vertical, Z blue along the car), with **Keep tilt** and **Reset view** below; the lines follow the view when the camera moves by other means, and a line dragged by its middle slides without turning; **Show lines** hides them; **Move camera**, at the bottom, slides or turns the camera without changing the perspective.",
+            "es": "**Lines** (L) abre **2D Camera Match**: sólo el plate y las líneas de fuga, como Perspective Match de 3ds Max. Dos bordes que corren a lo largo del auto (zócalos, marcos de ventana, barras del techo) resuelven el giro de la cámara; los botones sobre la imagen (arriba a la derecha) eligen con qué ejes resuelven las líneas: **XYZ**, **XY**, **XZ** o **YZ** (X roja cruzada, Y verde vertical, Z azul a lo largo del auto), con **Keep tilt** y **Reset view** debajo; las líneas siguen a la vista cuando la cámara se mueve por otro lado, y una línea arrastrada por el medio se corre sin girar; **Show lines** las oculta; **Move camera**, abajo, corre o gira la cámara sin cambiar la perspectiva."
+          },
+          "turn": {
+            "en": "click **Lines** (or press L)",
+            "es": "hacé click en **Lines** (o apretá L)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "tool.lines"
+            }
+          ],
+          "until": {
+            "what": "mode",
+            "name": "lines"
+          }
+        },
+        {
+          "id": "scene.cargs.auto",
+          "mode": "do",
+          "anchor": "lines.auto",
+          "place": "left",
+          "title": {
+            "en": "Auto from windows",
+            "es": "Auto from windows"
+          },
+          "text": {
+            "en": "**Auto from windows** looks for the straight edges of the green and places the lines on the ones it used.",
+            "es": "**Auto from windows** busca los bordes rectos del verde y pone las líneas sobre los que usó."
+          },
+          "turn": {
+            "en": "click **Auto from windows**",
+            "es": "hacé click en **Auto from windows**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "lines.auto"
+            }
+          ],
+          "until": {
+            "what": "scene_auto"
+          },
+          "timeout_s": 30
+        },
+        {
+          "id": "scene.cargs.drag",
+          "mode": "info",
+          "anchor": "viewer",
+          "enter": [
+            {
+              "op": "mode",
+              "name": "nav"
+            }
+          ],
+          "place": "left",
+          "title": {
+            "en": "Fix it by hand",
+            "es": "Corregilo a mano"
+          },
+          "text": {
+            "en": "In **3D Camera Pin**, on the plate, drag the **VP car** marker to turn the camera, the **horizon** to tilt it and the **road** below the horizon to set the camera height.",
+            "es": "En **3D Camera Pin**, sobre el plate, arrastrá la marca **VP car** para girar la cámara, el **horizonte** para inclinarla y la **calle** debajo del horizonte para fijar la altura de cámara."
+          }
+        },
+        {
+          "id": "scene.cargs.figure",
+          "mode": "info",
+          "anchor": "tool.figure",
+          "place": "right",
+          "title": {
+            "en": "Figures at real size",
+            "es": "Figuras en tamaño real"
+          },
+          "text": {
+            "en": "In **3D Camera Pin**, with **Figure** (S), a click below the horizon stands a person, a door, a sedan or a bus on the road at real size, with its distance and its blur. If it looks too big or too small, the camera height or the lens is off. Hold the tool (or right click it) to pick the figure: person, door, car or bus; its icon changes.",
+            "es": "En **3D Camera Pin**, con **Figure** (S), un click debajo del horizonte para sobre la calle una persona, una puerta, un sedán o un colectivo en tamaño real, con su distancia y su desenfoque. Si se ve demasiado grande o chica, la altura de cámara o la lente están mal. Manteniendo apretada la herramienta (o con click derecho) se elige la figura: persona, puerta, auto o colectivo; su icono cambia."
+          }
+        }
+      ]
+    },
+    "street.env": {
+      "contentVersion": 2,
+      "minutes": 3,
+      "title": {
+        "en": "A street behind the car",
+        "es": "Una calle detrás del auto"
+      },
+      "summary": {
+        "en": "A one-way avenue with parked cars, pedestrians, facades and traffic, seen through the green.",
+        "es": "Una avenida de mano única con estacionados, gente, fachadas y tráfico, vista a través del verde."
+      },
+      "steps": [
+        {
+          "id": "street.env.module",
+          "mode": "do",
+          "anchor": "env.module",
+          "place": "left",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "#env-mod",
+              "value": "none"
+            }
+          ],
+          "title": {
+            "en": "Pick a set",
+            "es": "Elegí un set"
+          },
+          "text": {
+            "en": "**Module** builds a set around the camera in real meters: a street, a road or a train platform.",
+            "es": "**Module** arma un set alrededor de la cámara en metros reales: una calle, una ruta o un andén de tren."
+          },
+          "turn": {
+            "en": "pick **Avenue / street** in **Module**",
+            "es": "elegí **Avenue / street** en **Module**"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#env-mod",
+              "value": "avenue"
+            }
+          ],
+          "until": {
+            "what": "env",
+            "id": "avenue"
+          }
+        },
+        {
+          "id": "street.env.params",
+          "mode": "info",
+          "anchor": "#env-params",
+          "place": "left",
+          "title": {
+            "en": "Lanes and traffic",
+            "es": "Carriles y tráfico"
+          },
+          "text": {
+            "en": "It starts as a **one-way** avenue, every lane going the same way as the shot's car: parked | moving | the shot's car | moving | parked. The two buttons on top set that one or a two-way avenue. Below: the lanes, the **Shot car lane** (counted from the left curb), the parked lanes, the sidewalks with **Pedestrians**, the **Facades** with doors and windows, and the traffic. Every number is in meters.",
+            "es": "Arranca como una avenida de **mano única**, con todos los carriles para el mismo lado que el auto del plano: estacionados | andando | el auto del plano | andando | estacionados. Los dos botones de arriba arman ésa o una de doble mano. Debajo: los carriles, el **Shot car lane** (contado desde el cordón izquierdo), los carriles de estacionados, las veredas con **Pedestrians**, las **Facades** con puertas y ventanas, y el tráfico. Todos los números están en metros."
+          }
+        },
+        {
+          "id": "street.env.key",
+          "mode": "do",
+          "anchor": "view.key",
+          "place": "bottom",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "#key-on",
+              "value": false
+            }
+          ],
+          "title": {
+            "en": "See it through the green",
+            "es": "Mirala a través del verde"
+          },
+          "text": {
+            "en": "The street is behind the plate. Keying the green screen out shows it where the green was.",
+            "es": "La calle está detrás del plate. Sacando el verde con el key se ve donde estaba el verde."
+          },
+          "turn": {
+            "en": "click **Key** (or press K)",
+            "es": "hacé click en **Key** (o apretá K)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "view.key"
+            }
+          ],
+          "until": {
+            "what": "key"
+          }
+        },
+        {
+          "id": "street.env.shuffle",
+          "mode": "info",
+          "anchor": "env.shuffle",
+          "place": "left",
+          "title": {
+            "en": "Another street",
+            "es": "Otra calle"
+          },
+          "text": {
+            "en": "**Shuffle** makes new random traffic and buildings. **Ground to scan** puts the road at the lowest point of the scan.",
+            "es": "**Shuffle** arma tráfico y edificios nuevos al azar. **Ground to scan** pone la calle en el punto más bajo del scan."
+          }
+        }
+      ]
+    },
+    "street.motion": {
+      "contentVersion": 3,
+      "minutes": 3,
+      "title": {
+        "en": "Speed",
+        "es": "Velocidad"
+      },
+      "summary": {
+        "en": "The speed of the shot: the camera stays, the street moves past it and the traffic comes from behind. Check it before any filmed background.",
+        "es": "La velocidad del plano: la cámara queda quieta, la calle pasa y el tráfico viene de atrás. Revisarlo antes de cualquier fondo filmado."
+      },
+      "steps": [
+        {
+          "id": "street.motion.on",
+          "mode": "do",
+          "anchor": "#envp-mon",
+          "place": "left",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "#env-mod",
+              "value": "avenue"
+            },
+            {
+              "op": "open",
+              "anchor": "panel.motion"
+            },
+            {
+              "op": "set",
+              "anchor": "#envp-mon",
+              "value": false
+            }
+          ],
+          "title": {
+            "en": "Motion",
+            "es": "Movimiento"
+          },
+          "text": {
+            "en": "With **Motion on**, playing the timeline slides the street past the camera at the speed of the shot.",
+            "es": "Con **Motion on**, al reproducir la línea de tiempo la calle pasa delante de la cámara a la velocidad del plano."
+          },
+          "turn": {
+            "en": "tick **Motion on**",
+            "es": "tildá **Motion on**"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#envp-mon",
+              "value": true
+            }
+          ],
+          "until": {
+            "what": "motion"
+          }
+        },
+        {
+          "id": "street.motion.speed",
+          "mode": "do",
+          "anchor": "#envp-speed",
+          "place": "left",
+          "title": {
+            "en": "How fast",
+            "es": "Qué tan rápido"
+          },
+          "text": {
+            "en": "**Speed** is the car of the shot, in km/h, and **Other vehicles** the traffic. With the shot's car slower than the traffic, the cars come from behind and pass it, as in most car shots. **Speed curve** starts or stops the car within the range.",
+            "es": "**Speed** es el auto del plano, en km/h, y **Other vehicles** el tráfico. Con el auto del plano más lento que el tráfico, los autos vienen de atrás y lo pasan, como en la mayoría de las tomas de autos. **Speed curve** arranca o frena el auto dentro del rango."
+          },
+          "turn": {
+            "en": "check that **Speed** is below **Other vehicles** (out of the box 40 and 55 km/h)",
+            "es": "fijate que **Speed** quede por debajo de **Other vehicles** (de fábrica 40 y 55 km/h)"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#envp-speed",
+              "value": 40
+            }
+          ],
+          "until": {
+            "what": "motion",
+            "min_speed": 1,
+            "max_speed": 50
+          }
+        },
+        {
+          "id": "street.motion.play",
+          "mode": "do",
+          "anchor": "timeline.play",
+          "place": "top",
+          "enter": [
+            {
+              "op": "stop"
+            }
+          ],
+          "title": {
+            "en": "Play it",
+            "es": "Reproducilo"
+          },
+          "text": {
+            "en": "The timeline plays the range at its fps.",
+            "es": "La línea de tiempo reproduce el rango a sus fps."
+          },
+          "turn": {
+            "en": "click **Play** (or press Space)",
+            "es": "hacé click en **Play** (o apretá Espacio)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "timeline.play"
+            }
+          ],
+          "until": {
+            "what": "frame_moved"
+          }
+        },
+        {
+          "id": "street.motion.read",
+          "mode": "info",
+          "anchor": "timeline",
+          "place": "top",
+          "title": {
+            "en": "Speed, distance and time",
+            "es": "Velocidad, distancia y tiempo"
+          },
+          "text": {
+            "en": "When the window has room, the timeline shows the speed at this frame, the meters travelled and the time since the first frame. **Space** stops it.",
+            "es": "Cuando la ventana tiene lugar, la línea de tiempo muestra la velocidad en este cuadro, los metros recorridos y el tiempo desde el primer cuadro. **Espacio** lo frena."
+          }
+        },
+        {
+          "id": "street.motion.check",
+          "mode": "info",
+          "anchor": "viewer",
+          "place": "left",
+          "title": {
+            "en": "Check it before any background",
+            "es": "Revisalo antes de cualquier fondo"
+          },
+          "text": {
+            "en": "Play it and look through the windows: the traffic comes from behind and moves forward along the vanishing lines of the street, at the size the windows and the passengers say. When this works, the setup can be trusted; if not, go back to the camera, the lens or the street. The filmed background comes after this, never before.",
+            "es": "Reproducilo y mirá por las ventanillas: el tráfico viene de atrás y avanza siguiendo las líneas de fuga de la calle, del tamaño que dicen las ventanillas y los pasajeros. Cuando esto funciona, el armado es confiable; si no, volvé a la cámara, la lente o la calle. El fondo filmado viene después de esto, nunca antes."
+          }
+        }
+      ]
+    },
+    "focus.bokeh": {
+      "contentVersion": 3,
+      "minutes": 3,
+      "title": {
+        "en": "Focus, bokeh and Nuke",
+        "es": "Foco, bokeh y Nuke"
+      },
+      "summary": {
+        "en": "How much the lens blurs each distance, and a Defocus node with that size.",
+        "es": "Cuánto desenfoca la lente cada distancia, y un nodo Defocus con ese tamaño."
+      },
+      "steps": [
+        {
+          "id": "focus.bokeh.lens",
+          "mode": "info",
+          "anchor": "panel.lens",
+          "place": "left",
+          "enter": [
+            {
+              "op": "toggle",
+              "anchor": "view.ghost",
+              "on": false
+            },
+            {
+              "op": "open",
+              "anchor": "panel.lens"
+            }
+          ],
+          "title": {
+            "en": "The lens",
+            "es": "La lente"
+          },
+          "text": {
+            "en": "T-stop, focus distance and the near (**FG**) and far (**BG**) distances you want to check. The note under **T-stop** says where it and the focus come from: the EXR, the camera report, typed, or assumed when the file has no T-stop. The focal length and the sensor come from the camera. **Setup B** is a second lens to compare the blur with: it never moves the camera.",
+            "es": "El T-stop, la distancia de foco y las distancias cercana (**FG**) y lejana (**BG**) que querés revisar. La nota debajo de **T-stop** dice de dónde salen él y el foco: el EXR, el reporte de cámara, tipeado, o supuesto cuando el archivo no trae T-stop. La focal y el sensor salen de la cámara. **Setup B** es una segunda lente para comparar el desenfoque: nunca mueve la cámara."
+          }
+        },
+        {
+          "id": "focus.bokeh.focus",
+          "mode": "do",
+          "anchor": "distances.focus",
+          "place": "left",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "distances.focus",
+              "value": "1.5"
+            }
+          ],
+          "title": {
+            "en": "Move the focus",
+            "es": "Mové el foco"
+          },
+          "text": {
+            "en": "Focus is on the passengers, at 1.5 m. Pushing it back makes the background sharper.",
+            "es": "El foco está en los pasajeros, a 1,5 m. Llevarlo más lejos deja el fondo más nítido."
+          },
+          "turn": {
+            "en": "type **3** or more in **Focus** and press Enter",
+            "es": "escribí **3** o más en **Focus** y apretá Enter"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "distances.focus",
+              "value": "4"
+            }
+          ],
+          "until": {
+            "what": "focus",
+            "min": 3
+          }
+        },
+        {
+          "id": "focus.bokeh.rail",
+          "mode": "info",
+          "anchor": "rail.handles",
+          "place": "top",
+          "title": {
+            "en": "The focus rail",
+            "es": "El rail de foco"
+          },
+          "text": {
+            "en": "Distance from the camera, from left to right. The curve says how big a blur disc gets at each distance; the handles move focus, FG and BG.",
+            "es": "La distancia desde la cámara, de izquierda a derecha. La curva dice qué tan grande queda un disco de desenfoque a cada distancia; las manijas mueven el foco, FG y BG."
+          }
+        },
+        {
+          "id": "focus.bokeh.out",
+          "mode": "info",
+          "anchor": "panel.bokeh",
+          "place": "left",
+          "enter": [
+            {
+              "op": "open",
+              "anchor": "panel.bokeh"
+            }
+          ],
+          "title": {
+            "en": "Blur on the plate",
+            "es": "El desenfoque en el plate"
+          },
+          "text": {
+            "en": "The blur diameter at FG, BG and infinity, with the T-stop it comes from. In pixels of the plate, or of the comp with a delivery reformat: the header says which.",
+            "es": "El diámetro de desenfoque en FG, BG e infinito, con el T-stop del que sale. En píxeles del plate, o del comp con un reencuadre de entrega: el encabezado dice cuál."
+          }
+        },
+        {
+          "id": "focus.bokeh.copy",
+          "mode": "do",
+          "anchor": "bokeh.copy",
+          "place": "left",
+          "title": {
+            "en": "Copy it for Nuke",
+            "es": "Copialo para Nuke"
+          },
+          "text": {
+            "en": "**Copy Defocus** puts a Defocus node in the clipboard with the blur of what the menu next to it says, as a radius (half the diameter), the way Nuke wants it.",
+            "es": "**Copy Defocus** deja en el portapapeles un nodo Defocus con el desenfoque de lo que dice el menú de al lado, como radio (la mitad del diámetro), como lo pide Nuke."
+          },
+          "turn": {
+            "en": "click **Copy Defocus**",
+            "es": "hacé click en **Copy Defocus**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "bokeh.copy"
+            }
+          ],
+          "until": {
+            "what": "defocus_copied"
+          }
+        },
+        {
+          "id": "focus.bokeh.paste",
+          "mode": "info",
+          "anchor": "bokeh.copy",
+          "place": "left",
+          "title": {
+            "en": "Paste it in Nuke",
+            "es": "Pegalo en Nuke"
+          },
+          "text": {
+            "en": "In Nuke, **Ctrl+V** in the Node Graph pastes the node.",
+            "es": "En Nuke, **Ctrl+V** en el Node Graph pega el nodo."
+          }
+        }
+      ]
+    },
+    "focus.zdefocus": {
+      "contentVersion": 2,
+      "minutes": 2,
+      "title": {
+        "en": "Z defocus on the street",
+        "es": "Z defocus en la calle"
+      },
+      "summary": {
+        "en": "The street behind the car blurred by depth with the lens you set.",
+        "es": "La calle detrás del auto desenfocada por profundidad con la lente que fijaste."
+      },
+      "steps": [
+        {
+          "id": "focus.zdefocus.on",
+          "mode": "do",
+          "anchor": "view.defocus",
+          "place": "left",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "#env-mod",
+              "value": "avenue"
+            },
+            {
+              "op": "set",
+              "anchor": "#key-on",
+              "value": true
+            },
+            {
+              "op": "open",
+              "anchor": "panel.lens"
+            },
+            {
+              "op": "set",
+              "anchor": "#zdf-on",
+              "value": false
+            }
+          ],
+          "title": {
+            "en": "Blur by depth",
+            "es": "Desenfoque por profundidad"
+          },
+          "text": {
+            "en": "**Defocus** blurs the street by its distance from the camera, with the lens, the stop and the focus of the bokeh section. It is in the DepthLab box at the right of the viewer, with the other DepthLab layers, and only shows in DepthLab.",
+            "es": "**Defocus** desenfoca la calle según su distancia a la cámara, con la lente, el diafragma y el foco de la sección de bokeh. Está en la caja de DepthLab a la derecha del visor, con las otras capas de DepthLab, y se ve sólo en DepthLab."
+          },
+          "turn": {
+            "en": "click **Defocus** (or press D)",
+            "es": "hacé click en **Defocus** (o apretá D)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "view.defocus"
+            }
+          ],
+          "until": {
+            "what": "zdefocus"
+          }
+        },
+        {
+          "id": "focus.zdefocus.look",
+          "mode": "info",
+          "anchor": "viewer",
+          "place": "left",
+          "title": {
+            "en": "Compare",
+            "es": "Compará"
+          },
+          "text": {
+            "en": "The far street is softer than the near one. Change the focus in **Lens & focus** and the blur follows.",
+            "es": "La calle lejana queda más blanda que la cercana. Cambiá el foco en **Lens & focus** y el desenfoque acompaña."
+          }
+        }
+      ]
+    },
+    "drive.plate": {
+      "contentVersion": 9,
+      "minutes": 6,
+      "title": {
+        "en": "A driving plate behind the car",
+        "es": "Un driving plate detrás del auto"
+      },
+      "summary": {
+        "en": "A street shot from a moving car with another camera, or several cameras of an array, re-projected to this shot and checked for scale, height and blur. Without camera data, its camera is measured on the street; several candidates are ranked for the windows.",
+        "es": "Una calle filmada desde un auto con otra cámara, o con varias cámaras de un array, reproyectada a esta toma y revisada en escala, altura y desenfoque. Sin datos de cámara, la cámara se mide sobre la calle; varios candidatos se ordenan por las ventanillas."
+      },
+      "steps": [
+        {
+          "id": "drive.plate.panel",
+          "mode": "info",
+          "anchor": "panel.drive",
+          "place": "left",
+          "enter": [
+            {
+              "op": "stop"
+            },
+            {
+              "op": "demo_pins"
+            },
+            {
+              "op": "press",
+              "anchor": "pins.solve"
+            },
+            {
+              "op": "set",
+              "anchor": "#env-mod",
+              "value": "none"
+            },
+            {
+              "op": "set",
+              "anchor": "#key-on",
+              "value": false
+            },
+            {
+              "op": "open",
+              "anchor": "panel.drive"
+            }
+          ],
+          "title": {
+            "en": "Driving plate",
+            "es": "Driving plate"
+          },
+          "text": {
+            "en": "Only now, with the car and the camera aligned and the 3D street playing right, the filmed background goes in. A driving plate is the street shot from a moving car with its own camera and lens: BackplateLab re-projects it to the lens and the angle of this shot and puts it behind the green. The next chapter judges it against the 3D.",
+            "es": "Recién ahora, con el auto y la cámara alineados y la calle 3D andando bien, entra el fondo filmado. Un driving plate es la calle filmada desde un auto en movimiento, con su propia cámara y lente: BackplateLab lo reproyecta a la lente y al ángulo de esta toma y lo pone detrás del verde. El capítulo siguiente lo juzga contra el 3D."
+          }
+        },
+        {
+          "id": "drive.plate.load",
+          "mode": "info",
+          "anchor": "drive.load",
+          "place": "left",
+          "enter": [
+            {
+              "op": "demo_drive"
+            }
+          ],
+          "title": {
+            "en": "Load one",
+            "es": "Cargá uno"
+          },
+          "text": {
+            "en": "**Load drive plate** opens an EXR, a JPG or PNG, or an MP4. For this practice the tour loaded one: the street of the app shot with an 18 mm lens on a full-frame camera, looking back from 1.5 m above the road.",
+            "es": "**Load drive plate** abre un EXR, un JPG o PNG, o un MP4. Para esta práctica el recorrido cargó uno: la calle de la app filmada con una 18 mm en una cámara full frame, mirando hacia atrás desde 1,5 m sobre la calle."
+          }
+        },
+        {
+          "id": "drive.plate.key",
+          "mode": "do",
+          "anchor": "view.key",
+          "place": "bottom",
+          "title": {
+            "en": "See it through the green",
+            "es": "Miralo a través del verde"
+          },
+          "text": {
+            "en": "The driving plate sits behind the plate, so it shows where the green screen is keyed out.",
+            "es": "El driving plate queda detrás del plate: se ve donde el key saca el verde."
+          },
+          "turn": {
+            "en": "click **Key** (or press K)",
+            "es": "hacé click en **Key** (o apretá K)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "view.key"
+            }
+          ],
+          "until": {
+            "what": "key"
+          }
+        },
+        {
+          "id": "drive.plate.camera",
+          "mode": "do",
+          "anchor": "#drv-h",
+          "place": "left",
+          "title": {
+            "en": "Its camera",
+            "es": "Su cámara"
+          },
+          "text": {
+            "en": "Camera, mode, focal length, which way it looks and its height above the road. An EXR with ARRI metadata fills most of them. Here the shot camera is 1.36 m above the road and the driving plate 1.5 m, so the near street does not line up.",
+            "es": "Cámara, modo, focal, hacia dónde mira y su altura sobre la calle. Un EXR con metadata ARRI completa casi todo. Acá la cámara de la toma está a 1,36 m de la calle y el driving plate a 1,5 m, así que la calle cercana no coincide."
+          },
+          "turn": {
+            "en": "type **1.36** in **Height** and press Enter",
+            "es": "escribí **1.36** en **Height** y apretá Enter"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#drv-h",
+              "value": "1.36"
+            }
+          ],
+          "until": {
+            "what": "value",
+            "anchor": "#drv-h",
+            "min": 1.3,
+            "max": 1.42
+          }
+        },
+        {
+          "id": "drive.plate.measure",
+          "mode": "do",
+          "anchor": "drive.measure",
+          "place": "left",
+          "enter": [
+            {
+              "op": "drive_measure_close"
+            }
+          ],
+          "title": {
+            "en": "No camera data? Measure it",
+            "es": "¿Sin datos de cámara? Medila"
+          },
+          "text": {
+            "en": "A drive plate without camera data, like a video proxy, can be measured on its own image. **Measure drive camera** shows it alone in the viewer.",
+            "es": "Un driving plate sin datos de cámara, como un proxy de video, se puede medir en su propia imagen. **Measure drive camera** lo muestra solo en el visor."
+          },
+          "turn": {
+            "en": "click **Measure drive camera**",
+            "es": "hacé click en **Measure drive camera**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "drive.measure"
+            }
+          ],
+          "until": {
+            "what": "shown",
+            "anchor": "drive.measure.view"
+          }
+        },
+        {
+          "id": "drive.plate.measure.lines",
+          "mode": "do",
+          "anchor": "drive.measure.apply",
+          "place": "bottom",
+          "enter": [
+            {
+              "op": "demo_measure_lines"
+            }
+          ],
+          "title": {
+            "en": "Lines along the street",
+            "es": "Líneas a lo largo de la calle"
+          },
+          "text": {
+            "en": "Drag the red lines over edges that run along the street: curbs, lane lines, cornices. Where they meet is the street vanishing point, and with the focal it gives the tilt and the yaw. **+ Street line** adds more: with three or more the point is a best fit and each line shows how many px it is off, so one that does not agree stands out. **2 VP** adds lines across the street and estimates the focal too. With only two lines nothing checks the measurement, and the message says so. For this practice the lines are already on the road. The same point fits looking the opposite way, so **Looks to** picks the side. On a video each measured frame is a keyframe: measure a stabilized clip on two or three frames and the camera is interpolated between them.",
+            "es": "Arrastrá las líneas rojas sobre bordes que van a lo largo de la calle: cordones, líneas de carril, cornisas. Donde se cruzan está el punto de fuga de la calle, y con la focal da el tilt y el yaw. **+ Street line** suma más: con tres o más el punto es el que mejor cuadra y cada línea muestra a cuántos px queda, así se ve la que no coincide. **2 VP** suma líneas a lo ancho de la calle y estima también la focal. Con sólo dos líneas nada controla la medición, y el mensaje lo dice. En esta práctica las líneas ya están sobre la calle. El mismo punto sirve mirando para el otro lado, así que **Looks to** elige el lado. En un video cada cuadro medido es un keyframe: medí un clip estabilizado en dos o tres cuadros y la cámara se interpola entre ellos."
+          },
+          "turn": {
+            "en": "click **Apply**: the camera stays with this file and is saved with the project",
+            "es": "hacé click en **Apply**: la cámara queda con este archivo y se guarda en el proyecto"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "drive.measure.apply"
+            }
+          ],
+          "until": {
+            "what": "drive_measured"
+          }
+        },
+        {
+          "id": "drive.plate.compare",
+          "mode": "info",
+          "anchor": "drive.compare",
+          "place": "left",
+          "enter": [
+            {
+              "op": "drive_measure_close"
+            }
+          ],
+          "title": {
+            "en": "Pick among several",
+            "es": "Elegir entre varios"
+          },
+          "text": {
+            "en": "**Compare drive plates…** takes several files or a folder and reads one frame of each. It ranks them by how much of the windows (the keyed area) each one covers, then by upscale, with the tilt and yaw change and the parallax from the camera height. One without camera data says **camera ?** and has a button to measure it. A click on a row loads it.",
+            "es": "**Compare drive plates…** toma varios archivos o una carpeta y lee un cuadro de cada uno. Los ordena por cuánto de las ventanillas (el área keyeada) cubre cada uno, después por upscale, con la diferencia de tilt y yaw y el parallax por la altura de cámara. Uno sin datos de cámara dice **camera ?** y tiene un botón para medirla. Un click en una fila lo carga."
+          }
+        },
+        {
+          "id": "drive.plate.rig",
+          "mode": "info",
+          "anchor": "drive.rig",
+          "place": "left",
+          "title": {
+            "en": "An array of cameras",
+            "es": "Un array de cámaras"
+          },
+          "text": {
+            "en": "Background plates are often shot with several cameras on the same car. **Add camera** adds another one with its own file; the numbered buttons pick which one the fields below edit: its camera, its mounting yaw (**Camera looks**: Ahead, Car left, Car right, Behind) and its **Frame offset**. All of them go behind the plate, and where two overlap the one that covers best wins, with a soft seam. The analysis then says which camera covers each window. A video can also follow its tilt frame by frame with **Tilt per frame…** and the EXR folder of the clip.",
+            "es": "Los plates de fondo muchas veces se filman con varias cámaras en el mismo auto. **Add camera** suma otra con su archivo; los botones numerados eligen cuál editan los campos de abajo: su cámara, su yaw de montaje (**Camera looks**: Ahead, Car left, Car right, Behind) y su **Frame offset**. Todas van detrás del plate, y donde dos se pisan manda la que mejor cubre, con un borde suave. El análisis dice entonces qué cámara cubre cada ventanilla. Un video también puede seguir su tilt cuadro a cuadro con **Tilt per frame…** y la carpeta de EXR del clip."
+          }
+        },
+        {
+          "id": "drive.plate.fit",
+          "mode": "info",
+          "anchor": "drive.fit",
+          "place": "left",
+          "title": {
+            "en": "Fit",
+            "es": "Fit"
+          },
+          "text": {
+            "en": "**Metadata** places the driving plate with its own camera: the one in the EXR metadata (body, mode, extraction, focal, tilt, roll), the set report or measured; the format of the shot (Import) rules. **Corner pin** adds four corners to drag in the viewer of Compare and Match, to match it to the 3D Guides; the square in the middle of a side moves that side keeping the perspective, and dragging inside moves the whole driving plate. **Fit to screen** puts the four corners on the corners of the frame, **Auto match plate** lines up the horizon and the street vanishing point measured in Measure drive camera and scales it just enough to cover the windows, and **Scale** grows it around its horizon, which stays put. The **Corner pin** button at the left of the viewer is lit while the corners are on the viewer. Each driving plate keeps its own corner pin. **Copy CornerPin** takes them to Nuke. The panel says how far the corners moved: the 3D stays the reference, and a lot means this driving plate may not fit the shot.",
+            "es": "**Metadata** pone el driving plate con su propia cámara: la de la metadata del EXR (cuerpo, modo, extracción, focal, tilt, roll), la del set report o la medida; manda el formato de la toma (Import). **Corner pin** suma cuatro esquinas para arrastrar en el visor de Compare and Match, para machearlo a las 3D Guides; el cuadrado del medio de un lado corre ese lado manteniendo la perspectiva, y arrastrar adentro mueve el driving entero. **Fit to screen** pone las cuatro esquinas en las del cuadro, **Auto match plate** alinea el horizonte y el punto de fuga de la calle medidos en Measure drive camera y lo escala lo justo para cubrir las ventanillas, y **Scale** lo agranda alrededor de su horizonte, que no se mueve. El botón **Corner pin** de la izquierda del visor se prende mientras las esquinas están en el visor. Cada driving plate guarda su corner pin. **Copy CornerPin** las lleva a Nuke. El panel dice cuánto se corrieron: el 3D sigue siendo la referencia, y si es mucho, ese driving plate puede no servir para la toma."
+          }
+        },
+        {
+          "id": "drive.plate.view",
+          "mode": "info",
+          "anchor": "drive.view",
+          "place": "left",
+          "title": {
+            "en": "How it shows",
+            "es": "Cómo se ve"
+          },
+          "text": {
+            "en": "Under the viewer, in Compare and Match and DepthLab: **Behind the plate** (X) switches between the filmed background and the 3D street, **Wiper** (Shift+X) puts a line to drag across the windows (filmed on the left, 3D on the right), and **Drive horizon** draws the horizon of the driving plate in magenta, once it was set in Measure drive camera. In the box at the right, **Driving plate** turns it on or off, the arrows **‹ ›** go from one driving plate of the session to the next, each with its own corner pin, and **Mix** fades it. Where the driving plate does not reach, the viewer is hatched. A video gets a **Frame offset** to pick the frame that goes with the first frame of the shot.",
+            "es": "Debajo del visor, en Compare and Match y DepthLab: **Behind the plate** (X) pasa del fondo filmado a la calle 3D, **Wiper** (Shift+X) pone una línea para arrastrar por las ventanillas (el filmado a la izquierda y el 3D a la derecha) y **Drive horizon** dibuja el horizonte del driving plate en magenta, una vez puesto en Measure drive camera. En la caja de la derecha, **Driving plate** lo prende y apaga, las flechas **‹ ›** pasan de un driving plate de la sesión al siguiente, cada uno con su corner pin, y **Mix** lo funde. Donde el driving plate no llega, el visor queda rayado. Un video tiene **Frame offset** para elegir el cuadro que va con el primer cuadro de la toma."
+          }
+        },
+        {
+          "id": "drive.plate.analysis",
+          "mode": "info",
+          "anchor": "drive.analysis",
+          "place": "left",
+          "title": {
+            "en": "Will it work?",
+            "es": "¿Sirve?"
+          },
+          "text": {
+            "en": "The analysis says how much the driving plate is scaled up (above 1× it looks softer than the shot), how much of the frame it covers, where both horizons fall, how far off a different camera height leaves the near street, and how much the lens of the shot blurs it at the Background distance, at 5, 10 and 20 m and at infinity, with the T-stop it comes from.",
+            "es": "El análisis dice cuánto se agranda el driving plate (por encima de 1× se ve más blando que la toma), cuánto del cuadro cubre, dónde caen los dos horizontes, cuánto se corre la calle cercana con otra altura de cámara y cuánto lo desenfoca la lente de la toma a la distancia Background, a 5, 10 y 20 m y al infinito, con el T-stop del que sale."
+          }
+        },
+        {
+          "id": "drive.plate.copy",
+          "mode": "do",
+          "anchor": "drive.copy",
+          "place": "left",
+          "title": {
+            "en": "Take it to Nuke",
+            "es": "Llevalo a Nuke"
+          },
+          "text": {
+            "en": "**Copy CornerPin** copies a Reformat to the shot format and a CornerPin2D with the same re-projection, to paste under the Read of the driving plate. **Copy Defocus** copies the blur at the distance picked next to it.",
+            "es": "**Copy CornerPin** copia un Reformat al formato de la toma y un CornerPin2D con la misma reproyección, para pegar debajo del Read del driving plate. **Copy Defocus** copia el desenfoque a la distancia elegida al lado."
+          },
+          "turn": {
+            "en": "click **Copy CornerPin**",
+            "es": "hacé click en **Copy CornerPin**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "#drv-copy"
+            }
+          ],
+          "until": {
+            "what": "cornerpin_copied"
+          }
+        }
+      ]
+    },
+    "compare.ghost": {
+      "contentVersion": 7,
+      "minutes": 4,
+      "title": {
+        "en": "Judge the background against the 3D",
+        "es": "Juzgar el fondo contra el 3D"
+      },
+      "summary": {
+        "en": "The 3D Guides over the plate and the driving plate: the lines of the 3D environment that the camera sees, and real cars in the lanes with their distance and blur. A background can turn out not to work.",
+        "es": "Las 3D Guides sobre el plate y el driving plate: las líneas del entorno 3D que ve la cámara, y autos de verdad en los carriles con su distancia y su desenfoque. Un fondo puede resultar que no sirve."
+      },
+      "steps": [
+        {
+          "id": "compare.ghost.why",
+          "mode": "info",
+          "anchor": "panel.ghost",
+          "place": "left",
+          "enter": [
+            {
+              "op": "stop"
+            },
+            {
+              "op": "lane_cars_clear"
+            },
+            {
+              "op": "demo_pins"
+            },
+            {
+              "op": "press",
+              "anchor": "pins.solve"
+            },
+            {
+              "op": "set",
+              "anchor": "#env-mod",
+              "value": "avenue"
+            },
+            {
+              "op": "demo_drive",
+              "keep": true
+            },
+            {
+              "op": "toggle",
+              "anchor": "env.toggle",
+              "on": false
+            },
+            {
+              "op": "set",
+              "anchor": "#key-on",
+              "value": true
+            },
+            {
+              "op": "open",
+              "anchor": "panel.ghost"
+            },
+            {
+              "op": "set",
+              "anchor": "#grid",
+              "value": false
+            },
+            {
+              "op": "press",
+              "anchor": "#gh-m-hidden"
+            }
+          ],
+          "title": {
+            "en": "The 3D is the reference",
+            "es": "El 3D es la referencia"
+          },
+          "text": {
+            "en": "The 3D street is built at real size around a camera that matches the plate, so it says where things have to be. The filmed background is judged against it, not the other way round: the scale of a car close by, of a car one lane further, of a door on the sidewalk, and the lines.",
+            "es": "La calle 3D está armada a tamaño real alrededor de una cámara que coincide con el plate, así que dice dónde tienen que estar las cosas. El fondo filmado se juzga contra ella, no al revés: la escala de un auto cerca, la de un auto un carril más allá, la de una puerta en la vereda, y las líneas."
+          }
+        },
+        {
+          "id": "compare.ghost.on",
+          "mode": "do",
+          "anchor": "view.ghost",
+          "place": "left",
+          "enter": [
+            {
+              "op": "open",
+              "anchor": "panel.ghost"
+            },
+            {
+              "op": "toggle",
+              "anchor": "view.ghost",
+              "on": false
+            }
+          ],
+          "title": {
+            "en": "The 3D Guides",
+            "es": "Las 3D Guides"
+          },
+          "text": {
+            "en": "**3D Guides** draws the 3D environment over the viewer in hidden line: every line the camera sees, without the ones behind (the lanes, the curbs, the facades, the doors, the people, the cars), and the horizon. It is in the box at the right of the viewer, with its **Mix** under it, and shows in Compare and Match and in DepthLab.",
+            "es": "**3D Guides** dibuja el entorno 3D sobre el visor en hidden line: cada línea que ve la cámara, sin las de atrás (los carriles, los cordones, las fachadas, las puertas, la gente, los autos), y el horizonte. Está en la caja a la derecha del visor, con su **Mix** abajo, y se ve en Compare and Match y en DepthLab."
+          },
+          "turn": {
+            "en": "click **3D Guides** (or press G)",
+            "es": "hacé click en **3D Guides** (o apretá G)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "view.ghost"
+            }
+          ],
+          "until": {
+            "what": "ghost"
+          }
+        },
+        {
+          "id": "compare.ghost.look",
+          "mode": "info",
+          "anchor": "viewer",
+          "place": "left",
+          "title": {
+            "en": "Strong in the windows, faint on the passengers",
+            "es": "Fuerte en las ventanillas, tenue sobre los pasajeros"
+          },
+          "text": {
+            "en": "The guides follow the key: through the windows they are drawn at full strength over the driving plate, and over the car and the passengers only faintly. **Mix** and **Over the FG** set both. **Show** turns each part on or off (Horizon, Lanes, Curbs, Facades, People, Cars), and **Style › Lines** draws the street lines with the cars of Cars in lanes as boxes with their size.",
+            "es": "Las guías siguen al key: por las ventanillas se dibujan fuerte sobre el driving plate, y sobre el auto y los pasajeros apenas. **Mix** y **Over the FG** fijan las dos. **Show** prende o apaga cada parte (Horizon, Lanes, Curbs, Facades, People, Cars), y **Style › Lines** dibuja las líneas de la calle con los autos de Cars in lanes como cajas con su medida."
+          }
+        },
+        {
+          "id": "compare.ghost.cars",
+          "mode": "do",
+          "anchor": "lanecars.add",
+          "place": "left",
+          "title": {
+            "en": "Cars in lanes",
+            "es": "Autos en los carriles"
+          },
+          "text": {
+            "en": "Real 3D cars on the lanes of the street, from the car collection of the environment. **Add car** puts one in front of the camera, in the lane of the shot; add another one and another. The model button switches the model, the eye hides one (its box stays in the 3D Guides), and **Cars in lanes** under 3D Guides shows or hides them all. They are born here and show in Compare and Match and DepthLab, not in the tabs to the left. People go with Figure (S).",
+            "es": "Autos 3D de verdad en los carriles de la calle, de la colección de autos del entorno. **Add car** pone uno delante de la cámara, en el carril de la toma; agregá otro y otro. El botón del modelo cambia de modelo, el ojo oculta uno (su caja queda en las 3D Guides), y **Cars in lanes** debajo de 3D Guides los muestra u oculta a todos. Nacen acá y se ven en Compare and Match y en DepthLab, no en las pestañas de la izquierda. La gente va con Figure (S)."
+          },
+          "turn": {
+            "en": "click **Add car**",
+            "es": "hacé click en **Add car**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "lanecars.add"
+            }
+          ],
+          "until": {
+            "what": "lane_car"
+          },
+          "enter": [
+            {
+              "op": "open",
+              "anchor": "panel.lanecars"
+            }
+          ]
+        },
+        {
+          "id": "compare.ghost.distance",
+          "mode": "do",
+          "anchor": "lanecars.list",
+          "place": "left",
+          "title": {
+            "en": "Distance and blur",
+            "es": "Distancia y desenfoque"
+          },
+          "text": {
+            "en": "Each car shows its distance from the camera and the blur the lens of the shot gives there. **Lane** moves it from lane to lane (drag the number or use the arrows) and **Along** moves it along the street, to put it next to a car of the background. **Moves with the street** makes it travel with the street when there is motion.",
+            "es": "Cada auto muestra su distancia a la cámara y el desenfoque que le da ahí la lente de la toma. **Lane** lo pasa de carril (arrastrá el número o usá las flechas) y **Along** lo corre a lo largo de la calle, para ponerlo al lado de un auto del fondo. **Moves with the street** hace que viaje con la calle cuando hay motion."
+          },
+          "turn": {
+            "en": "type **15** in **Along** of **Car 1** and press Enter",
+            "es": "escribí **15** en **Along** del **Car 1** y apretá Enter"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#lc-along-1",
+              "value": "15"
+            }
+          ],
+          "until": {
+            "what": "value",
+            "anchor": "#lc-along-1",
+            "min": 14.95,
+            "max": 15.05
+          }
+        },
+        {
+          "id": "compare.ghost.judge",
+          "mode": "info",
+          "anchor": "viewer",
+          "place": "left",
+          "title": {
+            "en": "Compare",
+            "es": "Compará"
+          },
+          "text": {
+            "en": "Put a car next to a car of the driving plate at the same distance: is it the same size, and do their roofs sit at the same height against the horizon? Do the lanes, the curbs and the facades of the plate run along the lines of the 3D, to the same vanishing point? Is the blur of the plate close to the one of the car, or much sharper or softer?",
+            "es": "Poné un auto al lado de un auto del driving plate a la misma distancia: ¿tiene el mismo tamaño, y sus techos quedan a la misma altura contra el horizonte? ¿Los carriles, los cordones y las fachadas del plate corren sobre las líneas del 3D, hacia el mismo punto de fuga? ¿El desenfoque del plate se parece al del auto, o es mucho más nítido o más blando?"
+          }
+        },
+        {
+          "id": "compare.ghost.verdict",
+          "mode": "info",
+          "anchor": "panel.ghost",
+          "place": "left",
+          "title": {
+            "en": "A background may not work",
+            "es": "Un fondo puede no servir"
+          },
+          "text": {
+            "en": "If the scale, the horizon or the lines do not agree, moving, scaling or rotating the plate only hides it: the honest answer can be **this background does not work for this shot**. Then look for another take or another camera of the array, or re-project it accepting the distortion. The comp is the best that could be done with what was shot, never the reference.",
+            "es": "Si la escala, el horizonte o las líneas no coinciden, mover, escalar o rotar el plate sólo lo esconde: la respuesta honesta puede ser **este fondo no sirve para este plano**. Entonces buscá otra toma u otra cámara del array, o reproyectalo aceptando la deformación. El comp es lo mejor que se pudo con lo filmado, nunca la referencia."
+          }
+        }
+      ]
+    },
+    "playblast.render": {
+      "contentVersion": 2,
+      "minutes": 2,
+      "title": {
+        "en": "Playblast",
+        "es": "Playblast"
+      },
+      "summary": {
+        "en": "Render the frame range of the viewer to an MP4.",
+        "es": "Renderizar el rango de cuadros del visor a un MP4."
+      },
+      "steps": [
+        {
+          "id": "playblast.render.open",
+          "mode": "do",
+          "anchor": "playblast.open",
+          "place": "top",
+          "enter": [
+            {
+              "op": "stop"
+            }
+          ],
+          "title": {
+            "en": "Playblast",
+            "es": "Playblast"
+          },
+          "text": {
+            "en": "A playblast records what the viewer shows over the frame range: plate, scan, street and traffic.",
+            "es": "Un playblast graba lo que muestra el visor en el rango de cuadros: plate, scan, calle y tráfico."
+          },
+          "turn": {
+            "en": "click **Playblast**",
+            "es": "hacé click en **Playblast**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "playblast.open"
+            }
+          ],
+          "until": {
+            "what": "shown",
+            "anchor": "playblast.render"
+          }
+        },
+        {
+          "id": "playblast.render.options",
+          "mode": "info",
+          "anchor": "playblast.render",
+          "place": "bottom",
+          "title": {
+            "en": "Size and burn-in",
+            "es": "Tamaño y burn-in"
+          },
+          "text": {
+            "en": "Pick the size, and whether to burn in the frame, the speed and the camera. **Passes** adds depth, masks and the camera per frame, for AI tools or Nuke, in a ZIP with the MP4. **Render MP4** renders the range and saves the file.",
+            "es": "Elegí el tamaño, y si se queman el cuadro, la velocidad y la cámara. **Passes** suma profundidad, máscaras y la cámara por cuadro, para una IA o Nuke, en un ZIP con el MP4. **Render MP4** renderiza el rango y guarda el archivo."
+          }
+        },
+        {
+          "id": "playblast.render.close",
+          "mode": "do",
+          "anchor": "playblast.cancel",
+          "place": "bottom",
+          "title": {
+            "en": "Later",
+            "es": "Para después"
+          },
+          "text": {
+            "en": "In this practice copy there is no need to render it.",
+            "es": "En esta copia de práctica no hace falta renderizarlo."
+          },
+          "turn": {
+            "en": "click **Cancel**",
+            "es": "hacé click en **Cancel**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "playblast.cancel"
+            }
+          ],
+          "until": {
+            "what": "shown",
+            "anchor": "playblast.render",
+            "is": false
+          }
+        }
+      ]
+    },
+    "depth.passes": {
+      "contentVersion": 2,
+      "minutes": 3,
+      "title": {
+        "en": "Depth view and passes",
+        "es": "Vista de profundidad y pases"
+      },
+      "summary": {
+        "en": "See the distance of everything from the camera and render depth, masks and the camera for AI tools or Nuke.",
+        "es": "Ver la distancia de todo a la cámara y renderizar profundidad, máscaras y la cámara para una IA o Nuke."
+      },
+      "steps": [
+        {
+          "id": "depth.passes.on",
+          "mode": "do",
+          "anchor": "view.depth",
+          "place": "left",
+          "enter": [
+            {
+              "op": "open",
+              "anchor": "panel.lens"
+            },
+            {
+              "op": "set",
+              "anchor": "#env-mod",
+              "value": "avenue"
+            },
+            {
+              "op": "toggle",
+              "anchor": "view.depth",
+              "on": false
+            }
+          ],
+          "title": {
+            "en": "Depth view",
+            "es": "Vista de profundidad"
+          },
+          "text": {
+            "en": "The depth view paints the scan and the environment by their distance from the camera. It is a DepthLab layer, in the box at the right of the viewer.",
+            "es": "La vista de profundidad pinta el scan y el entorno según su distancia a la cámara. Es una capa de DepthLab, en la caja a la derecha del visor."
+          },
+          "turn": {
+            "en": "click **Depth** (or press Shift+D)",
+            "es": "hacé click en **Depth** (o apretá Shift+D)"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "view.depth"
+            }
+          ],
+          "until": {
+            "what": "pressed",
+            "anchor": "view.depth"
+          }
+        },
+        {
+          "id": "depth.passes.gray",
+          "mode": "info",
+          "anchor": "#dv-opts",
+          "place": "left",
+          "enter": [
+            {
+              "op": "toggle",
+              "anchor": "#dv-gray",
+              "on": true
+            }
+          ],
+          "title": {
+            "en": "Gray",
+            "es": "Gray"
+          },
+          "text": {
+            "en": "**Gray**: near is white and far is black, in 1 / distance, like the depth maps of AI tools. **Near** and **Far** set the range; **Auto** fits it to what the camera sees.",
+            "es": "**Gray**: lo cercano es blanco y lo lejano negro, en 1 / distancia, como los mapas de profundidad de las IA. **Near** y **Far** fijan el rango; **Auto** lo ajusta a lo que ve la cámara."
+          }
+        },
+        {
+          "id": "depth.passes.lens",
+          "mode": "do",
+          "anchor": "#dv-lens",
+          "place": "left",
+          "title": {
+            "en": "Lens",
+            "es": "Lens"
+          },
+          "text": {
+            "en": "**Lens** shows the sharp zone of the active lens in green, what is in front of it in red and what is behind in blue; the stronger the color, the larger the blur.",
+            "es": "**Lens** muestra en verde la zona nítida de la lente activa, en rojo lo que está delante y en azul lo que está detrás; cuanto más fuerte el color, más grande el desenfoque."
+          },
+          "turn": {
+            "en": "click **Lens**",
+            "es": "hacé click en **Lens**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "#dv-lens"
+            }
+          ],
+          "until": {
+            "what": "pressed",
+            "anchor": "#dv-lens"
+          }
+        },
+        {
+          "id": "depth.passes.open",
+          "mode": "do",
+          "anchor": "playblast.open",
+          "place": "top",
+          "enter": [
+            {
+              "op": "stop"
+            }
+          ],
+          "title": {
+            "en": "Passes",
+            "es": "Pases"
+          },
+          "text": {
+            "en": "The same depth, and more, can be rendered frame by frame with the playblast.",
+            "es": "La misma profundidad, y más, se puede renderizar cuadro por cuadro con el playblast."
+          },
+          "turn": {
+            "en": "click **Playblast**",
+            "es": "hacé click en **Playblast**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "playblast.open"
+            }
+          ],
+          "until": {
+            "what": "shown",
+            "anchor": "playblast.passes"
+          }
+        },
+        {
+          "id": "depth.passes.list",
+          "mode": "info",
+          "anchor": "playblast.passes",
+          "place": "bottom",
+          "title": {
+            "en": "What comes out",
+            "es": "Qué sale"
+          },
+          "text": {
+            "en": "**Depth** as an EXR in meters for Nuke and a PNG for AI tools, **Masks** of the environment and the plate alpha, and the **Camera per frame** as JSON. They go in a ZIP with the MP4 and a README.",
+            "es": "**Depth** como EXR en metros para Nuke y PNG para las IA, **Masks** del entorno y del alpha del plate, y la **Camera per frame** en JSON. Van en un ZIP con el MP4 y un README."
+          }
+        },
+        {
+          "id": "depth.passes.close",
+          "mode": "do",
+          "anchor": "playblast.cancel",
+          "place": "bottom",
+          "title": {
+            "en": "Later",
+            "es": "Para después"
+          },
+          "text": {
+            "en": "In this practice copy there is no need to render them.",
+            "es": "En esta copia de práctica no hace falta renderizarlos."
+          },
+          "turn": {
+            "en": "click **Cancel**",
+            "es": "hacé click en **Cancel**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "playblast.cancel"
+            }
+          ],
+          "until": {
+            "what": "shown",
+            "anchor": "playblast.passes",
+            "is": false
+          }
+        }
+      ]
+    },
+    "export.camera": {
+      "contentVersion": 1,
+      "minutes": 2,
+      "title": {
+        "en": "Export the camera",
+        "es": "Exportar la cámara"
+      },
+      "summary": {
+        "en": "The solved camera as a script for 3ds Max, Nuke, Maya, Houdini or Blender.",
+        "es": "La cámara resuelta como script para 3ds Max, Nuke, Maya, Houdini o Blender."
+      },
+      "steps": [
+        {
+          "id": "export.camera.target",
+          "mode": "do",
+          "anchor": "export.target",
+          "place": "left",
+          "enter": [
+            {
+              "op": "set",
+              "anchor": "#target",
+              "value": "max-phys"
+            }
+          ],
+          "title": {
+            "en": "Where it goes",
+            "es": "A dónde va"
+          },
+          "text": {
+            "en": "**Target** picks the app the camera goes to.",
+            "es": "**Target** elige el programa al que va la cámara."
+          },
+          "turn": {
+            "en": "pick **Nuke · Camera** in **Target**",
+            "es": "elegí **Nuke · Camera** en **Target**"
+          },
+          "do": [
+            {
+              "op": "set",
+              "anchor": "#target",
+              "value": "nuke"
+            }
+          ],
+          "until": {
+            "what": "value",
+            "anchor": "#target",
+            "equals": "nuke"
+          }
+        },
+        {
+          "id": "export.camera.script",
+          "mode": "info",
+          "anchor": "#out",
+          "place": "left",
+          "title": {
+            "en": "The script",
+            "es": "El script"
+          },
+          "text": {
+            "en": "The camera with its lens, film back and position in meters. The first lines say where to paste it.",
+            "es": "La cámara con su lente, su film back y su posición en metros. Las primeras líneas dicen dónde pegarla."
+          }
+        },
+        {
+          "id": "export.camera.copy",
+          "mode": "do",
+          "anchor": "export.copy",
+          "place": "left",
+          "title": {
+            "en": "Copy it",
+            "es": "Copialo"
+          },
+          "text": {
+            "en": "For Nuke, paste it in the Node Graph.",
+            "es": "Para Nuke, pegalo en el Node Graph."
+          },
+          "turn": {
+            "en": "click **Copy**",
+            "es": "hacé click en **Copy**"
+          },
+          "do": [
+            {
+              "op": "press",
+              "anchor": "export.copy"
+            }
+          ],
+          "until": {
+            "what": "camera_copied"
+          }
+        }
+      ]
+    }
+  }
+}

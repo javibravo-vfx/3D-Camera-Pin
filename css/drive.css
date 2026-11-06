@@ -1,0 +1,57 @@
+/* driving plate: sección del panel y su capa debajo del plate */
+.drv-group { display: grid; gap: 0.8rem; }
+#drv-ui { display: grid; gap: 1.2rem; }
+#drv-ui[hidden] { display: none; }
+#drv-warn { display: grid; gap: 0.6rem; }
+#drv-warn:empty { display: none; }
+#drv-warn .msg, #drv-keymsg { margin: 0; }
+#drv-copy-out { height: 12rem; }
+#drv-copy-msg:empty { display: none; }
+.stage #drv-gl { pointer-events: none; }
+/* la cortina: una línea vertical sobre el plate; sólo la línea y la manija toman el mouse */
+.drv-wipe { position: absolute; z-index: 2; width: 0; border-left: 0.2rem solid var(--accent-ink-hi); box-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.6); pointer-events: none; }
+.drv-wipe[hidden] { display: none; }
+.drv-wipe::before { content: ""; position: absolute; top: 0; bottom: 0; left: -0.7rem; width: 1.2rem; cursor: ew-resize; pointer-events: auto; }
+.drv-wipe .dw-knob { position: absolute; top: 50%; left: -1.1rem; width: 2rem; height: 3.2rem; margin-top: -1.6rem; border-radius: 1rem; background: var(--accent); border: 0.2rem solid var(--accent-ink-hi); cursor: ew-resize; pointer-events: auto; }
+.drv-wipe.drag .dw-knob, .drv-wipe .dw-knob:hover { background: var(--accent-hi); }
+.drv-wipe span { position: absolute; top: 0.6rem; padding: 0.2rem 0.6rem; font: 600 1.05rem var(--f-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ink-hi); background: rgba(0, 0, 0, 0.55); border-radius: 0.3rem; white-space: nowrap; }
+.drv-wipe .dw-l { right: 0.6rem; }
+.drv-wipe .dw-r { left: 0.6rem; }
+/* Measure drive camera: el driving solo en el visor, con líneas y horizonte (estilos de escena: .sc-ov) */
+.dm { position: absolute; inset: 0; z-index: 6; background: var(--viewer); }
+.dm[hidden] { display: none; }
+.dm canvas, .dm svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dm svg { pointer-events: all; overflow: hidden; }
+.dm-bar { position: absolute; top: 0.8rem; left: 0.8rem; right: 0.8rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; padding: 0.6rem 0.9rem; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); border-radius: 0.6rem; z-index: 1; }
+.dm-bar > b { color: var(--fg); font-weight: 600; margin-right: 0.4rem; }
+.dm-bar label.row { gap: 0.5rem; font-size: 1.15rem; color: var(--text); }
+.dm-bar label.row[hidden] { display: none; }
+.dm-msg { position: absolute; left: 0.8rem; right: 0.8rem; bottom: 0.8rem; margin: 0; z-index: 1; background: color-mix(in srgb, var(--panel) 94%, transparent); }
+/* Compare drive plates */
+#dc-dlg .dc-card { width: min(110rem, 100%); }
+.dc-wrap { overflow: auto; max-height: 62vh; border: 1px solid var(--line); border-radius: 0.5rem; }
+.dc-wrap:has(tbody:empty) { display: none; }
+table.dc { width: 100%; border-collapse: collapse; font-size: 1.2rem; }
+table.dc th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 500; text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.dc td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--fg); }
+table.dc td .note { font-size: 1.1rem; }
+table.dc td.dc-n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.dc td.bad, table.dc .bad { color: var(--bad); }
+table.dc img { width: 9.6rem; display: block; border-radius: 0.3rem; }
+table.dc tbody tr { cursor: pointer; }
+table.dc tbody tr:hover, table.dc tbody tr:focus-visible { background: var(--accent-soft); outline: none; }
+.dc-q { color: var(--warn); font-weight: 600; }
+/* array de cámaras, tilt por cuadro y líneas extra de la medición */
+#drv-rig-row > .row { flex-wrap: wrap; }
+.seg.drv-rig { height: auto; min-height: 2.4rem; flex-wrap: wrap; }
+.seg.drv-rig button { min-height: 2.4rem; white-space: nowrap; }
+.seg.drv-rig button.drv-miss { color: var(--warn); }
+#drv-add.disabled { opacity: .45; pointer-events: none; }
+#drv-off-row > .note, #drv-seq-row > .note { grid-column: 2; margin: 0; }
+#drv-seq-row label.row { gap: 0.5rem; font-size: 1.15rem; color: var(--text); white-space: nowrap; }
+.drv-rig-kv:empty { display: none; }
+.drv-rig-kv { padding-top: 0.6rem; border-top: 1px solid var(--line); }
+.dm-ov .sc-ln.sel { stroke-width: 3.6; }
+.dm-ov .sc-ln.off { stroke-dasharray: 7 4; }
+.msg.dm-msg.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--panel) 88%, var(--warn)); }
+#drv-ref > .row { flex-wrap: wrap; }

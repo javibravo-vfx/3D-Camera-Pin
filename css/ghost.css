@@ -1,0 +1,52 @@
+/* ghost: la calle 3D encima del plate para compararlo (js/ghost.js). Una copia va dentro del stage, debajo del
+   plate (#gh-un, en px del plate: el trazo se mantiene en px de pantalla con --u), y otra encima (#gh-ov, en px
+   del visor). Colores de las guías de comparación: se definen como tokens acá y se usan sólo así. */
+:root {
+  --gh-horizon: #3fd3f2;
+  --gh-centre: #f2c94c;
+  --gh-lane: #f4f4f0;
+  --gh-curb: #ff9f43;
+  --gh-facade: #ff5fd2;
+  --gh-car: #5ccf86;
+  --gh-person: #ffe082;
+  --gh-vp: #ffffff;
+  --gh-halo: rgb(0 0 0 / .6);
+}
+svg.gh-ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; font-family: var(--f-ui); }
+.stage svg.gh-un { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; overflow: hidden; --u: 1; }
+.gh path, .gh circle { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.gh-ov path { stroke-width: 1.6; }
+.gh-un path { stroke-width: calc(var(--u) * 1.8px); }
+.gh .hz { stroke: var(--gh-horizon); stroke-width: 2; }
+.gh-un .hz { stroke-width: calc(var(--u) * 2.2px); }
+.gh .cl { stroke: var(--gh-centre); }
+.gh .cw, .gh .ln { stroke: var(--gh-lane); }
+.gh-ov .ln { stroke-dasharray: 10 8; }
+.gh-un .ln { stroke-dasharray: calc(var(--u) * 10px) calc(var(--u) * 8px); }
+.gh .cb { stroke: var(--gh-curb); }
+.gh .cb2 { stroke: var(--gh-curb); stroke-opacity: .55; }
+.gh .fb { stroke: var(--gh-facade); }
+.gh .fr { stroke: var(--gh-facade); }
+.gh-ov .fr { stroke-dasharray: 6 5; }
+.gh-un .fr { stroke-dasharray: calc(var(--u) * 6px) calc(var(--u) * 5px); }
+.gh .car { stroke: var(--gh-car); stroke-width: 2; }
+.gh-un .car { stroke-width: calc(var(--u) * 2.2px); }
+/* rótulos: siempre a opacidad plena */
+.gh-ov .gh-tag { font-size: 1.05rem; font-weight: 600; fill: var(--gh-car); stroke: var(--gh-halo); stroke-width: 3; paint-order: stroke; stroke-linejoin: round; }
+.gh-ov .gh-tag.vp { fill: var(--gh-vp); }
+.gh-ov .gh-vp circle, .gh-ov .gh-vp path { stroke: var(--gh-vp); stroke-width: 1.5; }
+
+svg.bk-ov.gh-quiet { display: none; }
+
+/* panel */
+.knobrow > .row.gh-lines { flex-wrap: wrap; gap: 0.4rem; } /* .knobrow > .row trae nowrap: acá los chips bajan de renglón */
+.gh-lchip { display: inline-flex; align-items: center; gap: 0.4rem; }
+.gh-lchip[aria-pressed="false"] { opacity: .5; }
+.gh-sw { display: inline-block; width: 1rem; height: 0.3rem; border-radius: 0.2rem; background: var(--fg); flex: none; }
+.gh-sw.hz { background: var(--gh-horizon); }
+.gh-sw.ln { background: repeating-linear-gradient(90deg, var(--gh-lane) 0 0.3rem, transparent 0.3rem 0.5rem); }
+.gh-sw.cb { background: var(--gh-curb); }
+.gh-sw.fb { background: var(--gh-facade); }
+.gh-sw.vp { background: var(--gh-vp); width: 0.6rem; height: 0.6rem; border-radius: 50%; }
+.gh-sw.car { background: var(--gh-car); }
+.gh-sw.person { background: var(--gh-person); }

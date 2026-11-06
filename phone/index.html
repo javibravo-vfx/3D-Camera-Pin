@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>BackplateLab · Shakelab phone</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="stylesheet" href="phone.css">
+<!-- Shakelab: la página que se abre en el teléfono, en /phone/: desde la web publicada (con la sala en el #, por
+     WebRTC) o desde la app de escritorio sin internet (electron/shake-phone.mjs). -->
+<script src="../vendor/8thwall/xr.js" async data-preload-chunks="slam"></script>
+</head>
+<body>
+<canvas id="cam"></canvas>
+<header>
+  <b>BackplateLab · Shakelab</b>
+  <span id="state">Not started</span>
+</header>
+<main id="intro">
+  <p>This phone becomes the camera: move it by hand and BackplateLab records its motion on the shot camera.</p>
+  <button id="start" class="primary">Start</button>
+  <p class="small">Allow the camera and motion. Then move the phone slowly side to side until it says <b>Tracking</b>.</p>
+</main>
+<footer>
+  <div class="btns">
+    <button id="zero" disabled title="The phone as it is now is the centre">Zero</button>
+    <button id="rec" class="rec" disabled title="Record on the timeline of BackplateLab">Rec</button>
+  </div>
+  <p id="msg" class="small"></p>
+  <p class="legal">World tracking: 8th Wall Engine, © 2026 Niantic Spatial, Inc. All rights reserved. Used under the
+    <a href="../vendor/8thwall/LICENSE" target="_blank">XR Engine License Agreement</a>, which provides it as is, without any warranties.</p>
+</footer>
+<script src="phone.js"></script>
+</body>
+</html>

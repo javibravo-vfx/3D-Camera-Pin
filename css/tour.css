@@ -1,0 +1,122 @@
+/* Recorridos guiados (js/tour.js): capa que oscurece, hueco, aro verde que pulsa y globo, como libs/lgatour
+   de DepthLab. Tamaños en rem (siguen la escala de UI); el hueco y el aro se ubican en px desde JS. */
+.tour-layer { --tour-ring: var(--ov-focus); position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; font-family: var(--f-ui); }
+.tour-dim { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tour-dim-r { fill: rgb(0 0 0 / .27); }  /* 27 %: más oscuro esconde el contexto */
+.tour-block { position: absolute; pointer-events: auto; }
+.tour-ring { position: absolute; border: 2px solid var(--tour-ring); border-radius: 7px; box-shadow: 0 0 0 1px rgb(0 0 0 / .4); }
+.tour-layer[data-pulse="true"] .tour-ring { animation: tour-pulse 1.6s ease-in-out infinite; }
+@keyframes tour-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.tour-bubble {
+  position: absolute; pointer-events: auto; width: min(34.8rem, calc(100vw - 16px));
+  max-height: calc(100vh - 16px); overflow: auto;
+  background: var(--card); color: var(--text); border: 1px solid var(--accent-soft); border-radius: 0.9rem;
+  padding: 1.4rem 1.6rem 1.1rem; box-shadow: 0 1.2rem 3.6rem rgb(0 0 0 / .55);
+  display: flex; flex-direction: column; font-size: 1.3rem; line-height: 1.4;
+  overflow-wrap: anywhere; /* un nombre de archivo largo (paquetes de plano) se parte en vez de salirse */
+}
+.tour-bubble.card { width: min(52rem, calc(100vw - 16px)); padding: 2.6rem 2.8rem 2rem; border-radius: 1rem; }
+.tour-bubble[data-attn="true"] { border-color: var(--tour-ring, var(--ov-focus)); }
+.tour-bubble.nudge { animation: tour-nudge .8s ease-in-out 2; }
+@keyframes tour-nudge { 50% { border-color: var(--ov-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ov-focus) 45%, transparent), 0 1.2rem 3.6rem rgb(0 0 0 / .55); } }
+
+.tb-top { display: flex; align-items: baseline; gap: 1rem; font-size: 1.1rem; font-weight: 600; }
+.tb-step { color: var(--accent-text); letter-spacing: .08em; white-space: nowrap; }
+.tb-tour { margin-left: auto; color: var(--faint); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-bubble.card .tb-tour { color: var(--accent-text); }
+.tb-title { margin-top: 0.8rem; color: var(--fg); font-size: 1.5rem; font-weight: 600; line-height: 1.3; }
+.tour-bubble.card .tb-title { margin-top: 1.2rem; font-size: 1.9rem; }
+.tour-bubble.card > .tb-title:first-child { margin-top: 0; }
+.tb-text { margin-top: 0.6rem; color: var(--text); }
+.tour-bubble.card .tb-text { margin-top: 0.8rem; font-size: 1.4rem; }
+.tb-text b, .tb-line b { color: var(--fg); font-weight: 600; }
+.tb-dim { color: var(--faint); }
+
+.tb-line { display: flex; gap: 0.7rem; margin-top: 1rem; color: var(--warn); }
+.tb-line i { flex: none; width: 0.8rem; height: 0.8rem; margin-top: 0.55rem; border-radius: 50%; background: var(--warn); }
+.tb-line b { font-size: 1.4rem; }
+.tb-line[data-k="done"] { color: var(--ov-focus); }
+.tb-line[data-k="done"] i { width: 1.2rem; height: 0.7rem; margin-top: 0.4rem; border-radius: 0; background: none; border: solid var(--ov-focus); border-width: 0 0 2px 2px; transform: rotate(-45deg); }
+.tb-line[data-k="notice"] { color: var(--fg); }
+
+.tb-seg { display: flex; gap: 3px; margin-top: 1.2rem; }
+.tb-seg i { flex: 1; height: 3px; border-radius: 1.5px; background: var(--panel-2); }
+.tb-seg i.d { background: var(--accent); }
+.tb-seg i.c { background: var(--accent-hi); }
+
+.tb-foot { display: flex; align-items: center; gap: 0.8rem; margin-top: 1.2rem; flex-wrap: wrap; }
+.tour-bubble.card .tb-foot { margin-top: 1.8rem; }
+.tb-fill { flex: 1; }
+.tb-foot .btn { height: 2.6rem; }
+.tb-foot .btn.ghost { padding: 0 0.6rem; }
+.tb-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.9rem; color: var(--faint); font-size: 1.1rem; }
+.tb-keys kbd { font: 500 1.05rem var(--f-ui); color: var(--muted); border: 1px solid var(--line); border-radius: 0.3rem; padding: 0 0.4rem; }
+.tb-badge { width: 3.6rem; height: 3.6rem; border-radius: 50%; background: color-mix(in srgb, var(--ov-focus) 18%, var(--card)); position: relative; margin-bottom: 0.4rem; }
+.tb-badge::after { content: ""; position: absolute; left: 1.05rem; top: 1.1rem; width: 1.5rem; height: 0.8rem; border: solid var(--ov-focus); border-width: 0 0 2px 2px; transform: rotate(-45deg); }
+
+/* copia de práctica: el iframe tapa la app del usuario mientras dura el recorrido */
+iframe.tour-frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; z-index: 2147482000; background: var(--bg); }
+
+/* «New here?» en el visor vacío (.empty no recibe clicks; el botón sí) */
+.empty .tour-new { pointer-events: auto; margin-top: 1.4rem; }
+/* en Import and Measure va en el cuadro del plate vacío (tourNewPlace) */
+.impe .tour-new { display: block; margin: 1.4rem auto 0; }
+.empty .tour-new kbd, .impe .tour-new kbd { font: 500 1rem var(--f-ui); opacity: .7; border: 1px solid currentColor; border-radius: 0.3rem; padding: 0 0.4rem; }
+
+/* ---------- Help > Guided tours (#help-tours) ---------- */
+.th { display: grid; grid-template-columns: minmax(18rem, 30%) minmax(0, 1fr); gap: 2.4rem; min-height: 0; }
+.th-list { display: flex; flex-direction: column; gap: 0.2rem; border-right: 1px solid var(--line-soft); padding-right: 1.2rem; }
+.th-group { color: var(--faint); font-size: 1.05rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin: 1rem 0 0.4rem 1rem; }
+.th-group:first-child { margin-top: 0; }
+.th-tour { display: flex; flex-direction: column; gap: 0.4rem; text-align: left; background: transparent; border: 0; border-left: 2px solid transparent; border-radius: 0.5rem; padding: 0.8rem 1rem; color: var(--text); font: 400 1.3rem var(--f-ui); cursor: pointer; }
+.th-tour b { color: var(--fg); font-weight: 600; }
+.th-tour:hover { background: var(--chip); }
+/* elegido como el nav de Preferences del player: fondo bg_items, borde violeta_oscuro, título violeta_claro */
+.th-tour[aria-pressed="true"] { background: var(--card); border-left-color: var(--accent); }
+.th-tour[aria-pressed="true"] b { color: var(--violet); }
+.th-meta { display: flex; align-items: center; gap: 0.8rem; color: var(--muted); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.th-bar { flex: 1; height: 2px; background: var(--panel-2); min-width: 3rem; }
+.th-bar i { display: block; height: 100%; background: var(--accent-hi); }
+.th-detail { min-width: 0; display: flex; flex-direction: column; }
+.th-head { display: flex; align-items: center; gap: 1.2rem; }
+.th-head h3 { margin: 0; flex: 1; color: var(--fg); font-size: 2rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.th-lang button { min-width: 3.4rem; }
+.th-sum { margin: 0.8rem 0 0.4rem; color: var(--muted); font-size: 1.4rem; }
+.th-facts { margin: 0 0 1.2rem; color: var(--muted); font-size: 1.25rem; }
+.th-facts b { color: var(--fg); font-weight: 600; }
+.th-chs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-soft); }
+.th-chs li { border-bottom: 1px solid var(--line-soft); }
+.th-ch { width: 100%; display: flex; align-items: center; gap: 1.2rem; background: transparent; border: 0; padding: 0.7rem 1rem; color: var(--text); font: 400 1.35rem var(--f-ui); text-align: left; cursor: pointer; }
+.th-ch:hover { background: var(--chip); }
+.th-ch[aria-pressed="true"] { background: var(--accent-soft); }
+.th-n { flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.th-t { flex: 1; min-width: 0; color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.th-s { color: var(--muted); font-size: 1.15rem; white-space: nowrap; }
+.th-m { width: 5rem; text-align: right; color: var(--muted); font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.th-ch[data-state="seen"] .th-n { color: var(--ov-focus); border-color: color-mix(in srgb, var(--ov-focus) 50%, transparent); }
+.th-ch[data-state="updated"] .th-s { color: var(--warn); }
+.th-ch[data-state="here"] .th-s { color: var(--accent-text); }
+.th-ch[data-state="na"] .th-t, .th-ch[data-state="na"] .th-s { color: var(--faint); }
+.th-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; margin-top: 2rem; }
+.help-pane .th-note { margin-top: 1rem; } /* .help-pane p le saca el margen */
+/* paquete de plano (js/tour-pack.js): botón para elegir la carpeta, el paquete abierto y sus problemas */
+.th-pack { display: flex; flex-direction: column; gap: 0.6rem; margin: 0 0 1.2rem; padding: 0 0 1.2rem; border-bottom: 1px solid var(--line-soft); }
+.th-pack > .btn { align-self: flex-start; }
+.th-pack-on { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.th-pack-name { flex: 1; min-width: 0; color: var(--fg); font-weight: 600; font-size: 1.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.th-pack-err ul { margin: 0.4rem 0 0; padding-left: 1.6rem; }
+.th-pack-err li { margin: 0.2rem 0; }
+@media (max-width: 700px) { .th { grid-template-columns: 1fr; } .th-list { border-right: 0; padding-right: 0; } }
+/* ancho: cada columna con su scroll, así la lista de recorridos no se va debajo de las pestañas al bajar
+   hasta los últimos capítulos. En el detalle scrollea sólo la lista de capítulos: Start the tour queda
+   siempre a la vista (en macOS la barra de scroll no se ve y el botón quedaba escondido abajo) */
+@media (min-width: 701px) {
+  #help-pane-tours:not([hidden]) { height: 100%; }
+  #help-tours { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .th { flex: 1; grid-template-rows: minmax(0, 1fr); }
+  .th-list, .th-detail { min-height: 0; overflow: auto; }
+  .th-detail { padding-right: 0.4rem; }
+  .th-chs { flex: 0 1 auto; min-height: 8rem; overflow: auto; }
+  .th-acts { flex: none; }
+}

@@ -1,0 +1,16 @@
+/* setreport: lista de cámaras de los arrays y avisos del reporte de set (js/setreport.js) */
+.sr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.sr-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; padding: 0.5rem 0.6rem; border-radius: 0.5rem; background: var(--chip); font-size: 1.2rem; color: var(--fg); }
+.sr-list li .note { font-size: 1.1rem; }
+.sr-warn { margin: 0.6rem 0 0; padding-left: 1.6rem; font-size: 1.15rem; color: var(--warn); line-height: 1.45; }
+#sr-kv dd { text-align: left; }
+/* toma de la planilla de cámara: escena + toma */
+.sr-take2 { display: flex; gap: 0.4rem; min-width: 0; }
+.sr-take2 select { min-width: 0; }
+#sr-tscene { flex: 0 0 6.5em; }
+#sr-take { flex: 1 1 auto; }
+#sr-kv dt.sr-sep { grid-column: 1 / -1; margin-top: 0.4rem; color: var(--muted, var(--text)); font-weight: 600; }
+#sr-kv dt.sr-sep + dd { display: none; }
+/* cámaras de array planeadas (grillas y JSON de rig, D-05): el origen se ve, nunca pasan por medidas */
+.sr-planned { display: inline-block; margin-left: 0.3rem; padding: 0 0.45rem; border: 1px solid var(--warn); border-radius: 0.4rem; color: var(--warn); font-size: 1.0rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
+.sr-list li.planned { box-shadow: inset 2px 0 0 var(--warn); }

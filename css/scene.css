@@ -1,0 +1,59 @@
+/* scene: overlay Car GS sobre el plate (horizonte, grilla de fuga, figuras, líneas de fuga) y su panel.
+   Colores de escena de DepthLab (OverlayPainter.cpp): se definen como tokens acá y se usan sólo así. */
+:root {
+  --sc-horizon: #f5b942;
+  --sc-vanish: #ff8a65;
+  --sc-figure: #ffe082;
+  /* ejes de las líneas de fuga con los colores de 3ds Max / Maya: X rojo, Y verde, Z azul */
+  --sc-axis: #64b5f6;   /* Z: líneas a lo largo del auto */
+  --sc-cross: #ff5252;  /* X: líneas transversales */
+  --sc-vert: #69f0ae;   /* Y: líneas verticales */
+  --sc-err: #ff5252;
+  --sc-halo: rgb(0 0 0 / .55);
+}
+svg.sc-ov { font-family: var(--f-ui); }
+.sc-ov path, .sc-ov circle, .sc-ov polygon { fill: none; stroke-linecap: round; }
+.sc-ov .sc-halo { stroke: var(--sc-halo); stroke-width: 3.6; }
+/* grilla de fuga */
+.sc-ov .sc-vg { stroke: var(--sc-vanish); stroke-width: 0.8; stroke-opacity: .3; }
+.sc-ov .sc-vg.maj { stroke-width: 1.2; stroke-opacity: .6; }
+.sc-ov .sc-vp circle { stroke: var(--sc-vanish); stroke-width: 1.6; }
+.sc-ov .sc-vp path { stroke: var(--sc-vanish); stroke-width: 1.2; }
+.sc-ov .sc-vp.street circle { fill: var(--sc-vanish); stroke: none; } /* el de la calle: sin manija */
+.sc-ov .sc-vp.hot circle { stroke-width: 2.4; fill: color-mix(in srgb, var(--sc-vanish) 35%, transparent); }
+/* horizonte */
+.sc-ov .sc-hz { stroke: var(--sc-horizon); stroke-width: 1.8; stroke-dasharray: 8 5; }
+.sc-ov .sc-hz.hot { stroke-width: 3; stroke-dasharray: none; }
+/* figuras */
+.sc-ov .sc-fig { stroke: var(--sc-figure); stroke-width: 1.5; fill: color-mix(in srgb, var(--sc-figure) 14%, transparent); paint-order: stroke; }
+.sc-ov .sc-fig.sel { stroke: var(--fg); stroke-width: 2.2; fill: color-mix(in srgb, var(--sc-figure) 24%, transparent); }
+/* líneas de fuga (herramienta Lines) */
+.sc-ov .sc-ln { stroke-width: 2; }
+.sc-ov .ax { stroke: var(--sc-axis); }
+.sc-ov .cr { stroke: var(--sc-cross); }
+.sc-ov .vt { stroke: var(--sc-vert); }
+.sc-ov .sc-hd.hot.vt { fill: var(--sc-vert); }
+.sc-ov .sc-tag.ln { font-size: 1rem; stroke: var(--sc-halo); }
+.sc-ov .sc-tag.ln.ax { fill: var(--sc-axis); }
+.sc-ov .sc-tag.ln.cr { fill: var(--sc-cross); }
+.sc-ov .sc-tag.ln.vt { fill: var(--sc-vert); }
+.sc-ov .sc-ext { stroke-width: 1; stroke-dasharray: 5 4; stroke-opacity: .75; }
+.sc-ov .sc-hd { stroke-width: 1.6; fill: var(--viewer); }
+.sc-ov .sc-hd.hot.ax { fill: var(--sc-axis); }
+.sc-ov .sc-hd.hot.cr { fill: var(--sc-cross); }
+.sc-ov .sc-x { stroke-width: 1.6; }
+.sc-ov .sc-auto { stroke: var(--fg); stroke-opacity: .6; stroke-width: 1.2; }
+.sc-ov .sc-auto.in { stroke: var(--sc-axis); stroke-opacity: .9; stroke-width: 2.2; }
+/* rótulos: texto con halo, en rem para que sigan la escala de la interfaz */
+.sc-ov .sc-tag { font-size: 1.15rem; font-weight: 600; fill: var(--fg); stroke: var(--sc-halo); stroke-width: 3; paint-order: stroke; stroke-linejoin: round; }
+.sc-ov .sc-tag.hz { fill: var(--sc-horizon); }
+.sc-ov .sc-tag.vg { fill: var(--sc-vanish); font-size: 1rem; }
+.sc-ov .sc-tag.fig { fill: var(--sc-figure); }
+.sc-ov .sc-tag.fig.sel { fill: var(--fg); }
+.sc-ov .sc-tag.sub { fill: var(--text); font-weight: 500; }
+.sc-ov .sc-tag.err { fill: var(--sc-err); }
+/* panel */
+.sc-res.bad { color: var(--bad); }
+#sc-cam .seg, #sc-lines .seg, #sc-overlay .seg { width: 100%; }
+#sc-cam .seg button, #sc-lines .seg button, #sc-overlay .seg button { flex: 1; padding: 0 0.4rem; }
+.knobrow.sc-stack { grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }

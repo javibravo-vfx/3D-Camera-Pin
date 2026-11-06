@@ -1,0 +1,74 @@
+/* bokeh: lente y foco (panel), capa de discos sobre el plate y riel de foco bajo el visor.
+   Tamaños en rem (1rem = 10px a escala 100%), como el resto de css/. */
+
+/* --- Capa sobre el plate: sigue el pan/zoom igual que #ov (coordenadas del visor) --- */
+svg.bk-ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; font-family: var(--f-ui); font-weight: 600; }
+svg.bk-ov .bk-catch { fill: transparent; pointer-events: all; cursor: crosshair; }
+svg.bk-ov .bk-grab { fill: transparent; pointer-events: all; cursor: move; }
+svg.bk-ov .bk-edge { fill: var(--fg); stroke-width: 1.5; cursor: ew-resize; }
+svg.bk-ov text { pointer-events: none; }
+
+/* --- Panel --- */
+.bk-setups { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.bk-setupw { position: relative; display: block; min-width: 0; }
+.bk-setup { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; padding: .6rem 1rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--field); color: var(--fg); cursor: pointer; text-align: left; font: inherit; }
+.bk-setup:hover { border-color: var(--line-hi, var(--line)); }
+.bk-setup small { font-size: 1.1rem; color: var(--muted); }
+.bk-setup b { font-size: 1.25rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-variant-numeric: tabular-nums; }
+.bk-setup[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.bk-setup[aria-pressed="true"] small { color: var(--accent-fg); }
+.bk-eye { position: absolute; top: .5rem; right: .5rem; width: 2.2rem; height: 2rem; display: grid; place-items: center; border: 0; border-radius: .4rem; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
+.bk-eye:hover { background: var(--panel-2); color: var(--fg); }
+.bk-eye svg { width: 1.4rem; height: 1.4rem; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.bk-eye[aria-pressed="false"] { opacity: .45; }
+.bk-sw { display: inline-block; width: .9rem; height: .9rem; border-radius: .2rem; background: var(--c); margin-right: .7rem; vertical-align: -.05rem; }
+#bk-units { justify-self: start; }
+.bk-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: .7rem; overflow: hidden; }
+.bk-tile { display: flex; flex-direction: column; gap: .1rem; padding: .6rem .8rem; background: var(--field); min-width: 0; }
+.bk-tile span { font-size: 1.15rem; color: var(--muted); white-space: nowrap; }
+.bk-tile b { font-size: 1.7rem; font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+.bk-tile b small { font-size: 1.05rem; color: var(--muted); font-weight: 400; }
+.bk-tile > small { font-size: 1.05rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bk-copyrow #bk-copy { flex: 1; justify-content: center; }
+.bk-copyrow select { flex: 0 0 9.6rem; width: 9.6rem; }
+#bk-copy-out { height: 12rem; }
+#bk-probes .seg { justify-self: start; align-self: flex-start; }
+.bk-probelist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.bk-probelist:empty { display: none; }
+.bk-pline { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr) 8.4rem 4.6rem 2.2rem; align-items: center; gap: .6rem; padding: .2rem .4rem .2rem .6rem; border-radius: .5rem; }
+.bk-probe.sel .bk-pline { background: var(--accent-soft); }
+.bk-ring { width: 1.2rem; height: 1.2rem; border-radius: 50%; border: 2px solid var(--c, var(--ov-bg)); }
+.bk-ring.m { border-style: dashed; }
+.bk-pname { background: transparent !important; border-color: transparent !important; padding-inline: .2rem !important; height: 2.6rem !important; }
+.bk-pname:focus { background: var(--field) !important; border-color: var(--line-hi, var(--line)) !important; }
+.bk-pline .num.has-u > input { padding-right: 2.6rem; height: 2.6rem; }
+.bk-ppx { text-align: right; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bk-pline .x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1.5rem; line-height: 1; padding: 0; }
+.bk-pline .x:hover { color: var(--bad); }
+.bk-pdet { margin-top: .3rem; padding: .7rem .9rem .8rem; border-radius: .5rem; background: var(--field); display: flex; flex-direction: column; gap: .6rem; }
+.bk-pdet .row { flex-wrap: wrap; }
+.bk-pdet .bk-sp { flex: 1; }
+.bk-pdet .seg button:disabled { opacity: .35; cursor: default; }
+
+/* --- Riel de foco bajo el visor (FocusRail.cpp) --- */
+/* cede alto antes que el visor (la columna del visor es flex): primero se achica la curva, el encabezado queda */
+.viewer > .bk-rail { flex: 0 1 auto; display: flex; flex-direction: column; min-height: calc(3.2rem + 1px); overflow: hidden; }
+.bk-rail { border-top: 1px solid var(--line); background: var(--panel); min-width: 0; }
+/* el eje (Linear / Log / 1/d) nunca queda cortado: la ayuda y la leyenda se achican (con …) y, si ni así entra,
+   la leyenda baja a otra línea */
+.bk-rail-h { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: .4rem 1.2rem; min-width: 0; white-space: nowrap; }
+.bk-rail-h .seg { flex: none; }
+.bk-rail-t { flex: none; display: inline-flex; align-items: center; gap: .7rem; height: 2.4rem; padding: 0 .6rem 0 0; border: 0; background: none; cursor: pointer; font: 600 1.1rem var(--f-ui); letter-spacing: .1rem; text-transform: uppercase; color: var(--fg); }
+.bk-rail-t::before { content: ""; width: 0; height: 0; border-left: .45rem solid var(--faint); border-top: .35rem solid transparent; border-bottom: .35rem solid transparent; transform: rotate(90deg); transition: transform .12s; }
+.bk-rail.collapsed .bk-rail-t::before { transform: none; }
+.bk-rail-t:hover { color: var(--accent-text); }
+.bk-rail.collapsed canvas { display: none; }
+.bk-rail-h .seg button { padding: .2rem .9rem; font-size: 1.15rem; }
+.bk-rail-hint { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 1.15rem; color: var(--faint, var(--muted)); }
+/* bloque alineado a la derecha y no flex: si no entra, se corta al final con … (un flex alineado al final se
+   cortaba por el principio), y no fuerza otra línea */
+.bk-rail-leg { flex: 1 1 0; min-width: 6rem; display: block; text-align: right; font-size: 1.15rem; color: var(--muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.bk-rail-leg > span + span { margin-left: 1.4rem; }
+.bk-rail-leg .bk-ghost { color: var(--ov-ghost); }
+.bk-rail canvas { display: block; width: 100%; height: clamp(7rem, 12vh, 12rem); flex: 0 1 auto; min-height: 0; touch-action: none; }
+@media (max-width: 1100px) { .bk-rail-hint { display: none; } }

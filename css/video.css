@@ -1,0 +1,38 @@
+/* video: plate de video en el stage y su lectura en la barra de timeline */
+.stage #platevid { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: fill; filter: brightness(var(--gain, 1)); }
+/* opacidad y no visibility: un video oculto deja de presentar frames y el seek no se confirma */
+.stage.keyed #platevid, .stage.noplate #platevid, #platevid.off { opacity: 0; }
+.stage.pix #platevid { image-rendering: pixelated; }
+.tlbar .vplread { display: inline-flex; align-items: baseline; gap: 0.8rem; flex: none; white-space: nowrap; }
+.tlbar .vplread b { color: var(--fg); font: 500 1.2rem var(--f-num); letter-spacing: .02em; }
+.tlbar .vplread.out span { color: var(--warn); }
+/* timeline en una sola fila a 1366x768 (100 %): campos más angostos y lecturas sin ancho reservado */
+.tlbar { gap: 0.8rem; }
+.tlbar .tlnums { gap: 0.4rem 0.8rem; }
+.tlbar .camh { gap: 0.4rem; letter-spacing: .04em; }
+.tlbar .tlnums .num:has(> input.mini) { width: 5.6rem; }
+.tlbar .tlnums .num:has(> input#tl-fps) { width: 6.4rem; }
+.tlbar input.mini { padding: 2px 0.5rem; }
+@container (max-width: 110rem) {
+  .tlbar .tlread { min-width: 0; }
+  .tlbar .tlread b { min-width: 5.5em; }
+  .tlbar .vplread:not(.out) span { display: none; }
+}
+/* render: vista Depth (el canvas del visor tapa todo, opaco, sin el Mix) y pases del playblast */
+.stage.dview #gl { opacity: 1 !important; }
+.vpchip.dvopts { gap: 0.8rem; padding-right: 0.4rem; }
+.vpchip.dvopts .seg { height: 2rem; }
+.vpchip.dvopts .seg button { font-size: 1.1rem; padding: 0 0.8rem; }
+.dvrange { display: inline-flex; align-items: center; gap: 0.5rem; }
+.dvrange .num:has(> input.mini) { width: 7.2rem; }
+.dvrange input.mini { height: 2rem; }
+.dvrange .btn.sm { height: 2rem; }
+.dvrange #dv-auto[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-fg); box-shadow: inset 0 0 0 1px var(--accent); }
+.dvrange #dv-auto[aria-pressed="true"]:hover { background: var(--accent-soft-hi); }
+.dvleg { color: var(--muted); font-size: 1.1rem; white-space: nowrap; padding-right: 0.6rem; }
+.dvleg b { color: var(--ov-focus); font-weight: 500; }
+.dvleg i { font-style: normal; margin-left: 0.6rem; }
+.dvleg i.fg { color: var(--ov-fg); }
+.dvleg i.bg { color: var(--ov-bg); }
+.pbpasses { display: flex; flex-direction: column; gap: 0.4rem; }
+.pbpasses label { display: flex; align-items: center; gap: 0.6rem; }

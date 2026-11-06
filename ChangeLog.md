@@ -1,8 +1,9 @@
 # ChangeLog
 
-One line per change, newest first. The version is in the app, at the right of the tab bar (and in saved projects as
-`appVersion`); it goes up by 0.001 with every change.
+One line per change, newest first. The version is in the app, next to its name at the top left (the BackplateLab version
+it comes from is in its tooltip); it goes up by 0.001 with every change.
 
+v1.007: 3D Camera Pin is now the 3D Camera Pin edition of BackplateLab: its tabs Import and Measure, 2D Camera Match and 3D Camera Pin | Environment, the same as there, replace the Camera Pin and Import tabs; Path Trace stays, on that camera, scan and environment, with its playblast in its own bar. Updated from BackplateLab with tools/sync_backplatelab.mjs. [ Edition - BackplateLab tabs ]
 v1.006: An OBJ loads with its texture: select or drop the .obj, its .mtl and the image together (also on the Import tab); the MTL path from another machine is matched by file name, and the note says which image was used or is missing. [ Scan - OBJ with its .mtl and texture ]
 v1.005: New Import tab (Import and Measure): the plate, its metadata and the scan in four panes, with drag and drop of the metadata onto the camera fields, an orbit view of the scan with Measure and Scale, Frame, grid, Maximize and Remove. [ Import - Import and Measure ]
 v1.004: Path Trace: Playblast renders the frame range path traced to an MP4, at 720p, 1080p or plate size, with quality presets (Draft, Preview, Good, Final or the Render panel settings) and the time left while it renders. [ Path Trace - Playblast ]

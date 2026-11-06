@@ -1,0 +1,6 @@
+/* Fuentes locales (la app tiene que andar sin internet). Inter viene de DepthLab. Igual que allá
+   (Design/shared.css), el 600 usa Inter-Bold: títulos de sección y nombre de la app. Los números
+   (--f-num) van con la monoespaciada del sistema, como el Shot Player: SF Mono / Menlo / Consolas. */
+@font-face { font-family: 'Inter'; font-weight: 400; src: url('Inter-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-weight: 500; src: url('Inter-Medium.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-weight: 600 700; src: url('Inter-Bold.ttf') format('truetype'); }

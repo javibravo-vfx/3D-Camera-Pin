@@ -1,0 +1,20 @@
+// 3D Camera Pin edition, after the modules of the app (before js/boot.js): the Path Trace tab in the module bar and the
+// name and version of the edition.
+{
+  const f = mtabShow;
+  mtabShow = function (id, save = true) {
+    const pt = id === 'pathtrace';
+    // Path Trace is not remembered as the tab to open with (it builds its scene when it is opened)
+    f(id, save && !pt);
+    if (typeof cpPtShow === 'function') cpPtShow(mtabCur === 'pathtrace');
+  };
+  if (mtabCur === 'pathtrace') mtabShow('camerapin', false);
+}
+document.title = `${CP_EDITION.name} v${CP_EDITION.version}`;
+{
+  for (const el of document.querySelectorAll('#start-t, .ab-name')) el.textContent = CP_EDITION.name;
+  // the version of the edition next to the one of BackplateLab it comes from (what the project files say)
+  const tip = `${CP_EDITION.name} v${CP_EDITION.version} · BackplateLab v${APP_VERSION} (edition/BACKPLATELAB.txt)`;
+  const v = document.getElementById('ab-ver'); if (v) { v.textContent = 'v' + CP_EDITION.version; v.title = tip; }
+  const h = document.getElementById('help-ver'); if (h) h.textContent = `Version ${CP_EDITION.version} (BackplateLab ${APP_VERSION})`;
+}

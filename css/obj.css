@@ -1,0 +1,6 @@
+/* obj-stream: progreso de la lectura de un OBJ, arriba a la derecha del visor, debajo de la barra de chips */
+.objbusy { position: absolute; top: 4.4rem; right: 1rem; z-index: 7; display: flex; align-items: center; gap: 0.8rem; font: 500 1.2rem var(--f-ui); color: var(--accent-fg); background: var(--accent-soft); border-radius: 99rem; padding: 0.4rem 0.5rem 0.4rem 1.2rem; }
+.objbusy[hidden] { display: none; }
+.objbusy #obj-busy-t { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.objbar { width: 12rem; height: 0.5rem; border-radius: 99rem; background: var(--line); overflow: hidden; }
+.objbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }

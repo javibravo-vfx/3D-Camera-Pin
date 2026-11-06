@@ -6,7 +6,7 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 **Live:** https://javibravo-vfx.github.io/3D-Camera-Pin/
 
-The version is shown at the right of the tab bar (`v1.004`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
+The version is shown at the right of the tab bar (`v1.005`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
 
 ## Workflow
 
@@ -203,6 +203,16 @@ New modules plug into `ENV_MODULES` in `index.html`. Each one declares its param
 - Fractional frame rates such as 23.976 are supported. If something fails, the error stays in the dialog.
 - **Render again** goes back to the settings.
 - Works with or without a plate or scan. Encoding uses the browser's WebCodecs (Chrome, Edge, Firefox 130+, Safari 17+). Video is H.264. If the browser has no H.264 encoder it falls back to VP9 inside the MP4, which plays in browsers, VLC and Resolve but not QuickTime. The muxer is [mp4-muxer](https://github.com/Vanilagy/mp4-muxer), loaded from jsDelivr on first use.
+
+## Import and Measure
+
+The **Import** tab (left of Camera Pin) shows the plate, its metadata and the scan in four panes instead of the viewer; the panel on the right stays the same.
+
+- **Plate:** the plate as it is (EXR with its viewer, JPG, PNG), with **Load plate** and **Remove** (two clicks: the camera, the scan and the pins stay).
+- **Metadata:** on the left the camera fields (lens, film back width, tilt, roll, yaw, camera height) with where each value came from and the unit it was read in; on the right everything read from the plate header, with a filter. Drag a value onto a field (or click it, then the field) to use it under another name, change its unit, or type it with ✎. Edited values show in yellow, and the numbers of the camera bar that match the metadata show in violet. **Reload metadata** reads the focal length and the orientation of the plate again.
+- **Scan:** its own orbit view (it doesn't move the shot camera), always Flat (unlit), with the grid on the ground. Navigate (N) with the Nav style of the app or left / middle / right drag and the wheel; **Measure** (M): two clicks on the scan, the real length and **Scale**; **Frame** (F or double-click); grid on / off; **Maximize** the pane (Esc goes back); **Load scan** and **Remove**.
+- Files can be dropped on the tab like on the viewer (plate, scan, project).
+- **Google Maps:** placeholder for importing the location in 3D later.
 
 ## Path Trace
 

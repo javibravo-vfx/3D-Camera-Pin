@@ -769,7 +769,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
         <h2 tabindex="0"><span class="n">2</span>Scan &amp; scale<span class="st" id="s1st">not verified</span><button class="btn sm hload" id="s1load" title="Load a scan (OBJ, PLY, GLB, FBX)">Load</button></h2>
         <div class="body">
           <div class="knobrow"><span>File</span>
-            <div class="row"><span class="file btn">Load scan<input id="f-scan" type="file" accept=".obj,.ply,.glb,.gltf,.fbx"></span><span class="note" id="scan-name">Sample</span></div>
+            <div class="row"><span class="file btn">Load scan<input id="f-scan" type="file" accept=".obj,.mtl,.ply,.glb,.gltf,.fbx,image/*" multiple title="An OBJ with its .mtl and texture: select them together"></span><span class="note" id="scan-name">Sample</span></div>
           </div>
           <label class="fld" for="unit">Units
             <select id="unit">
@@ -795,6 +795,7 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
           </div>
           <div class="knobrow"><span>Texture</span>
             <div class="row"><span class="file btn">Apply image<input id="f-tex" type="file" accept="image/*"></span><span class="note" id="tex-name">from file</span><button class="btn ghost" id="tex-clear" hidden>Remove</button></div>
+            <div class="msg" id="tex-msg" hidden></div>
           </div>
           <div class="knobrow"><label for="scan-y">Height offset</label>
             <div class="row nowrap"><input id="scan-y" type="number" step="0.01" value="0" data-unit="m"><button class="btn" id="scan-sit" title="Move the scan so its lowest point sits on the ground (y = 0); the camera follows">Sit on ground</button></div>
@@ -1044,16 +1045,17 @@ select:disabled { color: var(--muted); opacity: .7; cursor: default; }
 <script type="module">
 import * as THREE_NS from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-window.THREE = Object.assign({}, THREE_NS, { OBJLoader, PLYLoader, GLTFLoader, DRACOLoader, FBXLoader, EXRLoader });
+window.THREE = Object.assign({}, THREE_NS, { OBJLoader, MTLLoader, PLYLoader, GLTFLoader, DRACOLoader, FBXLoader, EXRLoader });
 window.MeshoptDecoder = MeshoptDecoder;
 // the app version: +0.001 with every change, with its line in ChangeLog.md
-window.APP_VERSION = '1.005';
+window.APP_VERSION = '1.006';
 for (const el of document.querySelectorAll('#app-ver, [data-appver]')) el.textContent = 'v' + APP_VERSION;
 document.getElementById('app-ver').title = `3D Camera Pin v${APP_VERSION} · three.js r${THREE_NS.REVISION} (see ChangeLog.md)`;
 window.THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.187.0/';
@@ -2531,15 +2533,76 @@ function parsePLYPoints(buf) {
   return out;
 }
 
-async function loadScanFile(file) {
+// ---------- A scan with its material files ----------
+// The file name of a path written by another program (X:\maps\car.jpg, ../tex/car.jpg): what matches the dropped files
+const texBase = (p) => String(p).split(/[\\/]/).pop().trim().toLowerCase();
+const texStem = (p) => texBase(p).replace(/\.[^.]+$/, '');
+// several files at once: the scan (OBJ, PLY, GLB, FBX), its .mtl and its images
+function loadScanFiles(files) {
+  const scan = files.find(f => /\.(obj|ply|glb|gltf|fbx)$/i.test(f.name));
+  const mtls = files.filter(f => /\.mtl$/i.test(f.name));
+  const imgs = files.filter(f => f !== scan && !/\.(mtl|exr)$/i.test(f.name) && (f.type.startsWith('image/') || /\.(jpe?g|png|webp|bmp|gif)$/i.test(f.name)));
+  if (!scan) {
+    if (imgs.length && scanObj) applyTextureFile(imgs[0]);
+    else toast(mtls.length ? 'A .mtl needs its OBJ: select or drop them together' : 'No scan in those files', true);
+    return;
+  }
+  loadScanFile(scan, { mtls, imgs });
+}
+// the materials of the .mtl with its textures taken from the dropped images. A map_Kd usually carries a path of the
+// machine where it was exported: the image with that file name is used (case does not matter); if the .mtl asks for
+// one texture and there is one image, that one; or the image named like the OBJ. Returns the materials and a report
+async function objMaterials(objText, objName, mtls, imgs) {
+  const want = (objText.match(/^\s*mtllib\s+(.+?)\s*$/m) || [])[1];
+  const mtl = mtls.find(f => want && texBase(f.name) === texBase(want)) || mtls[0];
+  if (!mtl) return null;
+  const text = await mtl.text();
+  const refs = [...text.matchAll(/^\s*(map_Kd|map_Ka|map_Ks|map_Ke|map_d|map_bump|bump|norm|disp)\s+(.+?)\s*$/gim)].map(m => m[2].split(/\s+-\S+\s+\S+\s*|\s+/).pop());
+  const urls = new Map(), used = new Map(), missing = new Set();
+  const urlOf = (f) => { if (!urls.has(f)) urls.set(f, URL.createObjectURL(f)); return urls.get(f); };
+  const pick = (ref) => {
+    const b = texBase(ref);
+    let f = imgs.find(x => texBase(x.name) === b) || imgs.find(x => texStem(x.name) === texStem(ref));
+    if (!f && new Set(refs.map(texBase)).size === 1 && imgs.length === 1) f = imgs[0];
+    if (!f) f = imgs.find(x => texStem(x.name) === texStem(objName));
+    return f;
+  };
+  const manager = new THREE.LoadingManager();
+  manager.setURLModifier(url => {
+    if (/^(blob|data):/.test(url)) return url;
+    const f = pick(decodeURIComponent(url));
+    if (f) { used.set(texBase(url), f.name); return urlOf(f); }
+    missing.add(texBase(url));
+    return 'data:image/gif;base64,R0lGODlhAQABAAAAACw='; // an empty image: the material keeps its color
+  });
+  const loader = new THREE.MTLLoader(manager);
+  const mats = loader.parse(text, '');
+  mats.preload();
+  return { mats, mtlName: mtl.name, used, missing, manager, refs };
+}
+async function loadScanFile(file, extra = {}) {
   setBusy(true, 'Loading ' + file.name + '…');
   const ext = file.name.split('.').pop().toLowerCase();
   st.plyInfo = '';
   try {
     const buf = await file.arrayBuffer();
-    let obj, kind = 'mesh';
+    let obj, kind = 'mesh', texNote = null, texLater = null;
+    const mtls = extra.mtls || [], imgs = extra.imgs || [];
     if (ext === 'obj') {
-      obj = new THREE.OBJLoader().parse(new TextDecoder().decode(buf));
+      const text = new TextDecoder().decode(buf);
+      const mm = mtls.length ? await objMaterials(text, file.name, mtls, imgs) : null;
+      const ol = new THREE.OBJLoader();
+      if (mm) ol.setMaterials(mm.mats);
+      obj = ol.parse(text);
+      if (mm) {
+        // textures arrive after the scan: draw again when they are in, and say what was used
+        mm.manager.onLoad = () => { scanObj && scanObj.traverse(o => { if (o.isMesh) o.userData.flat = null; }); applyDisplay(); render(); };
+        const u = [...mm.used.entries()], miss = [...mm.missing].filter(x => !mm.used.has(x));
+        texNote = `${mm.mtlName}: ` + (u.length ? 'texture ' + u.map(([k, v]) => k === v.toLowerCase() ? v : `${v} (for ${k})`).join(', ') : 'no texture') + (miss.length ? ` · not found: ${miss.join(', ')} (drop it with the OBJ, or Apply image)` : '');
+        if (!mm.refs.length && imgs.length) texLater = imgs[0]; // a .mtl with colors only and an image: the image goes on the scan
+        else if (miss.length) texNote = { text: texNote, bad: true };
+      } else if (imgs.length) texLater = imgs[0]; // an OBJ with its image and no .mtl
+      else if (/^\s*mtllib\s+/m.test(text)) texNote = { text: 'The OBJ uses a .mtl that did not come with it: select or drop the OBJ, its .mtl and its texture together', bad: false };
       let anyMesh = false; obj.traverse(o => { if (o.isMesh) anyMesh = true; });
       if (!anyMesh) kind = 'points';
     } else if (ext === 'ply') {
@@ -2566,7 +2629,15 @@ async function loadScanFile(file) {
     } else if (ext === 'fbx') {
       obj = new THREE.FBXLoader().parse(buf, '');
     } else throw new Error('unsupported format: .' + ext);
+    if (ext !== 'obj' && imgs.length) texLater = imgs[0]; // any other scan dropped with an image
     finishScan(obj, file.name, kind, ext);
+    $('tex-msg').hidden = true;
+    if (texLater) { applyTextureFile(texLater); showMsg('tex-msg', `Texture: ${texLater.name}`, 'msg'); }
+    else if (texNote) {
+      const t = typeof texNote === 'string' ? { text: texNote, bad: false } : texNote;
+      showMsg('tex-msg', t.text, t.bad ? 'msg bad' : 'msg');
+      if (/: texture /.test(t.text)) { $('tex-name').textContent = 'from the .mtl'; if ($('disp').value === 'wire' || $('disp').value === 'solid') { $('disp').value = 'flat'; lsSet('disp', 'flat'); applyDisplay(); } }
+    }
   } catch (err) {
     setBusy(false);
     showMsg('unit-msg', 'Could not read ' + file.name + ': ' + (err.message || err) + '. Try exporting it as GLB, OBJ or binary PLY.', 'msg bad');
@@ -3701,7 +3772,7 @@ $('store-cam').onclick = () => {
   st.solved = { ...poseFromCamera(), focal: st.focal, manual: true }; $('back').disabled = false;
   pinErrorsOnly(); refreshAll(); toast('Camera stored: Recall cam comes back to this view');
 };
-$('f-scan').onchange = e => { const f = e.target.files[0]; if (f) loadScanFile(f); e.target.value = ''; };
+$('f-scan').onchange = e => { const fs = [...e.target.files]; if (fs.length) loadScanFiles(fs); e.target.value = ''; };
 $('f-plate').onchange = e => { const f = e.target.files[0]; if (f) loadPlateFile(f); e.target.value = ''; };
 $('unit').onchange = () => { setRootTransform(+$('unit').value, st.userScale, st.up); st.scaleOk = false; measWorld(); updateMeasureGeo(); refreshAll(); };
 $('up').onchange = () => { if (/\.ply$/i.test(st.scanName)) lsSet('upPly', $('up').value); setRootTransform(st.unit, st.userScale, $('up').value, false); measWorld(); updateMeasureGeo(); refreshAll(); };
@@ -3945,7 +4016,7 @@ function resetAll(keepPrefs) {
   scanRoot.position.set(0, 0, 0); scanRoot.quaternion.identity(); scanRoot.scale.set(1, 1, 1); scanRoot.updateMatrixWorld(true);
   $('scan-name').textContent = 'No scan'; $('scan-kv').innerHTML = ''; $('unit-msg').hidden = true;
   ['dx', 'dy', 'dz'].forEach(id => $(id).textContent = '–'); $('scan-sum').textContent = 'Size, measure & scale';
-  $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true;
+  $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true; $('tex-msg').hidden = true;
   // view
   $('mask').value = '0'; $('exp-crop').checked = false; maskChanged();
   envSelect('none');
@@ -4155,7 +4226,7 @@ function applyTextureFile(file) {
 $('f-tex').onchange = e => { const f = e.target.files[0]; if (f) applyTextureFile(f); e.target.value = ''; };
 $('tex-clear').onclick = () => {
   scanObj && scanObj.traverse(o => { if (o.isMesh && o.userData.origBackup) { o.userData.orig = o.userData.origBackup; o.userData.origBackup = null; o.userData.flat = null; } });
-  $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true; applyDisplay();
+  $('tex-name').textContent = 'from file'; $('tex-clear').hidden = true; $('tex-msg').hidden = true; applyDisplay();
 };
 // ---------- Chroma key UI ----------
 function keyUI() {
@@ -4634,11 +4705,15 @@ const impv = { on: false, plateKey: '', scanKey: '', theta: 0.7, phi: 1.15, dist
   measure: false, grid: lsGet('imp.grid', true), map: {}, pick: null, srcKey: '', tgKey: '', srcs: [] };
 function impEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
 // the files dropped on the Import view or on the viewer: a project, a scan or a plate
+// (a scan dropped with its .mtl and its images: they go together to the scan; images alone are a plate)
 function impDropFiles(files) {
+  files = [...files];
+  const isScan = (f) => /\.(obj|ply|glb|gltf|fbx)$/i.test(f.name), isImg = (f) => !/\.exr$/i.test(f.name) && (f.type.startsWith('image/') || /\.(jpe?g|png|webp|bmp|gif)$/i.test(f.name));
+  const withScan = files.some(isScan);
+  if (withScan) loadScanFiles(files.filter(f => isScan(f) || /\.mtl$/i.test(f.name) || isImg(f)));
   for (const f of files) {
     if (/\.json$/i.test(f.name)) { f.text().then(t => { try { openProject(JSON.parse(t)); } catch (e) { toast('Could not read ' + f.name, true); } }); }
-    else if (/\.(obj|ply|glb|gltf|fbx)$/i.test(f.name)) loadScanFile(f);
-    else if (f.type.startsWith('image/') || /\.exr$/i.test(f.name)) loadPlateFile(f);
+    else if (/\.exr$/i.test(f.name) || (!withScan && isImg(f))) loadPlateFile(f);
   }
 }
 function impBuild() {
@@ -4669,7 +4744,7 @@ function impBuild() {
       <div class="impmpop" id="imp-mpop" hidden><span class="d" id="imp-md">0.000 m</span><span>→</span>
         <input id="imp-mreal" class="mini" type="number" step="0.001" min="0" placeholder="real" aria-label="Real length in meters"><span class="u">m</span>
         <button class="btn sm primary" id="imp-mok">Scale</button><button class="btn sm ghost" id="imp-mx" aria-label="Clear measurement" title="Clear (Esc)">×</button></div>
-      <p class="impe" id="imp-scan-e">No scan yet. Load it or drop it here.</p>
+      <p class="impe" id="imp-scan-e">No scan yet. Load it or drop it here (an OBJ with its .mtl and texture: select or drop them together).</p>
       <p class="msg bad impmsg-scan" id="imp-scan-msg" hidden></p></div></section>
   <section class="impp" id="imp-maps"><header><b>Google Maps</b><span class="note">3D</span><button class="btn sm" disabled title="Coming later: import the street from Google Maps 3D">Import from Google Maps</button></header>
     <div class="impb"><p class="impe">Import the location from <b>Google Maps</b> in 3D.<br><span class="note">Coming later.</span></p></div></section>`;
@@ -5060,7 +5135,7 @@ function impTick() {
   if ($('imp-plate-x').hidden !== !!st.plate.empty) $('imp-plate-x').hidden = !!st.plate.empty;
   if ($('imp-scan-x').hidden !== !scanObj) $('imp-scan-x').hidden = !scanObj;
   { // the error notice of the scan loading (Size, measure & scale) also in its pane
-    const m = ['unit-msg'].map($).find(el => el && !el.hidden && /\bbad\b/.test(el.className) && el.textContent.trim()), out = $('imp-scan-msg');
+    const m = ['unit-msg', 'tex-msg'].map($).find(el => el && !el.hidden && /\bbad\b/.test(el.className) && el.textContent.trim()), out = $('imp-scan-msg');
     const t = m ? m.textContent.trim() : ''; out.hidden = !t; if (out.textContent !== t) out.textContent = t;
   }
   const sk = scanObj ? `${scanObj.uuid}|${st.unit}|${st.userScale}|${st.up}|${(st.rot || []).join(',')}` : '';
@@ -5114,7 +5189,7 @@ function impRemovePlate() {
 // Remove scan: the scan goes; the camera, the plate and the pins (their points stay where they were) stay
 function impRemoveScan() {
   if (!scanObj) return;
-  clearScan(); st.scanName = ''; st.scanFmt = null; st.sample = false;
+  clearScan(); st.scanName = ''; st.scanFmt = null; st.sample = false; $('tex-msg').hidden = true;
   $('scan-name').textContent = 'No scan'; $('scan-kv').innerHTML = '';
   ['dx', 'dy', 'dz'].forEach(id => $(id).textContent = '–');
   impv.scanKey = ''; refreshAll(); render();

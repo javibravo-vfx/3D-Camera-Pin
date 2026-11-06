@@ -6,7 +6,7 @@ It is a single HTML file that runs in the browser with nothing to install. Files
 
 **Live:** https://javibravo-vfx.github.io/3D-Camera-Pin/
 
-The version is shown at the right of the tab bar (`v1.005`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
+The version is shown at the right of the tab bar (`v1.006`); every change goes up by 0.001 and has its line in [ChangeLog.md](ChangeLog.md).
 
 ## Workflow
 
@@ -133,6 +133,8 @@ Use it to start from an empty project. UI preferences are kept: navigation prese
 ## Scan texture
 
 **Texture → Apply image** (Scan & scale) maps an image onto every mesh of the scan, for scans that came without a texture or whose texture isn't embedded. It uses the mesh UVs and switches the view to **Flat (unlit)**. **Remove** goes back to the file's own materials.
+
+**OBJ with its texture:** select the `.obj`, its `.mtl` and the image together in **Load scan**, or drop them together on the viewer or the Import tab. The `map_Kd` of the MTL usually carries a path of the machine where it was exported (`X:\maps\car.jpg` from 3ds Max): the image with that file name is used (case does not matter); if the MTL asks for one texture and one image came, that one; or the image named like the OBJ. An OBJ (or any other scan) dropped with an image and no MTL gets that image as with Apply image. The note under Texture says which image was used and which one is missing.
 
 ## Chroma key
 

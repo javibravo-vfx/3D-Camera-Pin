@@ -3,6 +3,7 @@
 One line per change, newest first. The version is in the app, at the right of the tab bar (and in saved projects as
 `appVersion`); it goes up by 0.001 with every change.
 
+v1.006: An OBJ loads with its texture: select or drop the .obj, its .mtl and the image together (also on the Import tab); the MTL path from another machine is matched by file name, and the note says which image was used or is missing. [ Scan - OBJ with its .mtl and texture ]
 v1.005: New Import tab (Import and Measure): the plate, its metadata and the scan in four panes, with drag and drop of the metadata onto the camera fields, an orbit view of the scan with Measure and Scale, Frame, grid, Maximize and Remove. [ Import - Import and Measure ]
 v1.004: Path Trace: Playblast renders the frame range path traced to an MP4, at 720p, 1080p or plate size, with quality presets (Draft, Preview, Good, Final or the Render panel settings) and the time left while it renders. [ Path Trace - Playblast ]
 v1.003: Path Trace: the render is 720p or 1080p wide (or the plate size) and scales to the view; the camera moves in the tab with a coarse preview that fills in when it stops; the timeline bar is in the tab and moves the environment. [ Path Trace - Resolution, camera and timeline ]

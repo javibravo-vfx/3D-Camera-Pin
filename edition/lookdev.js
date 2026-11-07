@@ -28,12 +28,13 @@ const LK_CHART = [[115, 82, 68], [194, 150, 130], [98, 122, 157], [87, 108, 67],
 const LK_PB_Q = { draft: [16, 3], preview: [64, 4], good: [256, 6], final: [1024, 8] };
 const LK_FONT = { monitor: { css: '--f-ui', w: 500, wv: 700, track: 0.07 }, mono: { css: '--f-num', w: 400, wv: 600, track: 0.02 } };
 const LK_TEXT = { small: 0.0125, large: 0.016 };
-const LK_FIELDS = [['project', 'Project'], ['asset', 'Asset'], ['hdri', 'HDRI'], ['lens', 'Lens'], ['frame', 'Frame'], ['date', 'Date'], ['artist', 'Artist']];
+const LK_FIELDS = [['project', 'Project'], ['asset', 'Asset'], ['tag', 'LOOKDEV'], ['hdri', 'HDRI / sky'], ['rot', 'Rotation'], ['ev', 'Exposure'], ['lens', 'Lens'], ['film', 'Film'],
+  ['view', 'Viewer'], ['engine', 'Engine'], ['frame', 'Frame'], ['pass', 'Pass'], ['date', 'Date'], ['artist', 'Artist']];
 const LK_DEF = { env: 'hdri', hdri: 'studio', cs: 'lin', int: 1, rot: 0, ev: 0, show: true, bg: '#3a3a3a', blur: 0, view: 'aces709',
-  film: 36, start: 1001, aa: 16, lmode: 'hl',
+  film: 36, start: 1001, aa: 16, lmode: 'hl', logo: true,
   skyCol: '#bfd4ff', gndCol: '#4a4238', skyInt: 1, sunAz: 135, sunEl: 40, skyT: 3, skyAlb: 0.1, sunInt: 2.4, lights: [], pxSpace: 'acescg', up: 'auto', yaw: 0, units: 'auto', clay: false, offX: 0, offY: 0, offZ: 0,
   chrome: true, grey: true, chart: true, shadow: true, dir: 'ccw', lens: 50, elev: 10, fill: 0.8, engine: 'raster', spp: 512, bounces: 6, dn: true,
-  burn: true, project: '', artist: '', fields: { project: true, asset: true, hdri: true, lens: true, frame: true, date: true, artist: false },
+  burn: true, project: '', artist: '', fields: { project: true, asset: true, tag: true, hdri: true, rot: true, ev: true, lens: true, film: true, view: true, engine: true, frame: true, pass: true, date: true, artist: false },
   text: 'small', font: 'monitor', align: 'left', talign: 'left', bars: 0.6, pbSize: '1080', pbQ: 'preview' };
 const lkClone = (v) => JSON.parse(JSON.stringify(v));
 const lkSaved = (() => { const v = lsGet('lkd', {}); return v && typeof v === 'object' ? v : {}; })();
@@ -54,7 +55,7 @@ const LK_RESET = {
   refs: ['chrome', 'grey', 'chart', 'shadow', 'clay'],
   pt: ['spp', 'bounces', 'dn'],
   burn: ['burn', 'fields', 'text', 'font', 'align', 'talign', 'bars'],
-  pb: ['pbSize', 'pbQ', 'aa', 'start'],
+  pb: ['pbSize', 'pbQ', 'aa', 'start', 'logo'],
 };
 
 // runtime
@@ -142,7 +143,7 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
   </div>
   <div></div>
   <aside class="props" aria-label="Lookdev settings"><div class="scroll">
-    <section class="step" id="lkd-s-model"><h2 tabindex="0">Model<span class="st" id="lkd-model-st">none</span></h2><div class="body">
+    <section class="step" id="lkd-s-model"><h2 tabindex="0">Model<span class="st" id="lkd-model-st">none</span><button class="btn sm hload" id="lkd-remove2" title="Remove the model from the view (the lights and the settings stay)" hidden>Remove</button></h2><div class="body">
       <div class="knobrow"><span>File</span><div class="row"><span class="file btn">Load model<input id="lkd-f2" type="file" multiple accept="${LK_ACCEPT}"></span><span class="note" id="lkd-model-n">none</span></div></div>
       <p class="note" id="lkd-model-msg" hidden></p>
       <label class="fld" for="lkd-up">Up axis<select id="lkd-up"><option value="auto">Auto (from the file)</option><option value="y">Y up</option><option value="z">Z up</option><option value="-z">−Z up</option><option value="x">X up</option></select></label>
@@ -235,9 +236,10 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="burn" title="The look and the fields of the burn-in back to their defaults (the project and the artist stay)">Reset section</button></div>
     </div></section>
     <section class="step" id="lkd-s-pb"><h2 tabindex="0">Playblast</h2><div class="body">
-      <label class="fld" for="lkd-pbsize">Size<select id="lkd-pbsize"><option value="1080">1080p (1920 × 1080)</option><option value="720">720p (1280 × 720)</option></select></label>
+      <label class="fld" for="lkd-pbsize">Size<select id="lkd-pbsize"><option value="1080">1080p (1920 × 1080)</option><option value="2160">UHD (3840 × 2160)</option><option value="720">720p (1280 × 720)</option></select></label>
       <label class="fld" for="lkd-pbq">Path trace quality<select id="lkd-pbq" title="Samples per frame and bounces, when the engine is Path trace"><option value="draft">Draft · 16 samples, 3 bounces</option><option value="preview">Preview · 64 samples, 4 bounces</option><option value="good">Good · 256 samples, 6 bounces</option><option value="final">Final · 1024 samples, 8 bounces</option><option value="tab">As in Path trace</option></select></label>
       <label class="fld" for="lkd-aa" title="Raster: each frame is rendered this many times, with the camera moved less than a pixel, and averaged: clean edges, textures and shadows (like Max quality of 3D Render)">Raster quality<select id="lkd-aa"><option value="1">Interactive · 1 sample</option><option value="8">Max quality · 8 samples</option><option value="16">Max quality · 16 samples</option><option value="32">Max quality · 32 samples</option></select></label>
+      <div class="knobrow"><label for="lkd-logo" title="The logo of Settings (Logo) on this playblast and its stills">Logo</label><div class="row"><input id="lkd-logo" type="checkbox"><span class="note" id="lkd-logo-n"></span></div></div>
       <div class="knobrow"><label for="lkd-start" title="The number of the first frame (burn-in, play bar, PNG names)">First frame</label><input id="lkd-start" type="number" step="1" min="0" max="999999" data-noscrub="1"></div>
       <p class="note">All ${LK_N} frames from the turntable camera, with the engine of the viewport and the burn-in. Still PNG saves the frame on the view, with the same size and quality.</p>
       <div class="row k"><button class="btn primary sm" id="lkd-pb2" disabled>Playblast</button><button class="btn sm" id="lkd-still2" disabled>Still PNG</button></div>
@@ -360,6 +362,8 @@ function lkPtSample() {
 }
 const lkVfov = () => 2 * Math.atan(((+lk.film || 36) / LK_ASPECT) / 2 / lk.lens) * 180 / Math.PI;
 // the frame number as it is shown (the first one is Start, 1001 by default)
+// the logo of Settings (edition/cp-edition-late.js), when this playblast uses it
+const lkLogoOn = () => !!lk.logo && typeof cpLogoReady === 'function' && cpLogoReady();
 const lkFno = (f) => (+lk.start || 0) + f - 1;
 
 // ---------- environment: an HDRI, Sky colors or Physical sky (like the HDRI section of 3D Render) ----------
@@ -729,7 +733,7 @@ function lkSetModel(obj, name, srgb) {
   L.root = new THREE.Group(); L.root.add(L.pivot); scene.add(L.root);
   L.ext = name.split('.').pop().toLowerCase();
   $('lkd-model-n').textContent = name; $('lkd-model-st').textContent = `${Math.round(tris).toLocaleString('en-US')} tris`;
-  $('lkd-empty').hidden = true; $('lkd-remove').disabled = false; $('lkd-pb').disabled = $('lkd-pb2').disabled = $('lkd-still').disabled = $('lkd-still2').disabled = false;
+  $('lkd-empty').hidden = true; $('lkd-remove').disabled = false; $('lkd-remove2').hidden = false; $('lkd-pb').disabled = $('lkd-pb2').disabled = $('lkd-still').disabled = $('lkd-still2').disabled = false;
   lkClay(); lkPlace(true); lkHint();
   if (lk.engine === 'pt') lkPtRebuild();
 }
@@ -738,7 +742,7 @@ function lkClearModel() {
   L.model = L.root = L.pivot = null; L.tris = 0; L.mA = L.mB = null;
   if (L.shadowR) { scene.remove(L.shadowR); L.shadowR.geometry.dispose(); L.shadowR.material.map && L.shadowR.material.map.dispose(); L.shadowR = null; }
   if (L.shadowPT) { scene.remove(L.shadowPT); L.shadowPT = null; }
-  $('lkd-empty').hidden = false; $('lkd-remove').disabled = true; $('lkd-pb').disabled = $('lkd-pb2').disabled = $('lkd-still').disabled = $('lkd-still2').disabled = true;
+  $('lkd-empty').hidden = false; $('lkd-remove').disabled = true; $('lkd-remove2').hidden = true; $('lkd-pb').disabled = $('lkd-pb2').disabled = $('lkd-still').disabled = $('lkd-still2').disabled = true;
   $('lkd-model-n').textContent = 'none'; $('lkd-model-st').textContent = 'none'; $('lkd-dims').textContent = '–'; $('lkd-model-msg').hidden = true;
   L.ptBuilt = false; lkShadowCatch(); lkDirty();
 }
@@ -1074,7 +1078,7 @@ canvas.addEventListener('pointermove', e => {
   lkMoved();
 });
 canvas.addEventListener('pointermove', e => {
-  const [px, py] = lkFramePt(e), fr = $('lkd-frame'), W = lk.pbSize === '720' ? 1280 : 1920;
+  const [px, py] = lkFramePt(e), fr = $('lkd-frame'), W = lkPbWH()[0];
   $('lkd-cx').textContent = Math.round(px / fr.clientWidth * W); $('lkd-cy').textContent = Math.round(py / fr.clientHeight * W / LK_ASPECT);
 });
 canvas.addEventListener('pointerleave', () => { $('lkd-cx').textContent = $('lkd-cy').textContent = '–'; });
@@ -1219,11 +1223,15 @@ function lkBurnRows(f) {
   const F = lk.fields, up = (t) => String(t).toUpperCase();
   const top = [F.project && lk.project, F.asset && (L.modelName || '').replace(/\.[^.]+$/, '')].filter(Boolean).map(up).join('   ·   ');
   const r1 = [], r2 = [];
-  if (F.hdri) r1.push([lk.env === 'hdri' ? 'HDRI' : 'Sky', lk.env === 'hdri' ? L.hdriName : L.envName], ['Rot', `${Math.round(lk.rot)}°`], ['EV', (lk.ev >= 0 ? '+' : '') + (+lk.ev).toFixed(1)]);
-  if (F.lens) { r1.push(['Lens', `${lk.lens} mm`]); if (+lk.film !== 36) r1.push(['Film', `${+lk.film} mm`]); }
-  r1.push(['View', (R3_VIEWS.find(v => v[0] === lk.view) || ['', ''])[1].replace(' (no tone map)', '')]);
-  r1.push(['Engine', lk.engine === 'pt' ? 'Path trace' : 'Raster']);
-  if (F.frame) r2.push(['Frame', `${String(lkFno(f)).padStart(4, '0')} / ${String(lkFno(LK_N)).padStart(4, '0')}`], ['', f <= LK_OBJ ? 'Model turns' : 'Light turns']);
+  if (F.hdri) r1.push([lk.env === 'hdri' ? 'HDRI' : 'Sky', lk.env === 'hdri' ? L.hdriName : L.envName]);
+  if (F.rot) r1.push(['Rot', `${Math.round(lk.rot)}°`]);
+  if (F.ev) r1.push(['EV', (lk.ev >= 0 ? '+' : '') + (+lk.ev).toFixed(1)]);
+  if (F.lens) r1.push(['Lens', `${lk.lens} mm`]);
+  if (F.film) r1.push(['Film', `${+lk.film} mm`]);
+  if (F.view) r1.push(['View', (R3_VIEWS.find(v => v[0] === lk.view) || ['', ''])[1].replace(' (no tone map)', '')]);
+  if (F.engine) r1.push(['Engine', lk.engine === 'pt' ? 'Path trace' : 'Raster']);
+  if (F.frame) r2.push(['Frame', `${String(lkFno(f)).padStart(4, '0')} / ${String(lkFno(LK_N)).padStart(4, '0')}`]);
+  if (F.pass) r2.push(['', f <= LK_OBJ ? 'Model turns' : 'Light turns']);
   if (F.date) r2.push(['Date', new Date().toISOString().slice(0, 10)]);
   if (F.artist && lk.artist) r2.push(['Artist', lk.artist]);
   return { top, rows: [r1, r2].filter(r => r.length) };
@@ -1259,10 +1267,15 @@ function lkBurnDraw(x, w, h, f) {
   const bar = (y, hh) => { x.fillStyle = `rgba(0,0,0,${lk.bars})`; x.fillRect(0, y, w, hh); };
   const one = (t, wt, max) => { let ff = fs; font(wt, ff); while (x.measureText(t).width > max && ff > 6) { ff -= 1; font(wt, ff); } };
   x.save(); x.textBaseline = 'middle';
-  const th = fs * 2.1; bar(0, th);
-  const ctr = lk.talign === 'center';
-  x.fillStyle = '#ffffff'; x.textAlign = ctr ? 'center' : 'left'; one(top, sty.wv, ctr ? w * 0.46 : w * 0.7); x.fillText(top, ctr ? w / 2 : pad, th / 2);
-  x.textAlign = 'right'; one('LOOKDEV', sty.wv, w * 0.26); x.fillText('LOOKDEV', w - pad, th / 2);
+  // with a logo the top bar is as tall as it; the title and LOOKDEV move away from it
+  const lg = lkLogoOn() ? cpLogoBox(w, h) : null, th = Math.max(fs * 2.1, lg ? lg.h + fs * 0.6 : 0); bar(0, th);
+  if (lg) cpLogoDraw(x, w, h, { y: (th - lg.h) / 2 });
+  const ctr = lk.talign === 'center', lw = lg ? lg.w + fs : 0;
+  const tx = ctr ? (lg && lg.pos === 'center' ? null : w / 2) : pad + (lg && lg.pos === 'left' ? lw : 0);
+  x.fillStyle = '#ffffff';
+  if (top && tx !== null) { x.textAlign = ctr ? 'center' : 'left'; one(top, sty.wv, ctr ? w * 0.46 : w * 0.7 - lw); x.fillText(top, tx, th / 2); }
+  else if (top) { x.textAlign = 'left'; one(top, sty.wv, w * 0.4); x.fillText(top, pad, th / 2); }
+  if (lk.fields.tag) { x.textAlign = 'right'; one('LOOKDEV', sty.wv, w * 0.26); x.fillText('LOOKDEV', w - pad - (lg && lg.pos === 'right' ? lw : 0), th / 2); }
   if (rows.length) {
     const lh = fs * 1.7, bh = rows.length * lh + fs * 0.7; bar(h - bh, bh);
     rows.forEach((r, i) => drawRow(r, h - bh + fs * 0.35 + lh * (i + 0.5), fitF(r, w - 2 * pad)));
@@ -1278,8 +1291,10 @@ function lkBurnBottom() {
 }
 function lkBurnPreview() {
   const x = burnCv.getContext('2d'); x.clearRect(0, 0, burnCv.width, burnCv.height);
-  burnCv.hidden = !(lk.burn && L.model);
-  if (lk.burn && L.model) lkBurnDraw(x, burnCv.width, burnCv.height, L.frame);
+  const logo = lkLogoOn();
+  burnCv.hidden = !((lk.burn || logo) && L.model);
+  if (!L.model) return;
+  if (lk.burn) lkBurnDraw(x, burnCv.width, burnCv.height, L.frame); else if (logo) cpLogoDraw(x, burnCv.width, burnCv.height);
 }
 
 // ---------- playblast ----------
@@ -1304,95 +1319,106 @@ async function lkPbSave(blob, name) {
   const a = document.createElement('a'); a.href = pb.url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   return 'saved to Downloads';
 }
+// the size of the playblast and of the stills
+const lkPbWH = () => lk.pbSize === '2160' ? [3840, 2160] : lk.pbSize === '720' ? [1280, 720] : [1920, 1080];
+// the codec is chosen before rendering, with one test frame: a codec that fails (no H.264 here, an H.264 without its
+// avcC) is known before the first real frame, so the frames are rendered once (a path traced frame is never redone)
+async function lkPbProbe(W, H, bitrate) {
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.getContext('2d').fillRect(0, 0, W, H);
+  for (const [codec, mux] of LK_PB_CANDS) {
+    const sup = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: LK_FPS }).catch(() => null);
+    if (!sup || !sup.supported) continue;
+    let meta0 = null, err = null, got = false;
+    const enc = new VideoEncoder({ output: (c, m) => { if (!got) { got = true; meta0 = m || {}; } }, error: e => { err = e; } });
+    try {
+      enc.configure(Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
+      const fr = new VideoFrame(cv, { timestamp: 0, duration: Math.round(1e6 / LK_FPS) }); enc.encode(fr, { keyFrame: true }); fr.close();
+      await enc.flush();
+    } catch (e) { err = err || e; }
+    try { if (enc.state !== 'closed') enc.close(); } catch (e) { /* closed */ }
+    if (err || !got) { console.warn('lookdev playblast: codec', codec, err || 'no output'); continue; }
+    if (mux === 'avc' && !(meta0.decoderConfig && meta0.decoderConfig.description)) { console.warn('lookdev playblast: H.264 without avcC', codec); continue; }
+    return { codec, mux };
+  }
+  return null;
+}
 async function lkPlayblast() {
   if (!L.model || L.pbBusy) return;
   if (typeof VideoEncoder === 'undefined') { toast('This browser cannot encode video (needs WebCodecs: Chrome, Edge or Safari 17+)', true); return; }
-  const W = lk.pbSize === '720' ? 1280 : 1920, H = lk.pbSize === '720' ? 720 : 1080, pt = lk.engine === 'pt';
+  const [W, H] = lkPbWH(), pt = lk.engine === 'pt';
   const q = pt ? (LK_PB_Q[lk.pbQ] ? { spp: LK_PB_Q[lk.pbQ][0], bounces: LK_PB_Q[lk.pbQ][1] } : { spp: lk.spp, bounces: lk.bounces }) : null;
   lkPlay(false); L.pbBusy = true; pb.cancel = false;
   if (pb.url) { URL.revokeObjectURL(pb.url); pb.url = ''; }
   $('lkd-pbdlg').hidden = false; $('lkd-pb-save').hidden = $('lkd-pb-saveas').hidden = $('lkd-pb-video').hidden = true; $('lkd-pb-x').textContent = 'Cancel';
-  $('lkd-pb-bar').style.width = '0';
-  $('lkd-pb-info').textContent = `${lkPbName()} · frames ${lkFno(1)}–${lkFno(LK_N)} at ${LK_FPS} fps · ${W} × ${H} · ${pt ? `path trace, ${q.spp} samples, ${q.bounces} bounces per frame` : (+lk.aa > 1 ? `raster, Max quality ${lk.aa} samples` : 'raster, interactive')} · ${(R3_VIEWS.find(v => v[0] === lk.view) || ['', ''])[1]}${lk.burn ? ' · burn-in' : ''}`;
+  $('lkd-pb-bar').style.width = '0'; $('lkd-pb-st').textContent = 'Starting…';
+  $('lkd-pb-info').textContent = `${lkPbName()} · frames ${lkFno(1)}–${lkFno(LK_N)} at ${LK_FPS} fps · ${W} × ${H} · ${pt ? `path trace, ${q.spp} samples, ${q.bounces} bounces per frame` : (+lk.aa > 1 ? `raster, Max quality ${lk.aa} samples` : 'raster, interactive')} · ${(R3_VIEWS.find(v => v[0] === lk.view) || ['', ''])[1]}${lk.burn ? ' · burn-in' : ''}${lkLogoOn() ? ' · logo' : ''}`;
   const keep = { frame: L.frame, free: L.free, pos: cam.position.clone(), quat: cam.quaternion.clone() };
   const out = document.createElement('canvas'); out.width = W; out.height = H; const ctx = out.getContext('2d');
-  let enc = null; const t0 = performance.now();
+  let enc = null, done = 0, cancelled = false; const t0 = performance.now();
   const tr = L.tracer, trKeep = tr && { d: tr.renderDelay, l: tr.dynamicLowRes, m: tr.minSamples, b: tr.bounces };
   try {
     await lkPbLoadMuxer();
+    const bitrate = Math.min(80e6, Math.max(4e6, W * H * LK_FPS * 0.12));
+    const cd = await lkPbProbe(W, H, bitrate);
+    if (!cd) throw new Error(`no video encoder for ${W} × ${H} here${W > 1920 ? ': try 1080p' : ''}`);
+    const { codec, mux } = cd;
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: LK_FPS }, fastStart: 'in-memory' });
+    let encErr = null, first = true;
+    enc = new VideoEncoder({
+      output: (chunk, meta) => {
+        if (encErr) return;
+        try {
+          if (first) {
+            first = false; meta = meta || {};
+            const dc = meta.decoderConfig;
+            meta = { ...meta, decoderConfig: { codec, codedWidth: W, codedHeight: H, ...(dc || {}), colorSpace: (dc && dc.colorSpace && dc.colorSpace.primaries) ? dc.colorSpace : LK_PB_CS } };
+          }
+          muxer.addVideoChunk(chunk, meta);
+        } catch (e) { encErr = e; }
+      },
+      error: e => { encErr = encErr || e; },
+    });
+    enc.configure(Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     L.free = false;
     if (pt) { tr.renderDelay = 0; tr.dynamicLowRes = false; tr.minSamples = 1; tr.bounces = q.bounces; tr.reset(); }
-    const bitrate = Math.min(60e6, Math.max(4e6, W * H * LK_FPS * 0.12));
-    let muxer = null, lastErr = null, used = '';
-    for (const [codec, mux] of LK_PB_CANDS) {
-      const sup = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: LK_FPS }).catch(() => null);
-      if (!sup || !sup.supported) continue;
-      if (mux === 'avc' && lastErr && lastErr.fallback === 'vp9') continue;
-      try {
-        muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: LK_FPS }, fastStart: 'in-memory' });
-        let encErr = null, first = true;
-        enc = new VideoEncoder({
-          output: (chunk, meta) => {
-            if (encErr) return;
-            try {
-              if (first) {
-                first = false; meta = meta || {};
-                const dc = meta.decoderConfig;
-                if (mux === 'avc' && !(dc && dc.description)) { const e = new Error('H.264 without decoder description'); e.fallback = 'vp9'; throw e; }
-                meta = { ...meta, decoderConfig: { codec, codedWidth: W, codedHeight: H, ...(dc || {}), colorSpace: (dc && dc.colorSpace && dc.colorSpace.primaries) ? dc.colorSpace : LK_PB_CS } };
-              }
-              muxer.addVideoChunk(chunk, meta);
-            } catch (e) { encErr = e; }
-          },
-          error: e => { encErr = encErr || e; },
-        });
-        enc.configure(Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
-        for (let f = 1; f <= LK_N; f++) {
-          if (pb.cancel) throw new Error('cancelled');
-          if (encErr) throw encErr;
-          L.frame = f; lkCam();
-          if (pt) {
-            lkPtMoved(true); tr.reset(); tr.pausePathTracing = false;
-            let t = performance.now();
-            while (tr.samples < q.spp) {
-              if (pb.cancel) throw new Error('cancelled');
-              lkPtSample();
-              if (performance.now() - t > 40) { await new Promise(r => setTimeout(r, 0)); t = performance.now(); }
-            }
-          } else lkRasterDrawHQ(+lk.aa || 1);
-          ctx.drawImage(canvas, 0, 0, W, H);
-          if (lk.burn) lkBurnDraw(ctx, W, H, f);
-          const fr = new VideoFrame(out, { timestamp: Math.round((f - 1) * 1e6 / LK_FPS), duration: Math.round(1e6 / LK_FPS) });
-          enc.encode(fr, { keyFrame: (f - 1) % LK_FPS === 0 }); fr.close();
-          while (enc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
-          if (encErr) throw encErr;
-          const per = (performance.now() - t0) / 1000 / f, left = per * (LK_N - f);
-          $('lkd-pb-bar').style.width = (f / LK_N * 100).toFixed(1) + '%';
-          $('lkd-pb-st').textContent = `Frame ${lkFno(f)} (${f} / ${LK_N}) · ${per.toFixed(2)} s per frame · ${left >= 90 ? Math.round(left / 60) + ' min' : Math.round(left) + ' s'} left`;
-          if (!pt && f % 4 === 0) await new Promise(r => setTimeout(r, 0));
+    frames: for (let f = 1; f <= LK_N; f++) {
+      if (pb.cancel) { cancelled = true; break; }
+      if (encErr) throw encErr;
+      L.frame = f; lkCam();
+      if (pt) {
+        lkPtMoved(true); tr.reset(); tr.pausePathTracing = false;
+        let t = performance.now();
+        while (tr.samples < q.spp) {
+          if (pb.cancel) { cancelled = true; break frames; }
+          lkPtSample();
+          if (performance.now() - t > 40) { await new Promise(r => setTimeout(r, 0)); t = performance.now(); }
         }
-        await enc.flush();
-        if (encErr) throw encErr;
-        muxer.finalize(); used = mux; lastErr = null;
-        break;
-      } catch (e) {
-        try { if (enc && enc.state !== 'closed') enc.close(); } catch (_) { /* closed */ }
-        if (e && e.message === 'cancelled') throw e;
-        console.warn('lookdev playblast encoder', codec, e); lastErr = e; muxer = null;
-      }
+      } else lkRasterDrawHQ(+lk.aa || 1);
+      ctx.drawImage(canvas, 0, 0, W, H);
+      if (lk.burn) lkBurnDraw(ctx, W, H, f); else if (lkLogoOn()) cpLogoDraw(ctx, W, H);
+      const fr = new VideoFrame(out, { timestamp: Math.round((f - 1) * 1e6 / LK_FPS), duration: Math.round(1e6 / LK_FPS) });
+      enc.encode(fr, { keyFrame: (f - 1) % LK_FPS === 0 }); fr.close(); done = f;
+      while (enc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
+      if (encErr) throw encErr;
+      const per = (performance.now() - t0) / 1000 / f, left = per * (LK_N - f);
+      $('lkd-pb-bar').style.width = (f / LK_N * 100).toFixed(1) + '%';
+      $('lkd-pb-st').textContent = `Frame ${lkFno(f)} (${f} / ${LK_N}) · ${per.toFixed(2)} s per frame · ${left >= 90 ? Math.round(left / 60) + ' min' : Math.round(left) + ' s'} left`;
+      if (!pt && f % 4 === 0) await new Promise(r => setTimeout(r, 0));
     }
-    if (!muxer) throw lastErr || new Error(`no video encoder for ${W} × ${H} here: try 720p`);
+    if (!done) throw new Error('cancelled');
+    await enc.flush(); if (encErr) throw encErr;
+    muxer.finalize();
     const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
     pb.url = URL.createObjectURL(blob); pb.blob = blob;
     const v = $('lkd-pb-video'); v.src = pb.url; v.hidden = false; v.play().catch(() => {});
     $('lkd-pb-save').hidden = false; $('lkd-pb-saveas').hidden = !!window.bplDesktop || !(window.showSaveFilePicker && window.self === window.top);
-    const info = `${lkPbName()} · ${(blob.size / 1048576).toFixed(1)} MB · ${used === 'vp9' ? 'VP9 (this browser has no usable H.264: plays in browsers, VLC and Resolve, not QuickTime)' : 'H.264'} · ${((performance.now() - t0) / 1000).toFixed(0)} s`;
+    const info = `${lkPbName()} · ${cancelled ? `cancelled: frames ${lkFno(1)}–${lkFno(done)} (${done} of ${LK_N})` : `${LK_N} frames`} · ${(blob.size / 1048576).toFixed(1)} MB · ${mux === 'vp9' ? 'VP9 (this browser has no usable H.264: plays in browsers, VLC and Resolve, not QuickTime)' : 'H.264'} · ${((performance.now() - t0) / 1000).toFixed(0)} s`;
     $('lkd-pb-st').textContent = info;
-    const where = await lkPbSave(blob, lkPbName());
-    $('lkd-pb-st').textContent = `${info} · ${where}`;
+    // a cancelled one is only shown (Save MP4 keeps it); a whole one is saved
+    if (!cancelled) { const where = await lkPbSave(blob, lkPbName()); $('lkd-pb-st').textContent = `${info} · ${where}`; }
   } catch (e) {
-    $('lkd-pb-st').textContent = e.message === 'cancelled' ? 'Cancelled.' : 'The playblast failed: ' + (e.message || e);
+    $('lkd-pb-st').textContent = e.message === 'cancelled' ? 'Cancelled before the first frame.' : 'The playblast failed: ' + (e.message || e);
     if (e.message !== 'cancelled') console.error(e);
   } finally {
     try { if (enc && enc.state !== 'closed') enc.close(); } catch (e) { /* closed */ }
@@ -1414,7 +1440,7 @@ $('lkd-pb-saveas').onclick = async () => {
 };
 async function lkStill() {
   if (!L.model || L.pbBusy) return;
-  const W = lk.pbSize === '720' ? 1280 : 1920, H = lk.pbSize === '720' ? 720 : 1080, pt = lk.engine === 'pt';
+  const [W, H] = lkPbWH(), pt = lk.engine === 'pt';
   const q = pt ? (LK_PB_Q[lk.pbQ] ? { spp: LK_PB_Q[lk.pbQ][0], bounces: LK_PB_Q[lk.pbQ][1] } : { spp: lk.spp, bounces: lk.bounces }) : null;
   lkPlay(false); L.pbBusy = true; lkBusy(`Still ${lkFno(L.frame)} · ${W} × ${H}${pt ? ` · ${q.spp} samples` : +lk.aa > 1 ? ` · Max quality ${lk.aa} samples` : ''}…`);
   await new Promise(r => setTimeout(r, 30));
@@ -1427,7 +1453,7 @@ async function lkStill() {
       while (tr.samples < q.spp) { lkPtSample(); if (performance.now() - t > 40) { await new Promise(r => setTimeout(r, 0)); t = performance.now(); } }
     } else lkRasterDrawHQ(+lk.aa || 1);
     const out = document.createElement('canvas'); out.width = W; out.height = H; const ctx = out.getContext('2d');
-    ctx.drawImage(canvas, 0, 0, W, H); if (lk.burn) lkBurnDraw(ctx, W, H, L.frame);
+    ctx.drawImage(canvas, 0, 0, W, H); if (lk.burn) lkBurnDraw(ctx, W, H, L.frame); else if (lkLogoOn()) cpLogoDraw(ctx, W, H);
     const blob = await new Promise(r => out.toBlob(r, 'image/png'));
     const name = ((L.modelName || 'model').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_')) + `_lookdev_${lkFno(L.frame)}.png`;
     pb.url && URL.revokeObjectURL(pb.url); pb.url = URL.createObjectURL(blob);
@@ -1451,6 +1477,7 @@ function lkUI() {
   for (const [id, k] of [['lkd-rot', 'rot'], ['lkd-ev', 'ev'], ['lkd-blur', 'blur'], ['lkd-lens', 'lens'], ['lkd-elev', 'elev'], ['lkd-fill', 'fill'], ['lkd-spp', 'spp'], ['lkd-bounces', 'bounces'], ['lkd-bars', 'bars'],
     ['lkd-int', 'int'], ['lkd-skyint', 'skyInt'], ['lkd-sunaz', 'sunAz'], ['lkd-sunel', 'sunEl'], ['lkd-sunint', 'sunInt'], ['lkd-skyt', 'skyT'], ['lkd-skyalb', 'skyAlb'],
     ['lkd-v-lens', 'lens'], ['lkd-v-elev', 'elev'], ['lkd-v-fill', 'fill'], ['lkd-v-film', 'film'], ['lkd-film', 'film'], ['lkd-start', 'start']]) nv(id, lk[k]);
+  $('lkd-logo').checked = !!lk.logo; $('lkd-logo-n').textContent = typeof cpLogoReady === 'function' && cpLogoReady() ? 'from Settings' : 'none yet: Settings › Logo';
   $('lkd-filmp').value = LK_FILMS.some(f => f[0] === +lk.film) ? String(+lk.film) : 'custom'; $('lkd-aa').value = String(lk.aa);
   $('lkd-lm-hl').setAttribute('aria-pressed', String(lk.lmode !== 'orb')); $('lkd-lm-orb').setAttribute('aria-pressed', String(lk.lmode === 'orb'));
   $('lkd-p-n').textContent = lkFno(L.frame); $('lkd-p-end').textContent = lkFno(LK_N);
@@ -1500,7 +1527,7 @@ $('lkd-off0').onclick = () => { lk.offX = lk.offY = lk.offZ = 0; lkChanged('plac
 const bindSel = (id, k, kind) => $(id).addEventListener('change', () => { lk[k] = $(id).value; lkChanged(kind); });
 bindSel('lkd-view', 'view', 'view'); bindSel('lkd-up', 'up', 'place'); bindSel('lkd-yaw', 'yaw', 'place'); bindSel('lkd-units', 'units', 'place'); bindSel('lkd-dir', 'dir', 'cam');
 bindSel('lkd-text', 'text', 'burn'); bindSel('lkd-font', 'font', 'burn'); bindSel('lkd-align', 'align', 'burn'); bindSel('lkd-talign', 'talign', 'burn');
-bindSel('lkd-pbsize', 'pbSize', 'none'); bindSel('lkd-pbq', 'pbQ', 'none');
+bindSel('lkd-pbsize', 'pbSize', 'none'); $('lkd-logo').addEventListener('change', () => { lk.logo = $('lkd-logo').checked; lkChanged('burn'); }); bindSel('lkd-pbq', 'pbQ', 'none');
 $('lkd-aa').addEventListener('change', () => { lk.aa = +$('lkd-aa').value || 1; lkSave(); });
 $('lkd-filmp').addEventListener('change', () => { if ($('lkd-filmp').value !== 'custom') { lk.film = +$('lkd-filmp').value; lkChanged('cam'); } });
 $('lkd-lm-hl').onclick = () => { lk.lmode = 'hl'; lkSave(); lkUI(); lkHint(); };
@@ -1580,7 +1607,7 @@ $('lkd-llist').addEventListener('click', e => {
   $('lkd-l-type').addEventListener('change', () => { const li = cur(); if (li) { li.type = $('lkd-l-type').value; lkSave(); lkLightsBuild(); } });
 }
 $('lkd-back').onclick = lkBack;
-$('lkd-remove').onclick = () => { lkPlay(false); lkClearModel(); };
+$('lkd-remove').onclick = $('lkd-remove2').onclick = (e) => { e.stopPropagation(); lkPlay(false); lkClearModel(); };
 for (const id of ['lkd-f', 'lkd-f2']) $(id).addEventListener('change', e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) lkLoadFiles(fs); });
 $('lkd-p-play').onclick = () => lkPlay();
 $('lkd-p-first').onclick = () => { lkPlay(false); lkSetFrame(1); };
@@ -1639,6 +1666,7 @@ function lkShow(on) {
   } else { lkPlay(false); cancelAnimationFrame(L.raf); L.raf = 0; window.dispatchEvent(new Event('resize')); if (typeof render === 'function') render(); }
 }
 window.cpLkShow = lkShow;
+window.addEventListener('cp-logo', () => { if (lkStarted) { lkUI(); lkDirty(); } });
 // for tests
 window.LKD = { lk, L, load: lkLoadFiles, dropFiles: lkDropFiles, tool: lkTool, lightAt: lkLightAt, addLight: lkLightAdd, px: lkPxRows, reset: lkResetPart, resetView: lkResetView, frame: lkSetFrame, engine: lkEngine, playblast: lkPlayblast };
 })();

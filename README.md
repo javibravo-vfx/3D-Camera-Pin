@@ -65,6 +65,7 @@ BackplateLab: Lega Pugliese, Charly Villafañe and Javi Bravo. 3D Camera Pin: Ja
 
 - With **Car models › Car pack** the pieces are the 9 cars of the pack (sedan, hatchback, SUV, compact, wagon, minivan, pickup, coupe, off-road), not the box cars.
 - On each viewport: **Solid** (the piece with its colors and materials, lit; off: the translucent violet), **Wire** (its edges), **Move** (drag the imported asset on the ground onto the pivot; Shift + drag: up and down; Alt + drag still orbits) and **×** (remove the asset: back to the piece of the environment).
+- **3D Render** uses them: each car of the pack with an imported asset becomes that asset (with its fit); the others, the high quality car or the light one. The tabs on the left keep the light pack. The other pieces (people, street lights, buildings…) do not reach 3D Render yet.
 - **Use high quality assets**: the cars of the original pack ("Generic passenger car pack" by Comrade1280, Sketchfab, CC BY 4.0), with their textures and materials, in 3D Assets and 3D Render; the tabs on the left keep the light pack. Download the original as glTF Binary (.glb) and load it once with **Load the original pack…**: it is kept in the browser.
 - The **FPS** of the play bar opens the common frame rates on a click (it can still be typed).
 

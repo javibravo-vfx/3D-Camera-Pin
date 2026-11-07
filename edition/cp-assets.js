@@ -231,27 +231,57 @@
   function hqApplied() {
     for (const k of Object.keys(PK)) delete a3dBaseBox[pkId(k)];
     if (a3d.on) { a3dEnvChanged(true); a3dPanel(); }
-    if (typeof r3 !== 'undefined' && r3.on) { hqSwap(HQ.on && !!HQ.cars); envRebuild(); }
+    if (typeof r3 !== 'undefined' && r3.on && hqSwap(true)) envRebuild();
   }
-  let swapped = false;
+  // the cars of 3D Render: for each car of the pack, the asset imported for it in 3D Assets (with its fit), or else the
+  // high quality one (Use high quality assets), or else the light one. The tabs on the left always get the light one.
+  let swapped = '';
+  function importedCar(k) {
+    // the asset of the car of the pack or, imported with Simple boxes, the one of its box car
+    const BOXOF = { sedan: 'sedan', hatchback: 'hatch', suv: 'suv' };
+    let id = pkId(k); if (!(a3d.items[id] && a3d.objs[id]) && BOXOF[k]) id = BOXOF[k];
+    const it = a3d.items[id], obj = a3d.objs[id];
+    if (!it || !obj) return null;
+    // the same transform as in the viewport of 3D Assets: the fit (t) over the asset centred on its bounding box
+    const c = obj.userData.a3dC || [0, 0, 0], g = new THREE.Group(); a3dApplyT(g, it.t);
+    const W = new THREE.Matrix4().multiplyMatrices(g.matrixWorld, new THREE.Matrix4().makeTranslation(-c[0], -c[1], -c[2]));
+    obj.updateMatrixWorld(true);
+    const parts = [];
+    obj.traverse((o) => { if (o.isMesh && o.geometry) parts.push({ geometry: o.geometry, material: o.material, matrix: new THREE.Matrix4().multiplyMatrices(W, o.matrixWorld) }); });
+    if (!parts.length) return null;
+    const bb = new THREE.Box3(); for (const pt of parts) { if (!pt.geometry.boundingBox) pt.geometry.computeBoundingBox(); bb.union(pt.geometry.boundingBox.clone().applyMatrix4(pt.matrix)); }
+    return { parts, L: Math.max(0.5, bb.max.z - bb.min.z), name: it.name + JSON.stringify(it.t) };
+  }
   function hqSwap(on) {
-    if (on === swapped || PACK.state !== 'ok') return false;
+    if (PACK.state !== 'ok') return false;
+    const pick = {};
+    for (const k of Object.keys(PACK.cars)) pick[k] = on ? (importedCar(k) || (HQ.on && HQ.cars && HQ.cars[k]) || null) : null;
+    const sig = on ? Object.keys(pick).map((k) => pick[k] ? (pick[k].name ? 'i:' + pick[k].name + pick[k].parts.length + pick[k].L.toFixed(4) : 'hq') : 'low').join('|') : '';
+    if (sig === swapped) return false;
     for (const k of Object.keys(PACK.cars)) {
       if (!lowOf[k]) lowOf[k] = PACK.cars[k].parts;
       if (!PACK.cars[k].lowL) PACK.cars[k].lowL = PACK.cars[k].L;
-      const h = on && HQ.cars && HQ.cars[k];
+      const h = pick[k];
       PACK.cars[k].parts = h ? h.parts : lowOf[k]; PACK.cars[k].L = h ? h.L : PACK.cars[k].lowL;
     }
-    swapped = on; return true;
+    const had = swapped !== '' && !/^(low\|)*low$/.test(swapped);
+    swapped = sig;
+    return had || (on && !/^(low\|)*low$/.test(sig));
   }
-  if (typeof r3Show === 'function') {
-    const f = r3Show;
-    r3Show = function (on, ...a) {
-      if (on && on !== r3.on) { const sw = hqSwap(HQ.on && !!HQ.cars); const r = f.call(this, on, ...a); if (sw) envRebuild(); return r; }
-      if (!on && on !== r3.on) { const r = f.call(this, on, ...a); if (hqSwap(false)) envRebuild(); return r; }
-      return f.call(this, on, ...a);
-    };
+  // the tabs call 3D Render through r3dShow (a copy of r3Show): the cars change after the tab does
+  let r3was = false;
+  function r3Follow() {
+    const on = typeof r3 !== 'undefined' && !!r3.on; if (on === r3was) return; r3was = on;
+    if (on) {
+      if (PACK.state === 'idle') loadPack();
+      if (hqSwap(true)) envRebuild();
+      const n = Object.keys(PACK.cars).filter((k) => importedCar(k)).length;
+      if (n) toast(`3D Render: ${n} car${n > 1 ? 's' : ''} of the pack with the asset of 3D Assets`);
+    } else if (hqSwap(false)) envRebuild();
   }
+  if (typeof mtabShow === 'function') { const f = mtabShow; mtabShow = function (...a) { const r = f.apply(this, a); try { r3Follow(); } catch (e) { console.error(e); } return r; }; }
+  // the pack loaded while 3D Render is open: its cars, too
+  { const t = setInterval(() => { if (PACK.state === 'ok') { clearInterval(t); if (typeof r3 !== 'undefined' && r3.on && hqSwap(true)) envRebuild(); } else if (PACK.state === 'fail') clearInterval(t); }, 500); }
   // the panel of 3D Assets
   const sec = $('a3') && $('a3').querySelector('.body');
   if (sec) {

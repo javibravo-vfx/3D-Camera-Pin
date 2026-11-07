@@ -49,6 +49,7 @@ The **Lookdev** tab is the Lookdev Rig of the 3ds Max toolbar in the browser: dr
 - **Pixel analyzer** (I), like the one of Nuke: hover to read a pixel, drag a box for its average, minimum and maximum, in R, G, B and luminance, with swatches; in ACEScg, linear Rec.709 or as it goes to the screen (0–255 after the Viewer).
 - Every section of the panel has its **Reset section**; every number drags sideways (Shift: finer) or takes a typed value.
 - **Navigate** (N, the Nav mouse style of the app; wheel to zoom) leaves the turntable camera: **Back to camera** (F) shows up on the bar, highlighted, and the frame gets the accent color until you go back. **Measure** (M): two clicks on the model, in meters and centimeters.
+- **Max quality** (Raster, on the bar of the view), like 3D Render: while the view is still it averages renders with the camera moved less than a pixel, up to the samples of Playblast › Raster quality.
 - **Raster** or **Path trace** (three-gpu-pathtracer, from `vendor/`): it renders 1280 × 720 on the viewport, coarse while the view moves and filling in up to the samples when it stops.
 - **Logo** (Settings › Logo): an image (PNG with alpha, JPG, SVG), cut with a circle or as it is, on the left, centred or on the right, at the top of the frame. Lookdev puts it in its burn-in; the Playblast of the other tabs on each frame. Each playblast turns it on or off (Logo).
 - **Still PNG** (play bar and Playblast): the frame on the view, at the size and quality of the playblast, with the burn-in.

@@ -31,7 +31,7 @@ const LK_TEXT = { small: 0.0125, large: 0.016 };
 const LK_FIELDS = [['project', 'Project'], ['asset', 'Asset'], ['tag', 'LOOKDEV'], ['hdri', 'HDRI / sky'], ['rot', 'Rotation'], ['ev', 'Exposure'], ['lens', 'Lens'], ['film', 'Film'],
   ['view', 'Viewer'], ['engine', 'Engine'], ['frame', 'Frame'], ['pass', 'Pass'], ['date', 'Date'], ['artist', 'Artist']];
 const LK_DEF = { env: 'hdri', hdri: 'studio', cs: 'lin', int: 1, rot: 0, ev: 0, show: true, bg: '#3a3a3a', blur: 0, view: 'aces709',
-  film: 36, start: 1001, aa: 16, lmode: 'hl', logo: true,
+  film: 36, start: 1001, aa: 16, lmode: 'hl', logo: true, hq: true,
   skyCol: '#bfd4ff', gndCol: '#4a4238', skyInt: 1, sunAz: 135, sunEl: 40, skyT: 3, skyAlb: 0.1, sunInt: 2.4, lights: [], pxSpace: 'acescg', up: 'auto', yaw: 0, units: 'auto', clay: false, offX: 0, offY: 0, offZ: 0,
   chrome: true, grey: true, chart: true, shadow: true, dir: 'ccw', lens: 50, elev: 10, fill: 0.8, engine: 'raster', spp: 512, bounces: 6, dn: true,
   burn: true, project: '', artist: '', fields: { project: true, asset: true, tag: true, hdri: true, rot: true, ev: true, lens: true, film: true, view: true, engine: true, frame: true, pass: true, date: true, artist: false },
@@ -62,7 +62,7 @@ const LK_RESET = {
 const L = { on: false, frame: 1, playing: false, t0: 0, f0: 1, raf: 0, dirty: true, model: null, modelName: '', fileUnit: 1, root: null, pivot: null,
   r: 1, c: new THREE.Vector3(), free: false, freeCam: null, nav: null, measure: false, mA: null, mB: null, hdriTex: null, hdriName: '', pmrem: null, envMap: null,
   userHdri: null, hdriWs: null, rtB: null, rtD: null, qView: null, tracer: null, ptLib: null, ptBuilt: false, ptBusy: false, pbBusy: false, tris: 0, refs: null, shadowR: null, shadowPT: null, clayMat: null, keyT: 0,
-  tool: 'nav', hdriRaw: null, sun: null, lights: [], lsel: -1, lshadow: null, areaOk: false, px: null, pxT: 0 };
+  tool: 'nav', accN: 0, hdriRaw: null, sun: null, lights: [], lsel: -1, lshadow: null, areaOk: false, px: null, pxT: 0 };
 
 // ---------- page ----------
 const lkIcon = (p) => `<svg viewBox="0 0 24 24">${p}</svg>`;
@@ -78,6 +78,7 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <button class="vpchip" id="lkd-c-burn" aria-pressed="true" title="Preview the burn-in of the playblast on the viewport (Burn-in)">${lkIcon('<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 8.5h18M3 15.5h18"/>')}Burn-in</button>
       <span class="sep"></span>
       <div class="seg" role="group" aria-label="Engine"><button id="lkd-e-raster" aria-pressed="true" title="Raster: fast; the shadow under the model is a contact shadow">Raster</button><button id="lkd-e-pt" aria-pressed="false" title="Path trace: light that really bounces and real shadows (the catcher is an 18% grey floor); it fills in while the view is still">Path trace</button></div>
+      <button class="vpchip" id="lkd-c-hq" aria-pressed="true" title="Max quality (Raster), like 3D Render: while the view is still, it renders again and again with the camera moved less than a pixel and averages them (as many as Playblast › Raster quality, 8 at least): clean edges, textures and shadows. Off: always the interactive one">${lkIcon('<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>')}Max quality</button>
       <select class="lkd-vt" id="lkd-view" aria-label="Viewer" title="Viewer: how the render goes to the screen, as in 3D Render and the Viewer of the plate (Raster works in ACEScg, Path trace in linear Rec.709). ACES 1.0 · Rec.709 or sRGB: the ACES output transform for that display">${R3_VIEWS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <span class="fmt" id="lkd-st">–</span>
     </div>
@@ -314,10 +315,10 @@ function lkRT(key, samples) {
   }
   return t;
 }
-function lkView(tex, in709) {
+function lkView(tex, in709, scale = 1) {
   if (!L.qView) { L.qView = new THREE.FullScreenQuad(new THREE.ShaderMaterial(LK_VIEW_SHADER)); L.qView.material.depthTest = false; }
   const u = L.qView.material.uniforms;
-  u.tSrc.value = tex; u.view.value = r3ViewIndex(lk.view); u.exposure.value = r3ExpGain(lk.ev); u.in709.value = in709 ? 1 : 0;
+  u.tSrc.value = tex; u.view.value = r3ViewIndex(lk.view); u.exposure.value = r3ExpGain(lk.ev) * scale; u.in709.value = in709 ? 1 : 0;
   renderer.setRenderTarget(null); L.qView.render(renderer);
 }
 // Max quality: n renders with the camera moved less than a pixel (Halton), averaged in a float target
@@ -326,6 +327,29 @@ const LK_ACC_SHADER = {
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: 'uniform sampler2D t; uniform float w; varying vec2 vUv; void main() { gl_FragColor = texture2D(t, vUv) * w; }',
 };
+// Max quality on the view (like 3D Render): while the view is still, one more jittered render per draw is added to
+// the sum (rtA) until there are lkHqN(); anything that changes starts it again from the interactive one
+const lkHqN = () => Math.max(8, +lk.aa || 16);
+function lkAccMat() {
+  if (!L.qAcc) {
+    const m = new THREE.ShaderMaterial(LK_ACC_SHADER);
+    m.blending = THREE.CustomBlending; m.blendEquation = THREE.AddEquation; m.blendSrc = THREE.OneFactor; m.blendDst = THREE.OneFactor;
+    m.blendSrcAlpha = THREE.OneFactor; m.blendDstAlpha = THREE.OneFactor; m.depthTest = false; m.depthWrite = false; m.transparent = true;
+    L.qAcc = new THREE.FullScreenQuad(m);
+  }
+  return L.qAcc;
+}
+function lkHqStep() {
+  const t = lkRT('rtB', 4), acc = lkRT('rtA', 0), W = t.width, H = t.height, i = L.accN, q = lkAccMat();
+  if (i === 0) { const kc = renderer.getClearColor(new THREE.Color()), ka = renderer.getClearAlpha(); renderer.setRenderTarget(acc); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.setClearColor(kc, ka); }
+  cam.setViewOffset(W, H, r3Halton(i + 1, 2) - 0.5, r3Halton(i + 1, 3) - 0.5, W, H); cam.updateProjectionMatrix();
+  renderer.setRenderTarget(t); renderer.render(scene, cam);
+  cam.clearViewOffset(); cam.updateProjectionMatrix();
+  q.material.uniforms.t.value = t.texture; q.material.uniforms.w.value = 1;
+  renderer.setRenderTarget(acc); renderer.autoClear = false; q.render(renderer); renderer.autoClear = true;
+  L.accN = i + 1;
+  lkView(acc.texture, false, 1 / L.accN);
+}
 function lkRasterDrawHQ(n) {
   if (!(n > 1)) { lkRasterDraw(); return; }
   const t = lkRT('rtB', 4), acc = lkRT('rtA', 0), W = t.width, H = t.height;
@@ -346,6 +370,7 @@ function lkRasterDrawHQ(n) {
   }
   cam.clearViewOffset(); cam.updateProjectionMatrix();
   renderer.setRenderTarget(null);
+  L.accN = 0; // rtA now holds an average, not a sum: the view's Max quality starts over
   lkView(acc.texture, false);
 }
 function lkRasterDraw() {
@@ -925,8 +950,11 @@ function lkLoop() {
       lkStatus();
     } else more = false;
   } else if (L.dirty) {
-    lkRasterDraw();
-    lkStatus();
+    L.accN = 0; lkRasterDraw(); lkStatus();
+    if (lk.hq && L.model && !L.playing) more = true;
+  } else if (lk.hq && L.model && !L.playing && L.accN < lkHqN()) {
+    lkHqStep(); lkStatus();
+    if (L.accN < lkHqN()) more = true;
   }
   L.dirty = false;
   lkBurnPreview(); lkOverlay();
@@ -937,6 +965,7 @@ function lkStatus() {
   const f = L.frame, pass = f <= LK_OBJ ? 'model turns' : 'light turns';
   let t = L.model ? `${Math.round(L.tris).toLocaleString('en-US')} tris · ${L.envName || ''}` : 'no model';
   if (lk.engine === 'pt' && L.tracer && L.ptBuilt) { const n = Math.floor(L.tracer.samples); t += ` · ${n >= lk.spp ? 'done' : n < L.tracer.minSamples ? 'preview' : 'rendering'} ${n} / ${lk.spp}`; }
+  if (lk.engine !== 'pt' && lk.hq && L.model) t += L.playing ? ' · Max quality (when still)' : ` · Max quality ${L.accN >= lkHqN() ? 'done' : L.accN} / ${lkHqN()}`;
   if (L.free) t += ' · free camera';
   $('lkd-st').textContent = t;
   $('lkd-p-pass').textContent = f <= LK_OBJ ? `Model turns · ${lkFno(1)}–${lkFno(LK_OBJ)}` : `Light turns · ${lkFno(LK_OBJ + 1)}–${lkFno(LK_N)}`;
@@ -1007,7 +1036,7 @@ function lkPtMoved(refit) {
 function lkEngine(e) {
   lk.engine = e === 'pt' ? 'pt' : 'raster'; lkSave();
   $('lkd-e-raster').setAttribute('aria-pressed', String(lk.engine === 'raster')); $('lkd-e-pt').setAttribute('aria-pressed', String(lk.engine === 'pt'));
-  $('lkd-pt-st').textContent = lk.engine === 'pt' ? 'on' : 'off';
+  $('lkd-pt-st').textContent = lk.engine === 'pt' ? 'on' : 'off'; $('lkd-c-hq').hidden = lk.engine === 'pt'; L.accN = 0;
   lkShadowVis(); lkEnv(); lkFit();
   if (lk.engine === 'pt') lkPtRebuild(); else { L.ptBuilt = false; lkDirty(); }
 }
@@ -1172,13 +1201,13 @@ $('lkd-px-sp').addEventListener('change', e => { lk.pxSpace = e.target.value; lk
 // and the average, minimum and maximum of a box. L.px: { cur: [x, y], a: [x, y], b: [x, y] } in px of the frame.
 const LK_LUM_AP1 = [0.2722287, 0.6740818, 0.0536895];
 function lkPxRead(x0, y0, x1, y1) {
-  const t = lk.engine === 'pt' ? L.rtP : L.rtB; if (!t) return null;
+  const avg = lk.engine !== 'pt' && L.accN > 0 && L.rtA, t = lk.engine === 'pt' ? L.rtP : avg ? L.rtA : L.rtB; if (!t) return null;
   const fr = $('lkd-frame'), sx = t.width / fr.clientWidth, sy = t.height / fr.clientHeight;
   let ax = Math.floor(Math.min(x0, x1) * sx), bx = Math.ceil(Math.max(x0, x1) * sx), ay = Math.floor(Math.min(y0, y1) * sy), by = Math.ceil(Math.max(y0, y1) * sy);
   ax = Math.max(0, Math.min(t.width - 1, ax)); bx = Math.max(ax + 1, Math.min(t.width, bx)); ay = Math.max(0, Math.min(t.height - 1, ay)); by = Math.max(ay + 1, Math.min(t.height, by));
   const w = bx - ax, h = by - ay, buf = new Uint16Array(w * h * 4);
   try { renderer.readRenderTargetPixels(t, ax, t.height - by, w, h, buf); } catch (e) { console.error(e); return null; }
-  const g = r3ExpGain(lk.ev), pt = lk.engine === 'pt', out = [], f = THREE.DataUtils.fromHalfFloat;
+  const g = r3ExpGain(lk.ev) * (avg ? 1 / L.accN : 1), pt = lk.engine === 'pt', out = [], f = THREE.DataUtils.fromHalfFloat;
   for (let i = 0; i < w * h; i++) {
     let c = [f(buf[i * 4]), f(buf[i * 4 + 1]), f(buf[i * 4 + 2])];
     if (pt) { const a = f(buf[i * 4 + 3]); if (a > 1e-4) c = c.map(v => v / a); c = r3M3(R3_709_TO_AP1, c); }
@@ -1511,6 +1540,7 @@ function lkUI() {
   $('lkd-c-burn').setAttribute('aria-pressed', String(!!lk.burn)); $('lkd-c-refs').setAttribute('aria-pressed', String(L.refsOn !== false));
   $('lkd-e-raster').setAttribute('aria-pressed', String(lk.engine === 'raster')); $('lkd-e-pt').setAttribute('aria-pressed', String(lk.engine === 'pt'));
   $('lkd-pt-st').textContent = lk.engine === 'pt' ? 'on' : 'off';
+  $('lkd-c-hq').setAttribute('aria-pressed', String(!!lk.hq)); $('lkd-c-hq').hidden = lk.engine === 'pt';
   lkLightsUI();
 }
 // what each setting has to redo
@@ -1584,6 +1614,7 @@ chip('lkd-c-show', () => { lk.show = !lk.show; lkChanged('env'); });
 chip('lkd-c-clay', () => { lk.clay = !lk.clay; lkChanged('clay'); });
 chip('lkd-c-refs', () => { L.refsOn = L.refsOn === false; lkChanged('refs'); });
 chip('lkd-c-burn', () => { lk.burn = !lk.burn; lkChanged('burn'); });
+chip('lkd-c-hq', () => { lk.hq = !lk.hq; lkSave(); lkUI(); lkDirty(); });
 $('lkd-e-raster').onclick = () => lkEngine('raster'); $('lkd-e-pt').onclick = () => lkEngine('pt');
 $('lkd-nav').onclick = () => lkTool('nav'); $('lkd-meas').onclick = () => lkTool(L.tool === 'measure' ? 'nav' : 'measure');
 $('lkd-light').onclick = () => lkTool(L.tool === 'light' ? 'nav' : 'light'); $('lkd-pix').onclick = () => lkTool(L.tool === 'pixel' ? 'nav' : 'pixel');

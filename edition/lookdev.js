@@ -78,6 +78,7 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <button class="vpchip" id="lkd-c-burn" aria-pressed="true" title="Preview the burn-in of the playblast on the viewport (Burn-in)">${lkIcon('<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 8.5h18M3 15.5h18"/>')}Burn-in</button>
       <span class="sep"></span>
       <div class="seg" role="group" aria-label="Engine"><button id="lkd-e-raster" aria-pressed="true" title="Raster: fast; the shadow under the model is a contact shadow">Raster</button><button id="lkd-e-pt" aria-pressed="false" title="Path trace: light that really bounces and real shadows (the catcher is an 18% grey floor); it fills in while the view is still">Path trace</button></div>
+      <button class="tool sm lkd-gpux" id="lkd-gpux" disabled aria-label="Clear GPU cache">${lkIcon('<rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/>')}</button>
       <button class="vpchip" id="lkd-c-hq" aria-pressed="true" title="Max quality (Raster), like 3D Render: while the view is still, it renders again and again with the camera moved less than a pixel and averages them (as many as Playblast › Raster quality, 8 at least): clean edges, textures and shadows. Off: always the interactive one">${lkIcon('<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>')}Max quality</button>
       <select class="lkd-vt" id="lkd-view" aria-label="Viewer" title="Viewer: how the render goes to the screen, as in 3D Render and the Viewer of the plate (Raster works in ACEScg, Path trace in linear Rec.709). ACES 1.0 · Rec.709 or sRGB: the ACES output transform for that display">${R3_VIEWS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <span class="fmt" id="lkd-st">–</span>
@@ -118,6 +119,7 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       </div>
       <div class="lkd-empty" id="lkd-empty"><b>Drop a 3D model here</b><span class="note">GLB, GLTF, USDZ / USD, FBX, OBJ with its .mtl and images, PLY. A model with its textures apart: drop its whole folder or the ZIP (like the downloads of Sketchfab), or select the files together</span><span class="file btn primary">Load model<input id="lkd-f" type="file" multiple accept="${LK_ACCEPT}"></span></div>
       <p class="lkd-busy" id="lkd-busy" hidden></p>
+      <div class="r3ptprog" id="lkd-prog" hidden role="progressbar" aria-label="Building the path trace scene"><span id="lkd-prog-t"></span><div class="r3-bar"><i id="lkd-prog-b"></i></div></div>
       <div class="lkd-drop" id="lkd-drop" hidden>Drop the model, its folder or its ZIP</div>
       <div class="lkd-pxa" id="lkd-pxa" hidden>
         <div class="lkd-pxh"><b>Pixel analyzer</b><select id="lkd-px-sp" aria-label="Values in"><option value="acescg">ACEScg</option><option value="lin709">Linear Rec.709</option><option value="disp">Display (0–255)</option></select><button class="btn sm ghost" id="lkd-px-x" title="Clear the box (Esc)">×</button></div>
@@ -517,7 +519,7 @@ async function lkLightsBuild() {
   L.lights = lk.lights.map(li => ({ li, obj: lkLightMake(li) }));
   if (L.lsel >= L.lights.length) L.lsel = L.lights.length - 1;
   lkLightsUpdate(); lkLightsUI();
-  if (lk.engine === 'pt' && L.ptBuilt && L.tracer) lkPtRebuild(); else lkDirty();
+  lkPtRebuild(); lkDirty();
 }
 // where each light is on this frame, its intensity and color
 function lkLightsUpdate() {
@@ -708,7 +710,7 @@ async function lkLoadFiles(files) {
     console.error(e); lkBusy(''); toast('Could not read ' + main.name + ': ' + (e.message || e), true); return;
   }
   // textures that come after the model: draw again when they are in
-  mg.m.onLoad = () => { lkDirty(); if (lk.engine === 'pt') lkPtRebuild(); };
+  mg.m.onLoad = () => { lkDirty(); lkPtRebuild(); };
   const imgs = files.filter(lkIsImg);
   // the name of the asset (burn-in, playblast): the one of the ZIP or the folder, not scene.gltf
   const from = main.lkFrom || (main.lkPath && main.lkPath.includes('/') ? main.lkPath.split('/')[0] : '');
@@ -760,7 +762,7 @@ function lkSetModel(obj, name, srgb) {
   $('lkd-model-n').textContent = name; $('lkd-model-st').textContent = `${Math.round(tris).toLocaleString('en-US')} tris`;
   $('lkd-empty').hidden = true; $('lkd-remove').disabled = false; $('lkd-remove2').hidden = false; $('lkd-pb').disabled = $('lkd-pb2').disabled = $('lkd-still').disabled = $('lkd-still2').disabled = false;
   lkClay(); lkPlace(true); lkHint();
-  if (lk.engine === 'pt') lkPtRebuild();
+  lkPtRebuild();
 }
 function lkClearModel() {
   if (L.root) { scene.remove(L.root); L.root.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } }); }
@@ -769,14 +771,14 @@ function lkClearModel() {
   if (L.shadowPT) { scene.remove(L.shadowPT); L.shadowPT = null; }
   $('lkd-empty').hidden = false; $('lkd-remove').disabled = true; $('lkd-remove2').hidden = true; $('lkd-pb').disabled = $('lkd-pb2').disabled = $('lkd-still').disabled = $('lkd-still2').disabled = true;
   $('lkd-model-n').textContent = 'none'; $('lkd-model-st').textContent = 'none'; $('lkd-dims').textContent = '–'; $('lkd-model-msg').hidden = true;
-  L.ptBuilt = false; lkShadowCatch(); lkDirty();
+  L.ptBuilt = false; L.ptStale = false; lkShadowCatch(); lkGpuUI(); lkDirty();
 }
 function lkApplyImage(file) {
   new THREE.TextureLoader().load(URL.createObjectURL(file), tex => {
     tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = L.ext !== 'glb' && L.ext !== 'gltf';
     const m = lkWs(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, side: THREE.DoubleSide }));
     L.model.traverse(o => { if (o.isMesh) { o.material = o.userData.lkMat = m; } });
-    lkClay(); lkDirty(); if (lk.engine === 'pt') lkPtRebuild();
+    lkClay(); lkDirty(); lkPtRebuild();
   });
 }
 // orientation: the up axis of the file (glTF is always Y up; Max and some OBJ / FBX are Z up), the units, on the
@@ -810,7 +812,7 @@ function lkPlace(reframe) {
   lkShadow(); lkRefs();
   if (reframe) { L.free = false; lkBackUI(); }
   lkCam(); lkDirty();
-  if (lk.engine === 'pt' && L.ptBuilt) lkPtRebuild();
+  if (L.ptBuilt) lkPtRebuild();
 }
 function lkClay() {
   if (!L.model) return;
@@ -946,6 +948,7 @@ function lkLoop() {
       const tr = L.tracer;
       tr.pausePathTracing = tr.samples >= lk.spp;
       try { lkPtSample(); } catch (e) { console.error(e); }
+      if (!$('lkd-prog').hidden && !tr.isCompiling) lkProg(null);
       if (tr.samples < lk.spp) more = true;
       lkStatus();
     } else more = false;
@@ -992,10 +995,21 @@ async function lkPtLib() {
   if (!L.ptLib) { const [gpt, bvh] = await Promise.all([import('three-gpu-pathtracer'), import('three-mesh-bvh')]); L.ptLib = { gpt, bvh }; }
   return L.ptLib;
 }
+// the progress of the build, over the view (like 3D Render): { f: 0 to 1, t: the step } or null
+function lkProg(p) {
+  const el = $('lkd-prog'); el.hidden = !p; if (!p) return;
+  $('lkd-prog-t').textContent = p.t; $('lkd-prog-b').style.width = (Math.max(0, Math.min(1, p.f)) * 100).toFixed(1) + '%';
+}
+const lkPaint = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+// The scene of the path tracer stays on the GPU while you go to Raster and back (the GPU cache): coming back only
+// updates what changed. What needs a new build in Raster (another model, references) marks it stale; Clear GPU cache
+// frees it all.
 async function lkPtRebuild() {
-  if (lk.engine !== 'pt' || !L.model || L.ptBusy) return;
-  L.ptBusy = true;
+  if (lk.engine !== 'pt') { if (L.ptBuilt) L.ptStale = true; return; }
+  if (!L.model || L.ptBusy) return;
+  L.ptBusy = true; L.ptStale = false;
   try {
+    lkProg({ f: 0.02, t: 'Loading the path tracer…' }); await lkPaint();
     const { gpt } = await lkPtLib();
     if (!L.tracer) {
       const tr = new gpt.WebGLPathTracer(renderer);
@@ -1008,16 +1022,40 @@ async function lkPtRebuild() {
         if (lk.dn) { const m = dn.material; m.map = target.texture; m.sigma = 5; m.threshold = 0.03; m.kSigma = 1; m.opacity = quad.material.opacity; dn.render(r); } else quad.render(r);
         r.autoClear = ac;
       };
+      // the BVH in another thread, with its progress (the worker of 3D Render, js/render3d-pt.js)
+      try { if (typeof r3PtLib === 'function' && typeof r3PtBvhWorker !== 'undefined') { await r3PtLib(); tr.setBVHWorker(r3PtBvhWorker); L.ptWorker = true; } } catch (e) { console.warn('BVH worker', e); }
       L.dnQuad = dn; L.tracer = tr;
     }
-    lkBusy('Building the scene for the path tracer…');
-    await new Promise(r => setTimeout(r, 30));
     lkShadowVis(); lkEnv(); lkFit();
+    let tris = 0; scene.traverseVisible(o => { if (o.isMesh && o.geometry) { const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+    lkProg({ f: 0.1, t: `Joining ${Math.round(tris).toLocaleString('en-US')} triangles…` }); await lkPaint();
     L.tracer.bounces = lk.bounces;
-    L.tracer.setScene(scene, cam);
-    L.ptBuilt = true;
-  } catch (e) { console.error(e); toast('Path tracer: ' + (e.message || e), true); }
-  finally { L.ptBusy = false; lkBusy(''); lkGo(); }
+    let async = !!L.ptWorker;
+    if (async) {
+      try { await L.tracer.setSceneAsync(scene, cam, { onProgress: (p) => lkProg({ f: 0.15 + 0.8 * p, t: `Building the BVH… ${Math.round(p * 100)} %` }) }); }
+      catch (e) { console.warn('BVH worker', e); async = false; }
+    }
+    if (!async) { lkProg({ f: 0.5, t: 'Building the BVH (the page stops for a moment)…' }); await lkPaint(); L.tracer.setScene(scene, cam); }
+    lkProg({ f: 0.97, t: 'Compiling the shaders…' });
+    L.ptBuilt = true; L.ptMats = false;
+  } catch (e) { console.error(e); toast('Path tracer: ' + (e.message || e), true); lkProg(null); }
+  finally { L.ptBusy = false; if (!L.ptBuilt) lkProg(null); lkGpuUI(); lkGo(); }
+}
+// Clear GPU cache: the scene of the path tracer and its textures off the GPU; Path trace builds it again
+function lkGpuClear() {
+  if (L.ptBusy) { toast('Wait until the build ends', true); return; }
+  if (L.tracer) { try { L.tracer.dispose(); } catch (e) { console.warn('path tracer dispose', e); } }
+  if (L.dnQuad) { L.dnQuad.material.dispose(); L.dnQuad.dispose(); L.dnQuad = null; }
+  if (L.rtP) { L.rtP.dispose(); L.rtP = null; }
+  L.tracer = null; L.ptWorker = false; L.ptBuilt = false; L.ptStale = false; lkProg(null);
+  toast(lk.engine === 'pt' ? 'GPU cache cleared: building the path tracer again' : 'GPU cache cleared: Path trace builds it again');
+  lkGpuUI();
+  if (lk.engine === 'pt') lkPtRebuild(); else lkDirty();
+}
+function lkGpuUI() {
+  const b = $('lkd-gpux'); if (!b) return;
+  b.disabled = !L.tracer && !L.ptBuilt;
+  b.title = `Clear GPU cache: frees the scene of the path tracer from the GPU (it stays there while you go to Raster and back, so it is not built again)${L.ptBuilt ? ` · now: built${L.ptStale ? ', it will be built again (something changed)' : ''}` : ' · now: empty'}`;
 }
 // the camera, the light and the references moved: the refs ride on the camera, so their place in the BVH is refit
 function lkPtMoved(refit) {
@@ -1038,7 +1076,15 @@ function lkEngine(e) {
   $('lkd-e-raster').setAttribute('aria-pressed', String(lk.engine === 'raster')); $('lkd-e-pt').setAttribute('aria-pressed', String(lk.engine === 'pt'));
   $('lkd-pt-st').textContent = lk.engine === 'pt' ? 'on' : 'off'; $('lkd-c-hq').hidden = lk.engine === 'pt'; L.accN = 0;
   lkShadowVis(); lkEnv(); lkFit();
-  if (lk.engine === 'pt') lkPtRebuild(); else { L.ptBuilt = false; lkDirty(); }
+  if (lk.engine === 'pt') {
+    // back from Raster with the scene on the GPU: only what changed meanwhile
+    if (L.ptBuilt && L.tracer && !L.ptStale && !L.ptBusy) {
+      const tr = L.tracer; tr.bounces = lk.bounces;
+      try { if (L.ptMats) { tr.updateMaterials(); L.ptMats = false; } tr.updateLights(); lkPtMoved(true); tr.reset(); } catch (e) { console.error(e); L.ptBuilt = false; lkPtRebuild(); }
+      lkGo();
+    } else { L.ptBuilt = false; lkPtRebuild(); }
+  } else { lkProg(null); lkDirty(); }
+  lkGpuUI();
 }
 
 // ---------- navigation (free camera) and measure ----------
@@ -1550,8 +1596,8 @@ function lkChanged(kind) {
   else if (kind === 'envbuild') lkEnvBuild();
   else if (kind === 'place') lkPlace(false);
   else if (kind === 'cam') { lkCam(); if (lk.engine === 'pt' && L.ptBuilt) lkPtMoved(true); else lkDirty(); }
-  else if (kind === 'refs') { lkRefsPlace(); lkShadowVis(); if (lk.engine === 'pt' && L.ptBuilt) lkPtRebuild(); else lkDirty(); }
-  else if (kind === 'clay') { lkClay(); if (lk.engine === 'pt' && L.ptBuilt) { L.tracer.updateMaterials(); lkGo(); } else lkDirty(); }
+  else if (kind === 'refs') { lkRefsPlace(); lkShadowVis(); if (L.ptBuilt) lkPtRebuild(); lkDirty(); }
+  else if (kind === 'clay') { lkClay(); if (lk.engine === 'pt' && L.ptBuilt) { L.tracer.updateMaterials(); lkGo(); } else { if (L.ptBuilt) L.ptMats = true; lkDirty(); } }
   else if (kind === 'burn') { lkRefsPlace(); if (lk.engine === 'pt' && L.ptBuilt) lkPtMoved(true); else lkDirty(); }
   else if (kind === 'view') lkDirty();
   else if (kind === 'pt') { if (L.tracer) { L.tracer.bounces = lk.bounces; L.tracer.reset(); } lkGo(); }
@@ -1616,6 +1662,7 @@ chip('lkd-c-refs', () => { L.refsOn = L.refsOn === false; lkChanged('refs'); });
 chip('lkd-c-burn', () => { lk.burn = !lk.burn; lkChanged('burn'); });
 chip('lkd-c-hq', () => { lk.hq = !lk.hq; lkSave(); lkUI(); lkDirty(); });
 $('lkd-e-raster').onclick = () => lkEngine('raster'); $('lkd-e-pt').onclick = () => lkEngine('pt');
+$('lkd-gpux').onclick = lkGpuClear; lkGpuUI();
 $('lkd-nav').onclick = () => lkTool('nav'); $('lkd-meas').onclick = () => lkTool(L.tool === 'measure' ? 'nav' : 'measure');
 $('lkd-light').onclick = () => lkTool(L.tool === 'light' ? 'nav' : 'light'); $('lkd-pix').onclick = () => lkTool(L.tool === 'pixel' ? 'nav' : 'pixel');
 // Reset view: the turntable camera with the default lens, height and framing

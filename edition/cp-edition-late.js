@@ -123,3 +123,32 @@ cpLogoLoad();
     if (typeof r3PbFrame === 'function') { const f = r3PbFrame; r3PbFrame = async function (ctx, W, H, ...a) { const r = await f.call(this, ctx, W, H, ...a); if (on()) cpLogoDraw(ctx, W, H); return r; }; }
   }
 }
+// 3D Render: the scene of the path tracer stays on the GPU while you go to Raster and back (BackplateLab frees it on
+// Raster); it is freed when the environment is built again, when you leave the tab, or with Clear GPU cache
+if (typeof r3SetEngine === 'function' && typeof r3pt !== 'undefined') {
+  r3SetEngine = function (v) {
+    v = v === 'pt' ? 'pt' : 'raster'; if (v === r3.engine) return;
+    r3.engine = v; r3pt.paused = false;
+    if (v === 'raster') $('r3-msg').hidden = true;
+    else if (r3pt.built && r3pt.tr) { r3pt.jitN = -1; try { r3pt.tr.reset(); } catch (e) { /* rebuilt below */ } }
+    r3Save(); r3ViewUI(); r3Panel(); r3Dirty(); cpR3GpuUI();
+  };
+  { const f = envRebuild; envRebuild = function (...a) { const r = f.apply(this, a); if (r3.on && r3.engine !== 'pt' && (r3pt.built || r3pt.tr)) { r3PtDispose(); cpR3GpuUI(); } return r; }; }
+  const seg = document.querySelector('#r3v .r3eng');
+  if (seg) {
+    seg.insertAdjacentHTML('afterend', `<button class="tool sm cp-r3-gpux" id="cp-r3-gpux" aria-label="Clear GPU cache"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/></svg></button>`);
+    document.getElementById('cp-r3-gpux').onclick = () => {
+      if (r3pt.busy) { toast('Wait until the build ends', true); return; }
+      r3PtDispose(); r3pt.paused = false;
+      toast(r3.engine === 'pt' ? 'GPU cache cleared: building the path tracer again' : 'GPU cache cleared: Path trace builds it again');
+      r3ViewUI(); r3Panel(); r3Dirty('shot'); cpR3GpuUI();
+    };
+  }
+  window.cpR3GpuUI = function () {
+    const b = document.getElementById('cp-r3-gpux'); if (!b) return;
+    b.disabled = !r3pt.built && !r3pt.tr;
+    b.title = `Clear GPU cache: frees the scene of the path tracer from the GPU (it stays there while you go to Raster and back, so it is not built again)${r3pt.built ? ' · now: built' : ' · now: empty'}`;
+  };
+  { const f = r3Panel; r3Panel = function (...a) { const r = f.apply(this, a); try { cpR3GpuUI(); } catch (e) { /* not up yet */ } return r; }; }
+  cpR3GpuUI();
+}

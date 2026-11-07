@@ -20,8 +20,8 @@ The version is shown in the app (`v1.010`, with the BackplateLab version it come
 It needs to be served over http (it loads its guided tours, licenses and workers with `fetch`); opening `index.html` from the disk does not work.
 
 - **GitHub Pages:** the live link above.
-- **On Windows, without installing anything:** `CameraPin_web.bat` serves this folder with PowerShell and opens the browser (`--port <n>`, `--no-open`; `--tailscale` also serves it on the Tailscale address for the phone).
-- **With Python or Node:** `python -m http.server 8642` or `npx serve` in this folder, then http://127.0.0.1:8642/.
+- **On Windows, without installing anything:** `CameraPin_web.bat` serves this folder with PowerShell on http://localhost:8650/ and opens the browser (port 8650, not the 8642 of BackplateLab: with both open, each one is itself and keeps its own settings; `--port <n>`, `--no-open`; `--tailscale` also serves it on the Tailscale address for the phone).
+- **With Python or Node:** `python -m http.server 8650` or `npx serve` in this folder, then http://127.0.0.1:8650/.
 
 Everything it uses is in the repo (three.js r187, the path tracer, fonts): it works offline.
 

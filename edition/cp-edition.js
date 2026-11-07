@@ -2,7 +2,7 @@
 // five of its tabs: Import and Measure, 2D Camera Match, 3D Camera Pin | Environment, 3D Assets and 3D Render, plus
 // Lookdev (edition/lookdev.js), a turntable of a model lit by an HDRI.
 // Loaded before js/module-tabs.js: cpEditionTabs() trims its list of tabs.
-const CP_EDITION = { name: '3D Camera Pin', version: '1.017', tabs: ['import', 'match', 'camerapin', 'assets', 'render3d'] };
+const CP_EDITION = { name: '3D Camera Pin', version: '1.018', tabs: ['import', 'match', 'camerapin', 'assets', 'render3d'] };
 // the HDRIs that come with the edition (edition/hdri/*.exr, Poly Haven CC0, 512 px, linear Rec.709): Lookdev and 3D Render
 const CP_HDRIS = [['studio', 'Studio'], ['apartment', 'Apartment'], ['lobby', 'Lobby'], ['hall', 'Hall'], ['lab', 'Lab'], ['warehouse', 'Warehouse'], ['workshop', 'Workshop'],
   ['city', 'City'], ['bridge', 'Bridge'], ['esplanade', 'Esplanade'], ['venice', 'Venice'], ['park', 'Park'], ['forest', 'Forest'], ['sky', 'Sky'],

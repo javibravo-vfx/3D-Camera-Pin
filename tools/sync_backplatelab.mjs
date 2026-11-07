@@ -27,7 +27,7 @@ patch(path.join(here, 'index.html'), [
   ['<title>BackplateLab</title>', '<title>3D Camera Pin</title>'],
   ['</head>', '<link rel="stylesheet" href="edition/cp-edition.css">\n<link rel="stylesheet" href="edition/lookdev.css">\n</head>'],
   ['<script defer src="js/module-tabs.js"></script>', '<script defer src="edition/cp-edition.js"></script>\n<script defer src="js/module-tabs.js"></script>'],
-  ['<script defer src="js/boot.js"></script>', '<script defer src="edition/lookdev.js"></script>\n<script defer src="edition/cp-edition-late.js"></script>\n<script defer src="js/boot.js"></script>'],
+  ['<script defer src="js/boot.js"></script>', '<script defer src="edition/lookdev.js"></script>\n<script defer src="edition/cp-assets.js"></script>\n<script defer src="edition/cp-edition-late.js"></script>\n<script defer src="js/boot.js"></script>'],
 ]);
 // the list of tabs, trimmed right after it is written (before the tab bar is built from it)
 {

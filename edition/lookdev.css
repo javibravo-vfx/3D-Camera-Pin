@@ -6,10 +6,10 @@
 /* the tools on the left of the view, like 3D Camera Pin */
 .lkd-mid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 .lkd-mid > .lkd-box { min-width: 0; }
-.lkd-bar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; min-width: 0; }
+.lkd-bar { display: flex; align-items: center; justify-content: center; gap: 0.6rem; flex-wrap: wrap; min-width: 0; }
 .lkd-bar .tool { position: relative; }
 .lkd-bar .sep { width: 1px; align-self: stretch; margin: 0.4rem 0.2rem; background: var(--line); }
-.lkd-bar .fmt { margin-left: auto; font: 500 1.15rem var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lkd-bar .fmt { margin-left: 0.4rem; font: 500 1.15rem var(--f-ui); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lkd-box { position: relative; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden; }
 .lkd-frame { position: relative; box-shadow: 0 0 0 1px var(--line); background: #000; }
 .lkd-frame > canvas, .lkd-ov { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -96,3 +96,6 @@
 .lkd-ibar .navz select { height: 2.2rem; font-size: 1.15rem; }
 .lkd-bar .lkd-gpux { width: 2.8rem; height: 2.8rem; }
 .lkd-bar .lkd-gpux svg { width: 1.6rem; height: 1.6rem; }
+/* FPS on the play bar, like the one of the timeline of the tabs */
+.lkd-fpsl { display: inline-flex; align-items: center; gap: 0.5rem; font: 600 1.05rem var(--f-ui); letter-spacing: .08em; color: var(--muted); }
+.lkd-fpsl input { width: 6.4rem; height: 2.4rem; padding: 0 0.5rem; font: 1.15rem var(--f-num); text-align: right; }

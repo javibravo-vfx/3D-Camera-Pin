@@ -7,3 +7,16 @@
 /* 3D Render: Clear GPU cache, next to the engine */
 .cp-r3-gpux { width: 2.8rem; height: 2.8rem; flex: none; }
 .cp-r3-gpux svg { width: 1.6rem; height: 1.6rem; }
+/* fps: the common ones, under the number; violet when it is the one of the metadata, yellow when it is not */
+.cp-fpspop { position: fixed; z-index: 9999; display: flex; flex-direction: column; min-width: 9rem; padding: 0.4rem; background: var(--card); border: 1px solid var(--line); border-radius: 0.7rem; box-shadow: 0 0.8rem 2.4rem rgb(0 0 0 / .5); }
+.cp-fpspop button { display: flex; justify-content: space-between; gap: 1rem; padding: 0.45rem 0.8rem; border: 0; border-radius: 0.5rem; background: none; color: var(--text); font: 1.2rem var(--f-num); text-align: left; cursor: pointer; }
+.cp-fpspop button:hover { background: var(--panel-2); }
+.cp-fpspop button.on { background: var(--accent-soft); color: var(--fg); }
+.cp-fpspop button span { font: 1.05rem var(--f-ui); color: var(--accent-text); }
+input.cp-meta { color: var(--accent-text) !important; }
+input.cp-warn { color: var(--warn) !important; }
+/* 3D Assets */
+.cp-hq { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.8rem 1rem; margin-bottom: 0.8rem; border-radius: 0.7rem; background: var(--panel-2); }
+.cp-hq .note { margin: 0; }
+.a3b.cp-moving canvas { cursor: move; }
+.a3p > header [data-cp="del"] { flex: none; }

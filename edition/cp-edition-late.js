@@ -152,3 +152,8 @@ if (typeof r3SetEngine === 'function' && typeof r3pt !== 'undefined') {
   { const f = r3Panel; r3Panel = function (...a) { const r = f.apply(this, a); try { cpR3GpuUI(); } catch (e) { /* not up yet */ } return r; }; }
   cpR3GpuUI();
 }
+// the FPS of the play bar of the tabs: the common ones on a click, and its color against the metadata of the plate
+{
+  const tf = document.getElementById('tl-fps');
+  if (tf) { cpFpsMenu(tf); setInterval(() => { if (document.activeElement !== tf) cpFpsMeta(tf); }, 1000); }
+}

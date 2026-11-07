@@ -15,7 +15,7 @@
 const $ = (id) => document.getElementById(id);
 // ---------- constants ----------
 // the turntable: fixed, so every playblast turns the same way and at the same speed
-const LK_FPS = 24, LK_OBJ = 120, LK_LIGHT = 120, LK_N = LK_OBJ + LK_LIGHT; // frames 1–120: model; 121–240: light
+let LK_FPS = 24; const LK_OBJ = 120, LK_LIGHT = 120, LK_N = LK_OBJ + LK_LIGHT; // frames 1–120: model; 121–240: light
 const LK_HDRIS = CP_HDRIS; // edition/cp-edition.js (the 3D Render tab has them too)
 const LK_ASPECT = 16 / 9;
 // film backs (width, mm) for Film: a lens of a given camera frames as it does on that sensor
@@ -31,7 +31,7 @@ const LK_TEXT = { small: 0.0125, large: 0.016 };
 const LK_FIELDS = [['project', 'Project'], ['asset', 'Asset'], ['tag', 'LOOKDEV'], ['hdri', 'HDRI / sky'], ['rot', 'Rotation'], ['ev', 'Exposure'], ['lens', 'Lens'], ['film', 'Film'],
   ['view', 'Viewer'], ['engine', 'Engine'], ['frame', 'Frame'], ['pass', 'Pass'], ['date', 'Date'], ['artist', 'Artist']];
 const LK_DEF = { env: 'hdri', hdri: 'studio', cs: 'lin', int: 1, rot: 0, ev: 0, show: true, bg: '#3a3a3a', blur: 0, view: 'aces709',
-  film: 36, start: 1001, aa: 16, lmode: 'hl', logo: true, hq: true,
+  fps: 24, film: 36, start: 1001, aa: 16, lmode: 'hl', logo: true, hq: true,
   skyCol: '#bfd4ff', gndCol: '#4a4238', skyInt: 1, sunAz: 135, sunEl: 40, skyT: 3, skyAlb: 0.1, sunInt: 2.4, lights: [], pxSpace: 'acescg', up: 'auto', yaw: 0, units: 'auto', clay: false, offX: 0, offY: 0, offZ: 0,
   chrome: true, grey: true, chart: true, shadow: true, dir: 'ccw', lens: 50, elev: 10, fill: 0.8, engine: 'raster', spp: 512, bounces: 6, dn: true,
   burn: true, project: '', artist: '', fields: { project: true, asset: true, tag: true, hdri: true, rot: true, ev: true, lens: true, film: true, view: true, engine: true, frame: true, pass: true, date: true, artist: false },
@@ -40,6 +40,7 @@ const lkClone = (v) => JSON.parse(JSON.stringify(v));
 const lkSaved = (() => { const v = lsGet('lkd', {}); return v && typeof v === 'object' ? v : {}; })();
 const lk = Object.assign({}, LK_DEF, lkSaved, { fields: Object.assign({}, LK_DEF.fields, lkSaved.fields || {}) });
 if (!R3_VIEWS.some(v => v[0] === lk.view)) lk.view = LK_DEF.view;
+LK_FPS = +lk.fps > 0 ? +lk.fps : 24;
 lk.lights = Array.isArray(lk.lights) ? lkClone(lk.lights) : []; // a copy: never the array of LK_DEF
 lk.fill = Math.min(2, Math.max(0.3, +lk.fill || LK_DEF.fill));
 // the model formats (the main file of what is dropped) and what the file pickers take
@@ -55,7 +56,7 @@ const LK_RESET = {
   refs: ['chrome', 'grey', 'chart', 'shadow', 'clay'],
   pt: ['spp', 'bounces', 'dn'],
   burn: ['burn', 'fields', 'text', 'font', 'align', 'talign', 'bars'],
-  pb: ['pbSize', 'pbQ', 'aa', 'start', 'logo'],
+  pb: ['pbSize', 'pbQ', 'aa', 'start', 'logo', 'fps'],
 };
 
 // runtime
@@ -134,7 +135,8 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <input type="range" id="lkd-p-f" min="1" max="${LK_N}" step="1" value="1" aria-label="Frame">
       <span class="lkd-pf"><b id="lkd-p-n">1001</b> / <span id="lkd-p-end">1240</span></span>
       <span class="note" id="lkd-p-pass">Model turns</span>
-      <span class="note lkd-pfps">${LK_FPS} fps · ${LK_N / LK_FPS} s</span>
+      <label class="camh lkd-fpsl" title="Frames per second of the turntable and its playblast (the ${LK_N} frames stay: it gets shorter or longer). Click: the common ones">FPS <input id="lkd-fps" class="mini" type="number" step="0.001" min="1" max="240" data-noscrub="1" aria-label="Frames per second"></label>
+      <span class="note lkd-pfps" id="lkd-pdur"></span>
       <button class="btn sm" id="lkd-still" title="Save this frame as a PNG, at the size of the playblast, with its quality and the burn-in (from the view as it is, also a free camera)" disabled>Still PNG</button>
       <button class="btn sm" id="lkd-pb" title="Render the turntable to an MP4, with the burn-in" disabled>Playblast</button>
     </div>
@@ -203,7 +205,7 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="lights" title="Removes all the lights">Reset section</button></div>
     </div></section>
     <section class="step" id="lkd-s-turn"><h2 tabindex="0">Turntable &amp; camera</h2><div class="body">
-      <p class="note">Fixed length, always the same: frames 1–${LK_OBJ} the camera and the light orbit the model together (it turns under a fixed light), frames ${LK_OBJ + 1}–${LK_N} the light alone turns 360°, in the same direction. ${LK_FPS} fps, ${LK_N / LK_FPS} s.</p>
+      <p class="note">Fixed length, always the same: frames 1–${LK_OBJ} the camera and the light orbit the model together (it turns under a fixed light), frames ${LK_OBJ + 1}–${LK_N} the light alone turns 360°, in the same direction. <span id="lkd-turn-fps"></span>.</p>
       <label class="fld" for="lkd-dir">Direction<select id="lkd-dir"><option value="ccw">Counter-clockwise (seen from above)</option><option value="cw">Clockwise</option></select></label>
       <div class="knobrow"><label for="lkd-lens" title="On the film back below; 16:9">Lens</label><input id="lkd-lens" type="number" step="1" min="4" max="600" data-unit="mm"></div>
       <label class="fld" for="lkd-filmp" title="The sensor of a camera: its width is the film back">Film back<select id="lkd-filmp">${LK_FILMS.map(([w, n]) => `<option value="${w}">${n}</option>`).join('')}<option value="custom">Custom</option></select></label>
@@ -1489,7 +1491,7 @@ async function lkPlayblast() {
       ctx.drawImage(canvas, 0, 0, W, H);
       if (lk.burn) lkBurnDraw(ctx, W, H, f); else if (lkLogoOn()) cpLogoDraw(ctx, W, H);
       const fr = new VideoFrame(out, { timestamp: Math.round((f - 1) * 1e6 / LK_FPS), duration: Math.round(1e6 / LK_FPS) });
-      enc.encode(fr, { keyFrame: (f - 1) % LK_FPS === 0 }); fr.close(); done = f;
+      enc.encode(fr, { keyFrame: (f - 1) % Math.max(1, Math.round(LK_FPS)) === 0 }); fr.close(); done = f;
       while (enc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
       if (encErr) throw encErr;
       const per = (performance.now() - t0) / 1000 / f, left = per * (LK_N - f);
@@ -1572,6 +1574,9 @@ function lkUI() {
   $('lkd-filmp').value = LK_FILMS.some(f => f[0] === +lk.film) ? String(+lk.film) : 'custom'; $('lkd-aa').value = String(lk.aa);
   $('lkd-lm-hl').setAttribute('aria-pressed', String(lk.lmode !== 'orb')); $('lkd-lm-orb').setAttribute('aria-pressed', String(lk.lmode === 'orb'));
   $('lkd-p-n').textContent = lkFno(L.frame); $('lkd-p-end').textContent = lkFno(LK_N);
+  LK_FPS = +lk.fps > 0 ? +lk.fps : 24;
+  if (document.activeElement !== $('lkd-fps')) $('lkd-fps').value = +(+lk.fps).toFixed(3); cpFpsMeta($('lkd-fps'));
+  $('lkd-pdur').textContent = `${+(LK_N / LK_FPS).toFixed(2)} s`; $('lkd-turn-fps').textContent = `${+(+lk.fps).toFixed(3)} fps, ${+(LK_N / LK_FPS).toFixed(2)} s`;
   $('lkd-v-ev-r').value = lk.ev; $('lkd-v-ev-n').textContent = (lk.ev >= 0 ? '+' : '') + (+lk.ev).toFixed(1);
   $('lkd-skycol').value = lk.skyCol; $('lkd-gndcol').value = lk.gndCol; $('lkd-cs').value = lk.cs; $('lkd-px-sp').value = lk.pxSpace;
   for (const e of ['hdri', 'colors', 'phys']) $('lkd-env-' + e).setAttribute('aria-pressed', String(lk.env === e));
@@ -1608,6 +1613,9 @@ bindNum('lkd-rot', 'rot', 'env', -360, 360); bindNum('lkd-ev', 'ev', 'view', -10
 bindNum('lkd-lens', 'lens', 'cam', 4, 600); bindNum('lkd-elev', 'elev', 'cam', -30, 80); bindNum('lkd-fill', 'fill', 'cam', 0.3, 2);
 bindNum('lkd-v-lens', 'lens', 'cam', 4, 600); bindNum('lkd-v-elev', 'elev', 'cam', -30, 80); bindNum('lkd-v-fill', 'fill', 'cam', 0.3, 2);
 bindNum('lkd-v-film', 'film', 'cam', 4, 80); bindNum('lkd-film', 'film', 'cam', 4, 80);
+cpFpsMenu($('lkd-fps'));
+$('lkd-fps').addEventListener('change', () => { const v = +$('lkd-fps').value; lk.fps = Number.isFinite(v) && v >= 1 && v <= 240 ? +v.toFixed(3) : LK_DEF.fps; LK_FPS = lk.fps; if (L.playing) { L.f0 = L.frame; L.t0 = performance.now(); } lkSave(); lkUI(); lkDirty(); });
+$('lkd-fps').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.dispatchEvent(new Event('change')); e.target.blur(); } e.stopPropagation(); });
 $('lkd-start').addEventListener('change', () => { const v = Math.round(+$('lkd-start').value); lk.start = Number.isFinite(v) ? Math.max(0, Math.min(999999, v)) : LK_DEF.start; lkChanged('burn'); lkStatus(); });
 bindNum('lkd-int', 'int', 'env', 0, 20); bindNum('lkd-skyint', 'skyInt', 'envbuild', 0, 20); bindNum('lkd-sunaz', 'sunAz', 'envbuild', -360, 360); bindNum('lkd-sunel', 'sunEl', 'envbuild', -10, 90);
 bindNum('lkd-sunint', 'sunInt', 'envbuild', 0, 20); bindNum('lkd-skyt', 'skyT', 'envbuild', 1.7, 10); bindNum('lkd-skyalb', 'skyAlb', 'envbuild', 0, 1);

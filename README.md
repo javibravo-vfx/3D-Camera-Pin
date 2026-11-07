@@ -60,3 +60,11 @@ The **Lookdev** tab is the Lookdev Rig of the 3ds Max toolbar in the browser: dr
 ## Credits
 
 BackplateLab: Lega Pugliese, Charly Villafañe and Javi Bravo. 3D Camera Pin: Javi Bravo. Third-party libraries and their licenses: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md); the HDRIs of Lookdev are from [Poly Haven](https://polyhaven.com) (CC0), resized by [pmndrs/assets](https://github.com/pmndrs/assets) (`edition/hdri/LICENSE.txt`).
+
+### 3D Assets (in this edition)
+
+- With **Car models › Car pack** the pieces are the 9 cars of the pack (sedan, hatchback, SUV, compact, wagon, minivan, pickup, coupe, off-road), not the box cars.
+- On each viewport: **Solid** (the piece with its colors and materials, lit; off: the translucent violet), **Wire** (its edges), **Move** (drag the imported asset on the ground onto the pivot; Shift + drag: up and down; Alt + drag still orbits) and **×** (remove the asset: back to the piece of the environment).
+- **Use high quality assets**: the cars of the original pack ("Generic passenger car pack" by Comrade1280, Sketchfab, CC BY 4.0), with their textures and materials, in 3D Assets and 3D Render; the tabs on the left keep the light pack. Download the original as glTF Binary (.glb) and load it once with **Load the original pack…**: it is kept in the browser.
+- The **FPS** of the play bar opens the common frame rates on a click (it can still be typed).
+

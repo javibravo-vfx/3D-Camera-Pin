@@ -87,3 +87,10 @@
 .lkd-pxa td i { display: inline-block; width: 1.4rem; height: 1.4rem; border-radius: 0.3rem; box-shadow: 0 0 0 1px var(--line); vertical-align: middle; }
 .lkd-pxa .c0 { color: #ff7b72; } .lkd-pxa .c1 { color: #7ee787; } .lkd-pxa .c2 { color: #79c0ff; }
 .lkd-pxa .note { margin: 0.4rem 0 0; font-size: 1.05rem; }
+/* the lights of the Light tool, under its button on the rail */
+.lkd-fly { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.4rem 0; margin: 0.2rem 0; border-radius: 0.6rem; background: var(--panel-2); }
+.lkd-fly[hidden] { display: none; }
+.lkd-fly .tool { width: 3rem; height: 3rem; }
+.lkd-fly .tool svg { width: 1.6rem; height: 1.6rem; }
+.lkd-fly .tsep { width: 1.8rem; }
+.lkd-ibar .navz select { height: 2.2rem; font-size: 1.15rem; }

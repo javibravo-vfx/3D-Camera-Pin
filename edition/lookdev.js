@@ -27,21 +27,38 @@ const LK_PB_Q = { draft: [16, 3], preview: [64, 4], good: [256, 6], final: [1024
 const LK_FONT = { monitor: { css: '--f-ui', w: 500, wv: 700, track: 0.07 }, mono: { css: '--f-num', w: 400, wv: 600, track: 0.02 } };
 const LK_TEXT = { small: 0.0125, large: 0.016 };
 const LK_FIELDS = [['project', 'Project'], ['asset', 'Asset'], ['hdri', 'HDRI'], ['lens', 'Lens'], ['frame', 'Frame'], ['date', 'Date'], ['artist', 'Artist']];
-const LK_DEF = { hdri: 'studio', rot: 0, ev: 0, show: true, bg: '#3a3a3a', blur: 0, view: 'aces709', up: 'auto', yaw: 0, units: 'auto', clay: false, offX: 0, offY: 0, offZ: 0,
+const LK_DEF = { env: 'hdri', hdri: 'studio', cs: 'lin', int: 1, rot: 0, ev: 0, show: true, bg: '#3a3a3a', blur: 0, view: 'aces709',
+  skyCol: '#bfd4ff', gndCol: '#4a4238', skyInt: 1, sunAz: 135, sunEl: 40, skyT: 3, skyAlb: 0.1, sunInt: 2.4, lights: [], pxSpace: 'acescg', up: 'auto', yaw: 0, units: 'auto', clay: false, offX: 0, offY: 0, offZ: 0,
   chrome: true, grey: true, chart: true, shadow: true, dir: 'ccw', lens: 50, elev: 10, fill: 0.8, engine: 'raster', spp: 512, bounces: 6, dn: true,
   burn: true, project: '', artist: '', fields: { project: true, asset: true, hdri: true, lens: true, frame: true, date: true, artist: false },
   text: 'small', font: 'monitor', align: 'left', talign: 'left', bars: 0.6, pbSize: '1080', pbQ: 'preview' };
+const lkClone = (v) => JSON.parse(JSON.stringify(v));
 const lkSaved = (() => { const v = lsGet('lkd', {}); return v && typeof v === 'object' ? v : {}; })();
 const lk = Object.assign({}, LK_DEF, lkSaved, { fields: Object.assign({}, LK_DEF.fields, lkSaved.fields || {}) });
 if (!R3_VIEWS.some(v => v[0] === lk.view)) lk.view = LK_DEF.view;
+lk.lights = Array.isArray(lk.lights) ? lkClone(lk.lights) : []; // a copy: never the array of LK_DEF
+lk.fill = Math.min(2, Math.max(0.3, +lk.fill || LK_DEF.fill));
 // the model formats (the main file of what is dropped) and what the file pickers take
 const LK_MODEL_RE = /\.(glb|gltf|usdz|usdc|usda|usd|fbx|obj|ply)$/i;
 const LK_ACCEPT = '.glb,.gltf,.bin,.usdz,.usdc,.usda,.usd,.fbx,.obj,.mtl,.ply,.zip,image/*';
 const lkSave = () => { const o = {}; for (const k of Object.keys(LK_DEF)) o[k] = lk[k]; lsSet('lkd', o); };
+// what each Reset section puts back (the model, the HDRI file and the burn-in texts stay)
+const LK_RESET = {
+  model: ['up', 'yaw', 'units', 'offX', 'offY', 'offZ'],
+  env: ['env', 'cs', 'int', 'rot', 'show', 'bg', 'blur', 'skyCol', 'gndCol', 'skyInt', 'sunAz', 'sunEl', 'skyT', 'skyAlb', 'sunInt'],
+  lights: ['lights'],
+  turn: ['dir', 'lens', 'elev', 'fill'],
+  refs: ['chrome', 'grey', 'chart', 'shadow', 'clay'],
+  pt: ['spp', 'bounces', 'dn'],
+  burn: ['burn', 'fields', 'text', 'font', 'align', 'talign', 'bars'],
+  pb: ['pbSize', 'pbQ'],
+};
+
 // runtime
 const L = { on: false, frame: 1, playing: false, t0: 0, f0: 1, raf: 0, dirty: true, model: null, modelName: '', fileUnit: 1, root: null, pivot: null,
   r: 1, c: new THREE.Vector3(), free: false, freeCam: null, nav: null, measure: false, mA: null, mB: null, hdriTex: null, hdriName: '', pmrem: null, envMap: null,
-  userHdri: null, hdriWs: null, rtB: null, rtD: null, qView: null, tracer: null, ptLib: null, ptBuilt: false, ptBusy: false, pbBusy: false, tris: 0, refs: null, shadowR: null, shadowPT: null, clayMat: null, keyT: 0 };
+  userHdri: null, hdriWs: null, rtB: null, rtD: null, qView: null, tracer: null, ptLib: null, ptBuilt: false, ptBusy: false, pbBusy: false, tris: 0, refs: null, shadowR: null, shadowPT: null, clayMat: null, keyT: 0,
+  tool: 'nav', hdriRaw: null, sun: null, lights: [], lsel: -1, lshadow: null, areaOk: false, px: null, pxT: 0 };
 
 // ---------- page ----------
 const lkIcon = (p) => `<svg viewBox="0 0 24 24">${p}</svg>`;
@@ -49,11 +66,9 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
 <div class="lkdapp" id="lkdapp" hidden>
   <div class="viewer lkd-viewer">
     <div class="vbar"><div class="lkd-bar">
-      <button class="tool" id="lkd-nav" aria-pressed="true" title="Navigate (N): the Nav mouse style of the app (it leaves the turntable camera; Back to camera returns)" aria-label="Navigate">${lkIcon('<ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M17.5 6.2 21 8.3l-1.2 3.6"/><circle cx="12" cy="12" r="1.6"/><path d="M12 3v3M12 18v3"/>')}<kbd>N</kbd></button>
-      <button class="tool" id="lkd-meas" aria-pressed="false" title="Measure (M): click two points on the model" aria-label="Measure">${lkIcon('<rect x="2.5" y="8" width="19" height="8" rx="1" transform="rotate(-30 12 12)"/><path d="m7.3 13.9-1-1.7M10.3 12.2l-1.5-2.6M13.3 10.4l-1-1.7M16.3 8.7l-1.5-2.6"/>')}<kbd>M</kbd></button>
       <button class="btn sm primary r3back lkd-back" id="lkd-back" hidden title="The view was moved: this is a free camera. Back to the turntable camera (F); the turntable itself never changed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg>Back to camera</button>
       <span class="sep"></span>
-      <button class="vpchip" id="lkd-c-show" aria-pressed="true" title="Show the HDRI behind the model; hidden, it still lights it (the background color is in Light)">${lkIcon('<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>')}HDRI</button>
+      <button class="vpchip" id="lkd-c-show" aria-pressed="true" title="Show the environment (HDRI or sky) behind the model; hidden, it still lights it (the background color is in Environment)">${lkIcon('<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>')}HDRI</button>
       <button class="vpchip" id="lkd-c-clay" aria-pressed="false" title="Clay: a grey material on the whole model">${lkIcon('<path d="M12 3c4 0 7 3 7 7 0 5-3 11-7 11S5 15 5 10c0-4 3-7 7-7z"/>')}Clay</button>
       <button class="vpchip" id="lkd-c-refs" aria-pressed="true" title="References: chrome ball, 18% grey ball and ColorChecker (which ones: References)">${lkIcon('<circle cx="8" cy="12" r="4"/><circle cx="17" cy="12" r="3"/>')}Refs</button>
       <button class="vpchip" id="lkd-c-burn" aria-pressed="true" title="Preview the burn-in of the playblast on the viewport (Burn-in)">${lkIcon('<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 8.5h18M3 15.5h18"/>')}Burn-in</button>
@@ -62,13 +77,25 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <select class="lkd-vt" id="lkd-view" aria-label="Viewer" title="Viewer: how the render goes to the screen, as in 3D Render and the Viewer of the plate (Raster works in ACEScg, Path trace in linear Rec.709). ACES 1.0 · Rec.709 or sRGB: the ACES output transform for that display">${R3_VIEWS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <span class="fmt" id="lkd-st">–</span>
     </div>
-    <div class="lkd-bar lkd-bar2">
-      ${[['lens', 'Lens', 12, 300, 1, 'mm', 'Lens of the turntable camera, full frame (36 mm wide), 16:9 (double click: 50)'],
-        ['elev', 'Height', -30, 80, 1, '°', 'Height of the camera: its angle above the centre of the model (double click: 10)'],
-        ['fill', 'Framing', 0.3, 1.2, 0.01, '', 'How much of the frame the model takes (double click: 0.8)'],
-        ['ev', 'Exp', -6, 6, 0.1, 'EV', 'Exposure, in stops (EV), before the Viewer: both engines (double click: 0)']].map(([k, n, mn, mx, st, u, t]) =>
-        `<label class="vpchip lkd-vk" title="${t}">${n} <input id="lkd-v-${k}-r" type="range" min="${mn}" max="${mx}" step="${st}" aria-label="${n}"><input id="lkd-v-${k}" class="lkd-vnum" type="number" min="${mn}" max="${mx}" step="${st}" aria-label="${n}${u ? ' (' + u + ')' : ''}">${u ? `<span class="note">${u}</span>` : ''}</label>`).join('')}
+    <div class="lkd-bar lkd-bar2"><span class="camrow lkd-camrow">
+      <label class="camh" title="Lens of the turntable camera, full frame (36 mm wide), 16:9. Drag it sideways or type">LENS <input id="lkd-v-lens" class="mini" type="number" step="1" min="12" max="300" data-unit="mm" aria-label="Lens"></label>
+      <span class="sep"></span>
+      <label class="camh" title="Height of the camera: its angle above the centre of the model. Drag it sideways or type">HEIGHT <input id="lkd-v-elev" class="mini" type="number" step="0.5" min="-30" max="80" data-unit="°" aria-label="Camera height"></label>
+      <span class="sep"></span>
+      <label class="camh" title="How much of the frame the model takes: 1 fills it, 2 is twice as close. Drag it sideways or type">FRAMING <input id="lkd-v-fill" class="mini" type="number" step="0.01" min="0.3" max="2" aria-label="Framing"></label>
+      </span>
+      <span class="sep"></span>
+      <label class="vpchip" for="lkd-v-ev-r" title="Exposure, in stops (EV), before the Viewer: both engines. Double-click the slider to reset">Exposure <input id="lkd-v-ev-r" type="range" min="-6" max="6" step="0.1" value="0"><b id="lkd-v-ev-n">+0.0</b></label>
     </div></div>
+    <div class="lkd-mid">
+    <nav class="tools lkd-tools" aria-label="Lookdev tools">
+      <button class="tool" id="lkd-nav" aria-pressed="true" title="Navigate (N): the Nav mouse style of the app (it leaves the turntable camera; Back to camera returns)" aria-label="Navigate">${lkIcon('<ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M17.5 6.2 21 8.3l-1.2 3.6"/><circle cx="12" cy="12" r="1.6"/><path d="M12 3v3M12 18v3"/>')}<kbd>N</kbd></button>
+      <button class="tool" id="lkd-meas" aria-pressed="false" title="Measure (M): click two points on the model" aria-label="Measure">${lkIcon('<rect x="2.5" y="8" width="19" height="8" rx="1" transform="rotate(-30 12 12)"/><path d="m7.3 13.9-1-1.7M10.3 12.2l-1.5-2.6M13.3 10.4l-1-1.7M16.3 8.7l-1.5-2.6"/>')}<kbd>M</kbd></button>
+      <button class="tool" id="lkd-light" aria-pressed="false" title="Light (L): click (or drag) on the model where the highlight should be, and the selected light goes there (with no light, an area light is added). Shift + click adds a new one. The lights are in Lights" aria-label="Light">${lkIcon('<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/>')}<kbd>L</kbd></button>
+      <button class="tool" id="lkd-pix" aria-pressed="false" title="Pixel analyzer (I), like the one of Nuke: hover to read a pixel, drag a box for its average, minimum and maximum; R, G, B and luminance, in ACEScg, linear Rec.709 or as on the screen. Esc clears the box" aria-label="Pixel analyzer">${lkIcon('<path d="M4 20V10M9 20V4M14 20v-7M19 20v-11"/><path d="M2.5 20.5h19"/>')}<kbd>I</kbd></button>
+      <span class="tsep"></span>
+      <button class="tool" id="lkd-reset-view" title="Reset the view: back to the turntable camera with the default lens, height and framing" aria-label="Reset the view">${lkIcon('<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><path d="M9.5 13.5a2.5 2.5 0 1 0 .8-1.8"/><path d="M9.6 10.6v1.6h1.6"/>')}</button>
+    </nav>
     <div class="lkd-box" id="lkd-box">
       <div class="lkd-frame" id="lkd-frame">
         <canvas id="lkd-gl"></canvas><canvas id="lkd-burncv"></canvas><svg class="lkd-ov" id="lkd-ov"></svg>
@@ -77,6 +104,12 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <div class="lkd-empty" id="lkd-empty"><b>Drop a 3D model here</b><span class="note">GLB, GLTF, USDZ / USD, FBX, OBJ with its .mtl and images, PLY. A model with its textures apart: drop its whole folder or the ZIP (like the downloads of Sketchfab), or select the files together</span><span class="file btn primary">Load model<input id="lkd-f" type="file" multiple accept="${LK_ACCEPT}"></span></div>
       <p class="lkd-busy" id="lkd-busy" hidden></p>
       <div class="lkd-drop" id="lkd-drop" hidden>Drop the model, its folder or its ZIP</div>
+      <div class="lkd-pxa" id="lkd-pxa" hidden>
+        <div class="lkd-pxh"><b>Pixel analyzer</b><select id="lkd-px-sp" aria-label="Values in"><option value="acescg">ACEScg</option><option value="lin709">Linear Rec.709</option><option value="disp">Display (0–255)</option></select><button class="btn sm ghost" id="lkd-px-x" title="Clear the box (Esc)">×</button></div>
+        <table><thead><tr><th></th><th></th><th>R</th><th>G</th><th>B</th><th>L</th></tr></thead><tbody id="lkd-px-t"></tbody></table>
+        <p class="note" id="lkd-px-n">Hover the view; drag a box</p>
+      </div>
+    </div>
     </div>
     <div class="lkd-play">
       <button class="btn sm ghost" id="lkd-p-first" title="First frame (Home)" aria-label="First frame">${lkIcon('<path d="M6 5v14M18 6l-9 6 9 6z"/>')}</button>
@@ -99,52 +132,94 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
       <div class="knobrow"><span>Size</span><span class="note" id="lkd-dims">–</span></div>
       <div class="knobrow" title="Moves the model away from the centre of the turntable, in meters: the camera keeps looking at the centre, so the model turns off-centre"><span>Offset (m)</span><div class="lkd-off">${['X', 'Y', 'Z'].map(a => `<label for="lkd-off${a.toLowerCase()}">${a}<input id="lkd-off${a.toLowerCase()}" type="number" step="0.01"></label>`).join('')}<button class="btn sm ghost" id="lkd-off0" title="No offset">0</button></div></div>
       <div class="row k"><button class="btn sm ghost" id="lkd-remove" disabled>Remove model</button></div>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="model" title="Up axis, facing, units and offset back to their defaults (the model stays)">Reset section</button></div>
     </div></section>
-    <section class="step" id="lkd-s-light"><h2 tabindex="0">Light<span class="st" id="lkd-light-st"></span></h2><div class="body">
-      <label class="fld" for="lkd-hdri">HDRI<select id="lkd-hdri">${LK_HDRIS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}<option value="user" disabled>Your HDRI</option></select></label>
-      <div class="knobrow"><span>Your HDRI</span><div class="row"><span class="file btn sm">Load .hdr / .exr<input id="lkd-fh" type="file" accept=".hdr,.exr"></span><span class="note" id="lkd-hdri-n">–</span></div></div>
-      <label class="fld" for="lkd-rot">Rotation<input id="lkd-rot" type="number" step="1" min="-180" max="180"></label>
-      <label class="fld" for="lkd-ev">Exposure (EV)<input id="lkd-ev" type="number" step="0.1" min="-10" max="10" title="Before the Viewer (the Viewer is on the bar of the view)"></label>
-      <div class="knobrow"><label for="lkd-show">Show the HDRI</label><input id="lkd-show" type="checkbox"></div>
-      <div class="knobrow"><label for="lkd-bgc">Background</label><div class="row"><input id="lkd-bgc" type="color"><span class="note">when the HDRI is hidden</span></div></div>
-      <label class="fld" for="lkd-blur" title="Blur of the HDRI behind the model (Raster)">Blur<input id="lkd-blur" type="number" step="0.05" min="0" max="1"></label>
-      <p class="note">Color: the HDRI is linear Rec.709; Raster lights in ACEScg and Path trace in linear Rec.709, and the Viewer on the bar of the view takes it to the screen. HDRIs: a selection of <a href="https://polyhaven.com/hdris" target="_blank" rel="noopener">Poly Haven</a> (CC0), 512 px, for the light. Load one of yours for a sharp background.</p>
+    <section class="step" id="lkd-s-light"><h2 tabindex="0">Environment<span class="st" id="lkd-light-st"></span></h2><div class="body">
+      <div class="seg lkd-envseg" role="group" aria-label="Environment"><button id="lkd-env-hdri" aria-pressed="true" title="An HDRI: the library of the edition or one of yours">HDRI</button><button id="lkd-env-colors" aria-pressed="false" title="A plain sky light from two colors: the sky above and the ground below (like Sky colors of 3D Render)">Sky colors</button><button id="lkd-env-phys" aria-pressed="false" title="A physical sky (Preetham, the daylight model of render engines) with its sun, like Physical sky of 3D Render">Physical sky</button></div>
+      <div id="lkd-envr-hdri">
+        <label class="fld" for="lkd-hdri">HDRI<select id="lkd-hdri">${LK_HDRIS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}<option value="user" disabled>Your HDRI</option></select></label>
+        <div class="knobrow"><span>Your HDRI</span><div class="row"><span class="file btn sm">Load .hdr / .exr<input id="lkd-fh" type="file" accept=".hdr,.exr"></span><span class="note" id="lkd-hdri-n">–</span></div></div>
+        <label class="fld" for="lkd-cs" title="Most HDRIs are linear sRGB (Rec.709 primaries). ACEScg ones are converted to it (the same as in 3D Render)">Color space<select id="lkd-cs"><option value="lin">Linear sRGB (Rec.709)</option><option value="acescg">ACEScg (AP1)</option></select></label>
+        <div class="knobrow"><label for="lkd-int" title="How much the HDRI lights the model (and how bright it is behind it)">Intensity</label><input id="lkd-int" type="number" step="0.05" min="0" max="20"></div>
+      </div>
+      <div id="lkd-envr-sky">
+        <div class="knobrow"><label for="lkd-skyint" title="How much the sky lights the model">Sky light</label><input id="lkd-skyint" type="number" step="0.05" min="0" max="20"></div>
+        <div class="row k" id="lkd-envr-colors"><label class="fld" for="lkd-skycol" title="The color of the sky: it lights from above and is the background">Sky color <input id="lkd-skycol" type="color"></label><label class="fld" for="lkd-gndcol" title="The color of the light bounced from the ground, from below">Ground color <input id="lkd-gndcol" type="color"></label></div>
+        <div id="lkd-envr-phys">
+          <div class="knobrow"><label for="lkd-sunaz" title="Where the sun is, around the model: 0° is behind the camera at frame 1">Sun direction</label><input id="lkd-sunaz" type="number" step="1" min="-360" max="360" data-unit="°"></div>
+          <div class="knobrow"><label for="lkd-sunel" title="Height of the sun above the horizon">Sun height</label><input id="lkd-sunel" type="number" step="0.5" min="-10" max="90" data-unit="°"></div>
+          <div class="knobrow"><label for="lkd-sunint" title="Intensity of the sun (a directional light, with its shadow)">Sun intensity</label><input id="lkd-sunint" type="number" step="0.1" min="0" max="20"></div>
+          <div class="knobrow"><label for="lkd-skyt" title="Haze in the air: 2 is a very clear day, 3 a clear one, 6 to 10 a hazy one">Turbidity</label><input id="lkd-skyt" type="number" step="0.1" min="1.7" max="10"></div>
+          <div class="knobrow"><label for="lkd-skyalb" title="How much light the ground below the horizon gives back">Ground albedo</label><input id="lkd-skyalb" type="number" step="0.01" min="0" max="1"></div>
+        </div>
+      </div>
+      <div class="knobrow"><label for="lkd-rot" title="Turns the environment (and the sun) around the model">Rotation</label><input id="lkd-rot" type="number" step="1" min="-360" max="360" data-unit="°"></div>
+      <div class="knobrow"><label for="lkd-show">Show it as background</label><input id="lkd-show" type="checkbox"></div>
+      <div class="knobrow"><label for="lkd-bgc">Background</label><div class="row"><input id="lkd-bgc" type="color"><span class="note">when it is hidden</span></div></div>
+      <div class="knobrow"><label for="lkd-blur" title="Blur of the environment behind the model (Raster)">Blur</label><input id="lkd-blur" type="number" step="0.05" min="0" max="1"></div>
+      <div class="knobrow"><label for="lkd-ev" title="Before the Viewer (the Viewer is on the bar of the view)">Exposure</label><input id="lkd-ev" type="number" step="0.1" min="-10" max="10" data-unit="EV"></div>
+      <p class="note">Color: Raster lights in ACEScg and Path trace in linear Rec.709, and the Viewer on the bar of the view takes it to the screen. HDRIs: a selection of <a href="https://polyhaven.com/hdris" target="_blank" rel="noopener">Poly Haven</a> (CC0), 512 px, for the light; load one of yours for a sharp background.</p>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="env" title="The environment back to its defaults (HDRI, color space, intensity, rotation, background, skies and sun); the HDRI file of yours stays loaded">Reset section</button></div>
+    </div></section>
+    <section class="step" id="lkd-s-lights"><h2 tabindex="0">Lights<span class="st" id="lkd-lights-st">none</span></h2><div class="body">
+      <div class="row k lkd-ladd">${[['area', 'Area'], ['spot', 'Spot'], ['point', 'Point'], ['dir', 'Directional']].map(([t, n]) => `<button class="btn sm" data-lkadd="${t}" title="Add a${t === 'area' ? 'n' : ''} ${n.toLowerCase()} light (a key light at 45°, above the model)">+ ${n}</button>`).join('')}</div>
+      <div class="lkd-llist" id="lkd-llist"></div>
+      <div id="lkd-lprops" hidden>
+        <label class="fld" for="lkd-l-type">Type<select id="lkd-l-type"><option value="area">Area</option><option value="spot">Spot</option><option value="point">Point</option><option value="dir">Directional</option></select></label>
+        <div class="knobrow"><label for="lkd-l-col">Color</label><input id="lkd-l-col" type="color"></div>
+        <div class="knobrow"><label for="lkd-l-int" title="How much it lights the centre of the model, whatever its distance or size (1: as much as a white sky of intensity 1)">Intensity</label><input id="lkd-l-int" type="number" step="0.05" min="0" max="1000"></div>
+        <div class="knobrow"><label for="lkd-l-ev" title="Exposure of the light, in stops: +1 is twice the light">Exposure</label><input id="lkd-l-ev" type="number" step="0.1" min="-10" max="10" data-unit="EV"></div>
+        <div class="knobrow"><label for="lkd-l-az" title="Around the model: 0° is the camera side at frame 1. It turns with the light of the turntable">Direction</label><input id="lkd-l-az" type="number" step="1" min="-360" max="360" data-unit="°"></div>
+        <div class="knobrow"><label for="lkd-l-el" title="Height above the centre of the model">Height</label><input id="lkd-l-el" type="number" step="0.5" min="-90" max="90" data-unit="°"></div>
+        <div class="knobrow" id="lkd-l-dist-r"><label for="lkd-l-dist" title="Distance to the centre of the model">Distance</label><input id="lkd-l-dist" type="number" step="0.01" min="0.01" max="1000" data-unit="m"></div>
+        <div class="knobrow" id="lkd-l-size-r"><label for="lkd-l-size" title="Size of the light: an area light is a square of this side; a point or a spot, a sphere of this diameter. Bigger is softer">Size</label><input id="lkd-l-size" type="number" step="0.01" min="0" max="100" data-unit="m"></div>
+        <div class="knobrow" id="lkd-l-ang-r"><label for="lkd-l-ang" title="Cone of the spot">Cone</label><input id="lkd-l-ang" type="number" step="1" min="1" max="170" data-unit="°"></div>
+        <div class="knobrow" id="lkd-l-pen-r"><label for="lkd-l-pen" title="Soft edge of the cone">Penumbra</label><input id="lkd-l-pen" type="number" step="0.01" min="0" max="1"></div>
+        <div class="knobrow" id="lkd-l-sh-r"><label for="lkd-l-sh" title="Raster: a shadow map (an area light has none in Raster). Path trace always has its real shadows">Shadows (Raster)</label><input id="lkd-l-sh" type="checkbox"></div>
+      </div>
+      <p class="note">The Light tool (L, on the left of the view): click on the model where the highlight should be. The lights turn with the light of the turntable, like the HDRI.</p>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="lights" title="Removes all the lights">Reset section</button></div>
     </div></section>
     <section class="step" id="lkd-s-turn"><h2 tabindex="0">Turntable &amp; camera</h2><div class="body">
       <p class="note">Fixed length, always the same: frames 1–${LK_OBJ} the camera and the light orbit the model together (it turns under a fixed light), frames ${LK_OBJ + 1}–${LK_N} the light alone turns 360°, in the same direction. ${LK_FPS} fps, ${LK_N / LK_FPS} s.</p>
       <label class="fld" for="lkd-dir">Direction<select id="lkd-dir"><option value="ccw">Counter-clockwise (seen from above)</option><option value="cw">Clockwise</option></select></label>
-      <label class="fld" for="lkd-lens">Lens (mm)<input id="lkd-lens" type="number" step="1" min="12" max="300" title="Full frame, 36 mm wide; 16:9"></label>
-      <label class="fld" for="lkd-elev">Camera height (°)<input id="lkd-elev" type="number" step="1" min="-30" max="80" title="Angle of the camera above the model"></label>
-      <label class="fld" for="lkd-fill">Framing<input id="lkd-fill" type="number" step="0.05" min="0.3" max="1.2" title="How much of the frame height the model takes"></label>
+      <div class="knobrow"><label for="lkd-lens" title="Full frame, 36 mm wide; 16:9">Lens</label><input id="lkd-lens" type="number" step="1" min="12" max="300" data-unit="mm"></div>
+      <div class="knobrow"><label for="lkd-elev" title="Angle of the camera above the model">Camera height</label><input id="lkd-elev" type="number" step="0.5" min="-30" max="80" data-unit="°"></div>
+      <div class="knobrow"><label for="lkd-fill" title="How much of the frame the model takes: 1 fills it, 2 is twice as close">Framing</label><input id="lkd-fill" type="number" step="0.01" min="0.3" max="2"></div>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="turn" title="Direction, lens, height and framing back to their defaults">Reset section</button></div>
     </div></section>
     <section class="step" id="lkd-s-refs"><h2 tabindex="0">References</h2><div class="body">
       <div class="knobrow"><label for="lkd-chrome">Chrome ball</label><input id="lkd-chrome" type="checkbox"></div>
       <div class="knobrow"><label for="lkd-grey">18% grey ball</label><input id="lkd-grey" type="checkbox"></div>
       <div class="knobrow"><label for="lkd-chart">ColorChecker</label><input id="lkd-chart" type="checkbox"></div>
       <div class="knobrow"><label for="lkd-shadow">Shadow catcher</label><input id="lkd-shadow" type="checkbox"></div>
-      <p class="note">The balls and the chart stay in the lower right corner of the frame. The shadow catcher is a contact shadow in Raster, and in Path trace an 18% grey floor with the real shadows of the HDRI.</p>
+      <p class="note">The balls and the chart stay in the lower right corner of the frame. The shadow catcher is a contact shadow in Raster (plus the shadows of the lights), and in Path trace an 18% grey floor with the real shadows.</p>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="refs" title="References, shadow catcher and clay back to their defaults">Reset section</button></div>
     </div></section>
     <section class="step" id="lkd-s-pt"><h2 tabindex="0">Path trace<span class="st" id="lkd-pt-st">off</span></h2><div class="body">
-      <label class="fld" for="lkd-spp">Samples<input id="lkd-spp" type="number" step="1" min="1" max="100000" title="On the viewport it stops here"></label>
-      <label class="fld" for="lkd-bounces">Bounces<input id="lkd-bounces" type="number" step="1" min="1" max="30"></label>
+      <div class="knobrow"><label for="lkd-spp" title="On the viewport it stops here">Samples</label><input id="lkd-spp" type="number" step="1" min="1" max="100000"></div>
+      <div class="knobrow"><label for="lkd-bounces">Bounces</label><input id="lkd-bounces" type="number" step="1" min="1" max="30"></div>
       <div class="knobrow"><label for="lkd-dn">Denoise</label><input id="lkd-dn" type="checkbox"></div>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="pt" title="Samples, bounces and denoise back to their defaults">Reset section</button></div>
     </div></section>
     <section class="step" id="lkd-s-burn"><h2 tabindex="0">Burn-in</h2><div class="body">
       <div class="knobrow"><label for="lkd-burn">Preview on the viewport</label><input id="lkd-burn" type="checkbox"></div>
       <label class="fld" for="lkd-project">Project<input id="lkd-project" type="text" maxlength="60" placeholder="Project"></label>
       <label class="fld" for="lkd-artist">Artist<input id="lkd-artist" type="text" maxlength="60" placeholder="Name"></label>
       <div class="knobrow"><span>Show</span><div class="lkd-fields" id="lkd-fields">${LK_FIELDS.map(([k, n]) => `<label class="row" for="lkd-fd-${k}"><input id="lkd-fd-${k}" type="checkbox" data-k="${k}"> ${n}</label>`).join('')}</div></div>
-      <label class="fld" for="lkd-bars">Info bars<input id="lkd-bars" type="number" step="0.05" min="0" max="1" title="Darkness of the bars behind the letters"></label>
+      <div class="knobrow"><label for="lkd-bars" title="Darkness of the bars behind the letters">Info bars</label><input id="lkd-bars" type="number" step="0.05" min="0" max="1"></div>
       <label class="fld" for="lkd-text">Text size<select id="lkd-text"><option value="small">Small</option><option value="large">Large</option></select></label>
       <label class="fld" for="lkd-font">Font<select id="lkd-font" title="Letters of the info, like a camera monitor"><option value="monitor">Monitor</option><option value="mono">Mono</option></select></label>
       <label class="fld" for="lkd-align">Info align<select id="lkd-align"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
       <label class="fld" for="lkd-talign">Title align<select id="lkd-talign"><option value="left">Left</option><option value="center">Center</option></select></label>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="burn" title="The look and the fields of the burn-in back to their defaults (the project and the artist stay)">Reset section</button></div>
     </div></section>
     <section class="step" id="lkd-s-pb"><h2 tabindex="0">Playblast</h2><div class="body">
       <label class="fld" for="lkd-pbsize">Size<select id="lkd-pbsize"><option value="1080">1080p (1920 × 1080)</option><option value="720">720p (1280 × 720)</option></select></label>
       <label class="fld" for="lkd-pbq">Path trace quality<select id="lkd-pbq" title="Samples per frame and bounces, when the engine is Path trace"><option value="draft">Draft · 16 samples, 3 bounces</option><option value="preview">Preview · 64 samples, 4 bounces</option><option value="good">Good · 256 samples, 6 bounces</option><option value="final">Final · 1024 samples, 8 bounces</option><option value="tab">As in Path trace</option></select></label>
       <p class="note">All ${LK_N} frames from the turntable camera, with the engine of the viewport and the burn-in.</p>
       <div class="row k"><button class="btn primary sm" id="lkd-pb2" disabled>Playblast</button></div>
+      <div class="row k lkd-sreset"><button class="btn sm ghost" data-lkreset="pb" title="Size and quality back to their defaults">Reset section</button></div>
     </div></section>
   </div></aside>
 </div>
@@ -161,6 +236,8 @@ document.querySelector('.app').insertAdjacentHTML('afterend', `
 document.querySelectorAll('#lkdapp .step > h2').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('closed')));
 // the burn-in and the playblast start closed
 ['lkd-s-burn', 'lkd-s-pb', 'lkd-s-pt'].forEach(id => $(id).classList.add('closed'));
+// the numbers drag sideways like everywhere in the app (js/panel.js), with their units
+enhanceNumbers($('lkdapp'));
 
 // ---------- renderer and scene ----------
 const canvas = $('lkd-gl'), burnCv = $('lkd-burncv');
@@ -233,34 +310,65 @@ function lkPtSample() {
 }
 const lkVfov = () => 2 * Math.atan((LK_FILM_W / LK_ASPECT) / 2 / lk.lens) * 180 / Math.PI;
 
-// ---------- HDRI ----------
-async function lkLoadHdri(name) {
-  let tex, label;
-  if (name === 'user' && L.userHdri) { tex = L.userHdri.tex; label = L.userHdri.name; }
-  else { const ld = new THREE.EXRLoader(); ld.setDataType(THREE.FloatType); tex = await ld.loadAsync(`edition/hdri/${name}.exr`); label = (LK_HDRIS.find(h => h[0] === name) || [name, name])[1]; }
-  tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.LinearSRGBColorSpace;
-  if (L.hdriTex && L.hdriTex !== tex && !(L.userHdri && L.hdriTex === L.userHdri.tex)) L.hdriTex.dispose();
-  L.hdriTex = tex; L.hdriName = label;
-  // Raster: the same HDRI in ACEScg (the path tracer takes it as it is, linear Rec.709)
-  if (L.hdriWs) L.hdriWs.dispose();
-  L.hdriWs = lkHdriWs(tex);
-  if (!L.pmrem) L.pmrem = new THREE.PMREMGenerator(renderer);
-  if (L.envMap) L.envMap.dispose();
-  L.envMap = L.pmrem.fromEquirectangular(L.hdriWs).texture;
-  lkEnv(); if (lk.engine === 'pt' && L.ptBuilt && L.tracer) L.tracer.updateEnvironment(); lkDirty();
-}
-function lkHdriWs(tex) {
-  const im = tex.image, n = im.width * im.height, src = im.data, ch = Math.round(src.length / n), M = R3_709_TO_AP1;
+// ---------- environment: an HDRI, Sky colors or Physical sky (like the HDRI section of 3D Render) ----------
+// Everything ends in one equirectangular in linear Rec.709 (L.hdriTex: the path tracer) and its copy in ACEScg
+// (L.hdriWs, and L.envMap its PMREM: Raster). The HDRI keeps its file (L.hdriRaw) to change its color space.
+const lkF32 = (tex) => {
+  const im = tex.image, n = im.width * im.height, src = im.data, ch = Math.round(src.length / n);
   const half = src instanceof Uint16Array, rd = half ? (i) => THREE.DataUtils.fromHalfFloat(src[i]) : (i) => src[i];
   const out = new Float32Array(n * 4);
-  for (let i = 0; i < n; i++) {
-    const r = rd(i * ch), g = rd(i * ch + 1), b = rd(i * ch + 2), o = i * 4;
-    out[o] = M[0] * r + M[1] * g + M[2] * b; out[o + 1] = M[3] * r + M[4] * g + M[5] * b; out[o + 2] = M[6] * r + M[7] * g + M[8] * b; out[o + 3] = 1;
+  for (let i = 0; i < n; i++) { const o = i * 4; out[o] = rd(i * ch); out[o + 1] = rd(i * ch + 1); out[o + 2] = rd(i * ch + 2); out[o + 3] = 1; }
+  return { w: im.width, h: im.height, data: out, flipY: !!tex.flipY };
+};
+async function lkLoadHdri(name) {
+  if (name === 'user' && L.userHdri) { L.hdriRaw = L.userHdri.raw; L.hdriName = L.userHdri.name; }
+  else {
+    const ld = new THREE.EXRLoader(); ld.setDataType(THREE.FloatType);
+    const tex = await ld.loadAsync(`edition/hdri/${name}.exr`);
+    L.hdriRaw = lkF32(tex); tex.dispose();
+    L.hdriName = (LK_HDRIS.find(h => h[0] === name) || [name, name])[1];
   }
-  const t = new THREE.DataTexture(out, im.width, im.height, THREE.RGBAFormat, THREE.FloatType);
-  t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.LinearSRGBColorSpace; t.flipY = tex.flipY;
+  lkEnvBuild();
+}
+const lkM3 = (M, d, o, i) => { const r = d[i], g = d[i + 1], b = d[i + 2]; o[i] = M[0] * r + M[1] * g + M[2] * b; o[i + 1] = M[3] * r + M[4] * g + M[5] * b; o[i + 2] = M[6] * r + M[7] * g + M[8] * b; o[i + 3] = 1; };
+const lkTex = (w, h, data, flipY) => {
+  const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.FloatType);
+  t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.LinearSRGBColorSpace; t.flipY = !!flipY;
   t.magFilter = t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return t;
+};
+// the sun of the physical sky, in the frame of the environment (Rotation and the turntable turn it with the sky)
+const lkSunDir = () => sunWorldDir(lk.sunAz, lk.sunEl, 0);
+// the environment in linear Rec.709: { w, h, data, flipY }
+function lkEnvData() {
+  if (lk.env === 'colors') {
+    const w = 64, h = 32, d = new Float32Array(w * h * 4), c3 = (hex) => { const n = parseInt(hex.replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => r3SrgbToLin(v / 255)); };
+    const top = c3(lk.skyCol), bot = c3(lk.gndCol), k = lk.skyInt;
+    for (let y = 0; y < h; y++) {
+      const s = Math.sin(((y + 0.5) / h - 0.5) * Math.PI), t = Math.max(0, Math.min(1, (s + 0.04) / 0.12)), f = t * t * (3 - 2 * t); // row 0 below
+      for (let x = 0; x < w; x++) { const o = (y * w + x) * 4; for (let c = 0; c < 3; c++) d[o + c] = k * (bot[c] + (top[c] - bot[c]) * f); d[o + 3] = 1; }
+    }
+    return { w, h, data: d, flipY: false };
+  }
+  if (lk.env === 'phys') {
+    const w = 256, h = 128, dir = lkSunDir(), el = lk.sunEl;
+    const sunE = el > -1 ? lk.sunInt * Math.PI * Math.min(1, (el + 1) / 4) * Math.max(0, Math.sin(el * Math.PI / 180)) : 0;
+    return { w, h, data: skyBake(w, h, dir, { turbidity: lk.skyT, albedo: lk.skyAlb, k: SKY_K * lk.skyInt / 0.6, sunE }), flipY: false };
+  }
+  const r = L.hdriRaw; if (!r) return null;
+  if (lk.cs !== 'acescg') return r;
+  const out = new Float32Array(r.data.length); for (let i = 0; i < out.length; i += 4) lkM3(R3_AP1_TO_709, r.data, out, i);
+  return { w: r.w, h: r.h, data: out, flipY: r.flipY };
+}
+function lkEnvBuild() {
+  const d = lkEnvData(); if (!d) return;
+  if (L.hdriTex) L.hdriTex.dispose(); if (L.hdriWs) L.hdriWs.dispose(); if (L.envMap) L.envMap.dispose();
+  const ws = new Float32Array(d.data.length); for (let i = 0; i < ws.length; i += 4) lkM3(R3_709_TO_AP1, d.data, ws, i);
+  L.hdriTex = lkTex(d.w, d.h, d.data, d.flipY); L.hdriWs = lkTex(d.w, d.h, ws, d.flipY);
+  if (!L.pmrem) L.pmrem = new THREE.PMREMGenerator(renderer);
+  L.envMap = L.pmrem.fromEquirectangular(L.hdriWs).texture;
+  L.envName = lk.env === 'colors' ? 'Sky colors' : lk.env === 'phys' ? 'Physical sky' : L.hdriName;
+  lkEnv(); if (lk.engine === 'pt' && L.ptBuilt && L.tracer) { L.tracer.updateEnvironment(); L.tracer.updateLights(); } lkDirty();
 }
 // the light of the turntable: the HDRI rotation plus the orbit of the rig (and the light pass)
 function lkAngles(f = L.frame) {
@@ -277,7 +385,148 @@ function lkEnv() {
   // the background color: a screen color, to linear Rec.709 (Path trace) or ACEScg (Raster)
   scene.background = lk.show ? (pt ? L.hdriTex : lk.blur > 0 ? L.envMap : L.hdriWs) : pt ? lin(lk.bg) : new THREE.Color(...r3HexToWs(lk.bg));
   scene.backgroundBlurriness = pt ? 0 : lk.blur;
-  $('lkd-light-st').textContent = L.hdriName;
+  // the intensity of an HDRI (the skies have theirs baked in): on the light and on the background
+  scene.environmentIntensity = scene.backgroundIntensity = lk.env === 'hdri' ? lk.int : 1;
+  $('lkd-light-st').textContent = L.envName || '';
+  lkSunUpdate(ry); lkLightsUpdate();
+}
+
+// ---------- the sun of the physical sky and the 3D lights ----------
+// A light is kept by where it is around the model (direction and height, in the frame of the turntable light, like the
+// HDRI: it turns with it) and its distance; its intensity is how much it lights the centre of the model, whatever its
+// distance and size (π × intensity of irradiance there: 1 lights a white surface like a white sky of intensity 1).
+// Raster takes the colors in ACEScg, the path tracer in linear Rec.709.
+const lkHex709 = (hex) => { const n = parseInt(String(hex).replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => r3SrgbToLin(v / 255)); };
+const lkLightColor = (obj, hex) => { const c = lkHex709(hex), v = lk.engine === 'pt' ? c : r3M3(R3_709_TO_AP1, c); obj.color.setRGB(v[0], v[1], v[2]); };
+const lkYRot = (v, a) => new THREE.Vector3(v[0], v[1], v[2]).applyAxisAngle(new THREE.Vector3(0, 1, 0), a);
+function lkShadowOf(obj) {
+  obj.castShadow = true; obj.shadow.mapSize.set(2048, 2048); obj.shadow.bias = -0.0004; obj.shadow.normalBias = 0.01 * L.r;
+  if (obj.isDirectionalLight) { const c = obj.shadow.camera, R = L.r * 1.6; c.left = -R; c.right = R; c.top = R; c.bottom = -R; c.near = 0.01; c.far = L.r * 8; c.updateProjectionMatrix(); }
+  else { obj.shadow.camera.near = Math.max(0.01, L.r * 0.05); obj.shadow.camera.far = L.r * 50; obj.shadow.camera.updateProjectionMatrix(); }
+}
+function lkSunUpdate(ry) {
+  const on = lk.env === 'phys' && lk.sunEl > -2 && lk.sunInt > 0;
+  if (!on) { if (L.sun) { scene.remove(L.sun, L.sun.target); L.sun.dispose(); L.sun = null; lkShadowCatch(); } return; }
+  if (!L.sun) { L.sun = new THREE.DirectionalLight(0xffffff, 1); L.sun.name = 'sun'; scene.add(L.sun, L.sun.target); }
+  const d = lkYRot(lkSunDir(), ry), D = L.r * 4;
+  L.sun.position.copy(L.c).addScaledVector(d, D); L.sun.target.position.copy(L.c); L.sun.target.updateMatrixWorld();
+  L.sun.intensity = lk.sunInt * Math.PI * Math.min(1, (lk.sunEl + 2) / 4);
+  lkLightColor(L.sun, '#fff4e5'); lkShadowOf(L.sun); L.sun.shadow.camera.far = D + L.r * 4;
+  lkShadowCatch();
+}
+const LK_LDEF = { type: 'area', col: '#ffffff', int: 1, ev: 0, az: 45, el: 35, d: 2.5, size: 0.5, ang: 40, pen: 0.3, sh: true };
+const lkLName = (t) => ({ area: 'Area', spot: 'Spot', point: 'Point', dir: 'Directional' })[t] || t;
+async function lkAreaInit() {
+  if (L.areaOk) return;
+  const { RectAreaLightUniformsLib } = await import('./vendor/RectAreaLightUniformsLib.js') /* edition/vendor/ */;
+  RectAreaLightUniformsLib.init(); L.areaOk = true;
+}
+function lkLightMake(li) {
+  let o;
+  if (li.type === 'area') { o = new THREE.RectAreaLight(0xffffff, 1, 1, 1); }
+  else if (li.type === 'spot') { o = new THREE.SpotLight(0xffffff, 1); o.decay = 2; o.distance = 0; }
+  else if (li.type === 'point') { o = new THREE.PointLight(0xffffff, 1); o.decay = 2; o.distance = 0; }
+  else o = new THREE.DirectionalLight(0xffffff, 1);
+  o.name = 'lkd-light'; scene.add(o); if (o.target) scene.add(o.target);
+  return o;
+}
+async function lkLightsBuild() {
+  if (lk.lights.some(li => li.type === 'area')) { try { await lkAreaInit(); } catch (e) { console.error(e); } }
+  for (const x of L.lights) { scene.remove(x.obj); if (x.obj.target) scene.remove(x.obj.target); x.obj.dispose && x.obj.dispose(); }
+  L.lights = lk.lights.map(li => ({ li, obj: lkLightMake(li) }));
+  if (L.lsel >= L.lights.length) L.lsel = L.lights.length - 1;
+  lkLightsUpdate(); lkLightsUI();
+  if (lk.engine === 'pt' && L.ptBuilt && L.tracer) lkPtRebuild(); else lkDirty();
+}
+// where each light is on this frame, its intensity and color
+function lkLightsUpdate() {
+  if (!L.lights.length) { lkShadowCatch(); return; }
+  const a = lkAngles(), turn = a.light * Math.PI / 180, D0 = Math.max(L.r, 0.01);
+  for (const { li, obj } of L.lights) {
+    const az = li.az * Math.PI / 180 + turn, el = li.el * Math.PI / 180, D = li.type === 'dir' ? D0 * 6 : Math.max(0.01, li.d * D0);
+    obj.position.set(L.c.x + D * Math.cos(el) * Math.sin(az), L.c.y + D * Math.sin(el), L.c.z + D * Math.cos(el) * Math.cos(az));
+    const k = Math.PI * Math.max(0, li.int) * Math.pow(2, li.ev || 0), sz = Math.max(0.001, li.size);
+    if (obj.isRectAreaLight) { obj.width = obj.height = sz; obj.intensity = k * D * D / (sz * sz); obj.lookAt(L.c); }
+    else if (obj.isDirectionalLight) obj.intensity = k;
+    else { obj.intensity = k * D * D; obj.radius = sz / 2; }
+    if (obj.isSpotLight) { obj.angle = Math.min(85, Math.max(0.5, li.ang / 2)) * Math.PI / 180; obj.penumbra = Math.min(1, Math.max(0, li.pen)); }
+    // the path tracer puts the disk of a spot at its apex minus radius / tan(cone): back by that, the light lands the same
+    if (obj.isSpotLight && lk.engine === 'pt' && obj.radius > 0) { const back = obj.radius / Math.max(Math.tan(obj.angle), 1e-3), dir = obj.position.clone().sub(L.c).normalize(); obj.position.addScaledVector(dir, back); }
+    if (obj.target) { obj.target.position.copy(L.c); obj.target.updateMatrixWorld(); }
+    lkLightColor(obj, li.col);
+    if (!obj.isRectAreaLight) { if (li.sh) lkShadowOf(obj); else obj.castShadow = false; }
+    obj.updateMatrixWorld(true);
+  }
+  lkShadowCatch();
+}
+// Raster: the shadows of the lights (and of the sun) on an invisible floor, over the contact shadow
+function lkShadowCatch() {
+  const any = (L.sun && L.sun.castShadow) || L.lights.some(x => x.obj.castShadow);
+  renderer.shadowMap.enabled = !!any; renderer.shadowMap.type = THREE.PCFShadowMap;
+  if (L.model) L.model.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = !!any; } });
+  if (any && !L.lshadow && L.model) {
+    L.lshadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.55, depthWrite: false }));
+    L.lshadow.rotation.x = -Math.PI / 2; L.lshadow.receiveShadow = true; L.lshadow.renderOrder = -1; L.lshadow.name = 'lkd-lshadow'; scene.add(L.lshadow);
+  }
+  if (L.lshadow) {
+    L.lshadow.scale.setScalar(L.r * 30); L.lshadow.position.set(L.c.x, 0.001 * L.r, L.c.z);
+    L.lshadow.visible = !!any && lk.shadow && lk.engine !== 'pt' && !!L.model;
+  }
+}
+function lkLightAdd(type, at) {
+  const li = Object.assign(lkClone(LK_LDEF), { type }, at || {});
+  if (type === 'dir') li.int = 1;
+  lk.lights.push(li); L.lsel = lk.lights.length - 1; lkSave(); return lkLightsBuild();
+}
+function lkLightsUI() {
+  const n = lk.lights.length;
+  $('lkd-lights-st').textContent = n ? `${n} light${n > 1 ? 's' : ''}` : 'none';
+  $('lkd-llist').innerHTML = lk.lights.map((li, i) => `<div class="lkd-li${i === L.lsel ? ' on' : ''}" data-i="${i}"><i style="background:${li.col}"></i><b>${i + 1} · ${lkLName(li.type)}</b><span class="note">${(+li.int).toFixed(2)}${li.ev ? ` ${li.ev > 0 ? '+' : ''}${(+li.ev).toFixed(1)} EV` : ''} · ${Math.round(li.az)}° / ${Math.round(li.el)}°</span><button class="btn sm ghost" data-ldel="${i}" title="Remove this light" aria-label="Remove light ${i + 1}">×</button></div>`).join('');
+  const li = lk.lights[L.lsel]; $('lkd-lprops').hidden = !li;
+  if (!li) return;
+  const set = (id, v) => { const el = $(id); if (document.activeElement !== el && !(el.parentNode && el.parentNode.classList.contains('scrubbing'))) el.value = v; };
+  set('lkd-l-type', li.type); $('lkd-l-col').value = li.col; set('lkd-l-int', li.int); set('lkd-l-ev', li.ev); set('lkd-l-az', Math.round(li.az * 10) / 10); set('lkd-l-el', Math.round(li.el * 10) / 10);
+  set('lkd-l-dist', +(li.d * L.r).toFixed(3)); set('lkd-l-size', li.size); set('lkd-l-ang', li.ang); set('lkd-l-pen', li.pen); $('lkd-l-sh').checked = !!li.sh;
+  $('lkd-l-dist-r').hidden = li.type === 'dir'; $('lkd-l-size-r').hidden = li.type === 'dir';
+  $('lkd-l-ang-r').hidden = $('lkd-l-pen-r').hidden = li.type !== 'spot'; $('lkd-l-sh-r').hidden = li.type === 'area';
+}
+// a light changed: move it (and the path tracer's copy) without making it again
+function lkLightsMoved() {
+  lkLightsUpdate(); lkSave(); lkLightsUI();
+  if (lk.engine === 'pt' && L.ptBuilt && L.tracer) { L.tracer.updateLights(); lkGo(); } else lkDirty();
+}
+// the Light tool: the selected light goes where its highlight lands on the clicked point (the view reflected on the surface)
+function lkLightAt(cx, cy, add) {
+  const r = canvas.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height * 2 - 1)), cam);
+  const h = L.model ? ray.intersectObject(L.model, true).find(x => x.object.isMesh && x.face) : null;
+  if (!h) return false;
+  const n = h.face.normal.clone().transformDirection(h.object.matrixWorld).normalize(), v = ray.ray.direction.clone();
+  if (n.dot(v) > 0) n.negate();
+  const refl = v.clone().sub(n.clone().multiplyScalar(2 * v.dot(n))).normalize();
+  if ((add || !lk.lights.length) && !L.lightAdding) { L.lightAdding = true; lkLightAdd('area').then(() => { L.lightAdding = false; lkLightAt(cx, cy, false); }); return true; }
+  const li = lk.lights[L.lsel]; if (!li) return true;
+  let dir;
+  if (li.type === 'dir') dir = refl;
+  else { const D = Math.max(0.01, li.d * L.r), pos = h.point.clone().addScaledVector(refl, D); dir = pos.sub(L.c); li.d = Math.max(0.05, dir.length() / L.r); dir.normalize(); }
+  const turn = lkAngles().light;
+  li.el = Math.asin(Math.max(-1, Math.min(1, dir.y))) * 180 / Math.PI;
+  li.az = ((Math.atan2(dir.x, dir.z) * 180 / Math.PI - turn) % 360 + 540) % 360 - 180;
+  lkLightsMoved();
+  return true;
+}
+// the lights on the view while the Light tool is on: where each one is (the selected one, with a line to the model)
+function lkLightsOverlay(w, h) {
+  if (L.tool !== 'light' || !L.lights.length) return '';
+  let s = '';
+  const c = L.c.clone().project(cam), cc = [(c.x + 1) / 2 * w, (1 - c.y) / 2 * h];
+  L.lights.forEach(({ obj }, i) => {
+    const v = obj.position.clone().project(cam); if (v.z > 1 || v.z < -1) return;
+    const p = [(v.x + 1) / 2 * w, (1 - v.y) / 2 * h];
+    if (i === L.lsel) s += `<line class="lkl" x1="${p[0]}" y1="${p[1]}" x2="${cc[0]}" y2="${cc[1]}"/>`;
+    s += `<g class="lkl${i === L.lsel ? ' on' : ''}" data-li="${i}"><circle cx="${p[0]}" cy="${p[1]}" r="9"/><text x="${p[0]}" y="${p[1] + 4}">${i + 1}</text></g>`;
+  });
+  return s;
 }
 
 // ---------- model ----------
@@ -439,7 +688,7 @@ function lkClearModel() {
   if (L.shadowPT) { scene.remove(L.shadowPT); L.shadowPT = null; }
   $('lkd-empty').hidden = false; $('lkd-remove').disabled = true; $('lkd-pb').disabled = $('lkd-pb2').disabled = true;
   $('lkd-model-n').textContent = 'none'; $('lkd-model-st').textContent = 'none'; $('lkd-dims').textContent = '–'; $('lkd-model-msg').hidden = true;
-  L.ptBuilt = false; lkDirty();
+  L.ptBuilt = false; lkShadowCatch(); lkDirty();
 }
 function lkApplyImage(file) {
   new THREE.TextureLoader().load(URL.createObjectURL(file), tex => {
@@ -624,12 +873,13 @@ function lkLoop() {
     lkStatus();
   }
   L.dirty = false;
-  lkBurnPreview(); lkMeasureDraw();
+  lkBurnPreview(); lkOverlay();
+  if (L.tool === 'pixel' && L.px) { const now = performance.now(); if (now - L.pxT > 200) { L.pxT = now; lkPxUI(); } }
   if (more) lkGo();
 }
 function lkStatus() {
   const f = L.frame, pass = f <= LK_OBJ ? 'model turns' : 'light turns';
-  let t = L.model ? `${Math.round(L.tris).toLocaleString('en-US')} tris · ${L.hdriName}` : 'no model';
+  let t = L.model ? `${Math.round(L.tris).toLocaleString('en-US')} tris · ${L.envName || ''}` : 'no model';
   if (lk.engine === 'pt' && L.tracer && L.ptBuilt) { const n = Math.floor(L.tracer.samples); t += ` · ${n >= lk.spp ? 'done' : n < L.tracer.minSamples ? 'preview' : 'rendering'} ${n} / ${lk.spp}`; }
   if (L.free) t += ' · free camera';
   $('lkd-st').textContent = t;
@@ -695,7 +945,7 @@ function lkPtMoved(refit) {
       if (res.needsMaterialIndexUpdate) m.materialIndexAttribute.updateFrom(res.geometry.attributes.materialIndex);
     } catch (e) { console.error(e); }
   }
-  tr.updateCamera(); tr.updateEnvironment(); lkGo();
+  tr.updateCamera(); tr.updateEnvironment(); if (L.lights.length || L.sun) tr.updateLights(); lkGo();
 }
 function lkEngine(e) {
   lk.engine = e === 'pt' ? 'pt' : 'raster'; lkSave();
@@ -724,15 +974,29 @@ function lkDolly(k) {
 }
 function lkMoved() { cam.updateMatrixWorld(true); lkRefsPlace(); if (lk.engine === 'pt' && L.ptBuilt) { clearTimeout(L.keyT); lkPtMoved(false); L.keyT = setTimeout(() => lkPtMoved(true), 120); } else lkDirty(); lkStatus(); }
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+// the tools on the left: Navigate, Measure, Light, Pixel analyzer. With Measure, Light and the analyzer the left button is
+// theirs; the other buttons (and the Nav mouse style with Alt) still navigate
+const lkFramePt = (e) => { const r = $('lkd-frame').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
 canvas.addEventListener('pointerdown', e => {
   if (!L.model || nav.act) return;
-  let act = NAV[navPreset] && NAV[navPreset].map ? NAV[navPreset].map(e.button, e) : null;
-  if (!act) act = e.button === 1 ? 'pan' : e.button === 2 ? 'dolly' : L.measure ? null : 'orbit';
+  let act = null;
+  if (e.button === 0 && !e.altKey && L.tool === 'light') act = 'light';
+  else if (e.button === 0 && !e.altKey && L.tool === 'pixel') act = 'pixel';
+  if (!act) act = NAV[navPreset] && NAV[navPreset].map ? NAV[navPreset].map(e.button, e) : null;
+  if (!act) act = e.button === 1 ? 'pan' : e.button === 2 ? 'dolly' : L.tool === 'measure' ? null : 'orbit';
   nav.x = nav.x0 = e.clientX; nav.y = nav.y0 = e.clientY; nav.b = e.button; nav.id = e.pointerId; nav.act = act || 'click';
   canvas.setPointerCapture(e.pointerId); e.preventDefault();
+  if (act === 'light') { if (L.playing) lkPlay(false); if (!lkLightAt(e.clientX, e.clientY, e.shiftKey)) toast('Click on the model where the highlight should be'); }
+  if (act === 'pixel') { const p = lkFramePt(e); L.px = Object.assign(L.px || {}, { a: p, b: p, cur: p }); lkPxUI(); lkOverlay(); }
 });
 canvas.addEventListener('pointermove', e => {
+  if (L.tool === 'pixel' && (!nav.act || nav.act === 'pixel')) {
+    const p = lkFramePt(e); L.px = L.px || {}; L.px.cur = p; if (nav.act === 'pixel') L.px.b = p;
+    const now = performance.now(); if (now - L.pxT > 30) { L.pxT = now; lkPxUI(); } lkOverlay();
+    if (nav.act === 'pixel') return;
+  }
   if (!nav.act || e.pointerId !== nav.id || nav.act === 'click') return;
+  if (nav.act === 'light') { lkLightAt(e.clientX, e.clientY, false); return; }
   const dx = e.clientX - nav.x, dy = e.clientY - nav.y; nav.x = e.clientX; nav.y = e.clientY;
   if (!dx && !dy) return;
   if (L.playing) lkPlay(false);
@@ -745,11 +1009,14 @@ canvas.addEventListener('pointermove', e => {
   } else if (nav.act === 'dolly') lkDolly(Math.exp((dy - dx) * 0.01));
   lkMoved();
 });
+canvas.addEventListener('pointerleave', () => { if (L.px && !nav.act) { L.px.cur = null; lkPxUI(); } });
 const navEnd = (e) => {
   if (e.pointerId !== nav.id) return;
-  const click = nav.act === 'click' || (nav.b === 0 && L.measure && Math.hypot(e.clientX - nav.x0, e.clientY - nav.y0) < 4);
+  const click = nav.act === 'click' || (nav.b === 0 && L.tool === 'measure' && Math.hypot(e.clientX - nav.x0, e.clientY - nav.y0) < 4);
+  const was = nav.act;
   nav.act = null; nav.id = -1;
-  if (click && L.measure && e.type === 'pointerup') lkMeasureClick(e.clientX, e.clientY);
+  if (click && L.tool === 'measure' && e.type === 'pointerup') lkMeasureClick(e.clientX, e.clientY);
+  if (was === 'pixel') lkPxUI();
 };
 canvas.addEventListener('pointerup', navEnd); canvas.addEventListener('pointercancel', navEnd);
 canvas.addEventListener('wheel', e => { if (!L.model) return; e.preventDefault(); lkFree(); lkDolly(Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0015)); lkMoved(); }, { passive: false });
@@ -760,45 +1027,111 @@ function lkPick(cx, cy) {
   const h = L.model ? ray.intersectObject(L.model, true).find(x => x.object.isMesh) : null;
   return h ? h.point.clone() : null;
 }
-function lkMeasureSet(on = !L.measure) {
-  L.measure = !!on && !!L.model;
-  $('lkd-meas').setAttribute('aria-pressed', String(L.measure)); $('lkd-nav').setAttribute('aria-pressed', String(!L.measure));
-  canvas.classList.toggle('measuring', L.measure);
+function lkTool(t) {
+  L.tool = L.model || t === 'nav' ? t : 'nav';
+  L.measure = L.tool === 'measure';
+  for (const [id, k] of [['lkd-nav', 'nav'], ['lkd-meas', 'measure'], ['lkd-light', 'light'], ['lkd-pix', 'pixel']]) $(id).setAttribute('aria-pressed', String(L.tool === k));
+  canvas.classList.toggle('measuring', L.tool !== 'nav');
   if (!L.measure) { L.mA = L.mB = null; }
-  lkMeasureDraw();
+  if (L.tool !== 'pixel') L.px = null;
+  lkPxUI(); lkOverlay();
 }
+function lkMeasureSet(on = !L.measure) { lkTool(on ? 'measure' : 'nav'); }
 function lkMeasureClick(cx, cy) {
   const p = lkPick(cx, cy); if (!p) { toast('Click on the model'); return; }
   // the points are kept in the model's space: they stay on it whatever the camera does
   const loc = L.root.worldToLocal(p.clone());
   if (!L.mA || L.mB) { L.mA = loc; L.mB = null; } else L.mB = loc;
-  lkMeasureDraw();
+  lkOverlay();
 }
-function lkMeasureDraw() {
+// what is drawn over the view: the measure, the lights (Light tool) and the box of the analyzer
+function lkOverlay() {
   const ov = $('lkd-ov'), pop = $('lkd-mpop');
-  if (!L.measure || !L.mA || !L.root) { ov.innerHTML = ''; pop.hidden = true; return; }
   const w = $('lkd-frame').clientWidth, h = $('lkd-frame').clientHeight;
-  const to = (pl) => { const v = L.root.localToWorld(pl.clone()).project(cam); return v.z < 1 ? [(v.x + 1) / 2 * w, (1 - v.y) / 2 * h] : null; };
-  const a = to(L.mA), b = L.mB && to(L.mB);
   let s = '';
-  if (a && b) s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`;
-  for (const q of [a, b]) if (q) s += `<circle cx="${q[0]}" cy="${q[1]}" r="4.5"/>`;
-  ov.innerHTML = s;
-  pop.hidden = !(a && b);
-  if (a && b) {
-    const d = L.root.localToWorld(L.mA.clone()).distanceTo(L.root.localToWorld(L.mB.clone()));
-    $('lkd-md').textContent = `${d.toFixed(3)} m · ${(d * 100).toFixed(1)} cm`;
-    pop.style.left = Math.min(w - 10, Math.max(10, (a[0] + b[0]) / 2)) + 'px'; pop.style.top = Math.min(h - 10, Math.max(10, (a[1] + b[1]) / 2)) + 'px';
+  pop.hidden = true;
+  if (L.measure && L.mA && L.root) {
+    const to = (pl) => { const v = L.root.localToWorld(pl.clone()).project(cam); return v.z < 1 ? [(v.x + 1) / 2 * w, (1 - v.y) / 2 * h] : null; };
+    const a = to(L.mA), b = L.mB && to(L.mB);
+    if (a && b) s += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`;
+    for (const q of [a, b]) if (q) s += `<circle cx="${q[0]}" cy="${q[1]}" r="4.5"/>`;
+    pop.hidden = !(a && b);
+    if (a && b) {
+      const d = L.root.localToWorld(L.mA.clone()).distanceTo(L.root.localToWorld(L.mB.clone()));
+      $('lkd-md').textContent = `${d.toFixed(3)} m · ${(d * 100).toFixed(1)} cm`;
+      pop.style.left = Math.min(w - 10, Math.max(10, (a[0] + b[0]) / 2)) + 'px'; pop.style.top = Math.min(h - 10, Math.max(10, (a[1] + b[1]) / 2)) + 'px';
+    }
   }
+  if (L.model) s += lkLightsOverlay(w, h);
+  const P = L.px;
+  if (L.tool === 'pixel' && P && P.a && P.b && (Math.abs(P.a[0] - P.b[0]) > 1 || Math.abs(P.a[1] - P.b[1]) > 1)) {
+    s += `<rect class="lkpx" x="${Math.min(P.a[0], P.b[0])}" y="${Math.min(P.a[1], P.b[1])}" width="${Math.abs(P.a[0] - P.b[0])}" height="${Math.abs(P.a[1] - P.b[1])}"/>`;
+  }
+  ov.innerHTML = s;
 }
-$('lkd-mx').onclick = () => { L.mA = L.mB = null; lkMeasureDraw(); };
+const lkMeasureDraw = lkOverlay;
+$('lkd-mx').onclick = () => { L.mA = L.mB = null; lkOverlay(); };
+$('lkd-px-x').onclick = () => { if (L.px) { L.px.a = L.px.b = null; } lkPxUI(); lkOverlay(); };
+$('lkd-px-sp').addEventListener('change', e => { lk.pxSpace = e.target.value; lkSave(); lkPxUI(); });
+
+// ---------- pixel analyzer (like the one of Nuke) ----------
+// It reads the image before the Viewer (Raster: ACEScg; Path trace: linear Rec.709, to ACEScg), with the exposure, and
+// shows it in ACEScg, in linear Rec.709 or as it goes to the screen (0–255 after the Viewer): the pixel under the mouse,
+// and the average, minimum and maximum of a box. L.px: { cur: [x, y], a: [x, y], b: [x, y] } in px of the frame.
+const LK_LUM_AP1 = [0.2722287, 0.6740818, 0.0536895];
+function lkPxRead(x0, y0, x1, y1) {
+  const t = lk.engine === 'pt' ? L.rtP : L.rtB; if (!t) return null;
+  const fr = $('lkd-frame'), sx = t.width / fr.clientWidth, sy = t.height / fr.clientHeight;
+  let ax = Math.floor(Math.min(x0, x1) * sx), bx = Math.ceil(Math.max(x0, x1) * sx), ay = Math.floor(Math.min(y0, y1) * sy), by = Math.ceil(Math.max(y0, y1) * sy);
+  ax = Math.max(0, Math.min(t.width - 1, ax)); bx = Math.max(ax + 1, Math.min(t.width, bx)); ay = Math.max(0, Math.min(t.height - 1, ay)); by = Math.max(ay + 1, Math.min(t.height, by));
+  const w = bx - ax, h = by - ay, buf = new Uint16Array(w * h * 4);
+  try { renderer.readRenderTargetPixels(t, ax, t.height - by, w, h, buf); } catch (e) { console.error(e); return null; }
+  const g = r3ExpGain(lk.ev), pt = lk.engine === 'pt', out = [], f = THREE.DataUtils.fromHalfFloat;
+  for (let i = 0; i < w * h; i++) {
+    let c = [f(buf[i * 4]), f(buf[i * 4 + 1]), f(buf[i * 4 + 2])];
+    if (pt) { const a = f(buf[i * 4 + 3]); if (a > 1e-4) c = c.map(v => v / a); c = r3M3(R3_709_TO_AP1, c); }
+    out.push(c.map(v => v * g));
+  }
+  return out; // ACEScg × exposure
+}
+// one value in the space shown
+function lkPxIn(ap1) {
+  if (lk.pxSpace === 'lin709') return r3M3(R3_AP1_TO_709, ap1);
+  if (lk.pxSpace === 'disp') return r3ViewPixel(ap1, lk.view, 1).map(v => v * 255);
+  return ap1;
+}
+const lkPxLum = (ap1) => LK_LUM_AP1[0] * ap1[0] + LK_LUM_AP1[1] * ap1[1] + LK_LUM_AP1[2] * ap1[2];
+function lkPxRows() {
+  const P = L.px; if (!P || L.tool !== 'pixel') return null;
+  const rows = [];
+  const row = (name, ap1, sw) => { const v = lkPxIn(ap1), l = lk.pxSpace === 'disp' ? 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2] : lk.pxSpace === 'lin709' ? 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2] : lkPxLum(ap1); rows.push([name, [...v, l], sw || ap1]); };
+  if (P.cur) { const p = lkPxRead(P.cur[0], P.cur[1], P.cur[0] + 0.5, P.cur[1] + 0.5); if (p && p.length) row('Current', p[0]); }
+  if (P.a && P.b && (Math.abs(P.a[0] - P.b[0]) > 1 || Math.abs(P.a[1] - P.b[1]) > 1)) {
+    const px = lkPxRead(P.a[0], P.a[1], P.b[0], P.b[1]);
+    if (px && px.length) {
+      const avg = [0, 0, 0], mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+      let lmin = null, lmax = null;
+      for (const c of px) { for (let k = 0; k < 3; k++) { avg[k] += c[k]; mn[k] = Math.min(mn[k], c[k]); mx[k] = Math.max(mx[k], c[k]); } const l = lkPxLum(c); if (!lmin || l < lmin[0]) lmin = [l, c]; if (!lmax || l > lmax[0]) lmax = [l, c]; }
+      row('Average', avg.map(v => v / px.length)); row('Min', mn, lmin[1]); row('Max', mx, lmax[1]);
+      P.n = px.length;
+    }
+  } else P.n = 0;
+  return rows;
+}
+function lkPxUI() {
+  const box = $('lkd-pxa'); box.hidden = L.tool !== 'pixel';
+  if (box.hidden) return;
+  const rows = lkPxRows() || [], d = lk.pxSpace === 'disp' ? 0 : 4;
+  $('lkd-px-t').innerHTML = rows.map(([n, v, sw]) => { const s = r3ViewPixel(sw, lk.view, 1).map(x => Math.round(x * 255)); return `<tr><th>${n}</th><td><i style="background:rgb(${s.join(',')})"></i></td>${v.map((x, k) => `<td class="c${k}">${Number.isFinite(x) ? x.toFixed(d) : '–'}</td>`).join('')}</tr>`; }).join('');
+  $('lkd-px-n').textContent = L.px && L.px.n ? `Box: ${L.px.n.toLocaleString('en-US')} px · values ${lk.pxSpace === 'disp' ? 'after the Viewer (8 bit)' : 'scene linear, with the exposure'}` : 'Hover the view; drag a box for its average, min and max';
+}
 
 // ---------- burn-in (the letters of VFX Shooting Sup) ----------
 function lkBurnRows(f) {
   const F = lk.fields, up = (t) => String(t).toUpperCase();
   const top = [F.project && lk.project, F.asset && (L.modelName || '').replace(/\.[^.]+$/, '')].filter(Boolean).map(up).join('   ·   ');
   const r1 = [], r2 = [];
-  if (F.hdri) r1.push(['HDRI', L.hdriName], ['Rot', `${Math.round(lk.rot)}°`], ['EV', (lk.ev >= 0 ? '+' : '') + (+lk.ev).toFixed(1)]);
+  if (F.hdri) r1.push([lk.env === 'hdri' ? 'HDRI' : 'Sky', lk.env === 'hdri' ? L.hdriName : L.envName], ['Rot', `${Math.round(lk.rot)}°`], ['EV', (lk.ev >= 0 ? '+' : '') + (+lk.ev).toFixed(1)]);
   if (F.lens) r1.push(['Lens', `${lk.lens} mm`]);
   r1.push(['View', (R3_VIEWS.find(v => v[0] === lk.view) || ['', ''])[1].replace(' (no tone map)', '')]);
   r1.push(['Engine', lk.engine === 'pt' ? 'Path trace' : 'Raster']);
@@ -987,10 +1320,17 @@ $('lkd-pbdlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.pr
 function lkBusy(t) { $('lkd-busy').hidden = !t; $('lkd-busy').textContent = t || ''; }
 function lkUI() {
   $('lkd-hdri').value = lk.hdri === 'user' && !L.userHdri ? 'studio' : lk.hdri;
-  for (const [id, k] of [['lkd-rot', 'rot'], ['lkd-ev', 'ev'], ['lkd-blur', 'blur'], ['lkd-lens', 'lens'], ['lkd-elev', 'elev'], ['lkd-fill', 'fill'], ['lkd-spp', 'spp'], ['lkd-bounces', 'bounces'], ['lkd-bars', 'bars']]) $(id).value = lk[k];
+  const nv = (id, v) => { const el = $(id); if (document.activeElement !== el && !(el.parentNode && el.parentNode.classList.contains('scrubbing'))) el.value = v; };
+  for (const [id, k] of [['lkd-rot', 'rot'], ['lkd-ev', 'ev'], ['lkd-blur', 'blur'], ['lkd-lens', 'lens'], ['lkd-elev', 'elev'], ['lkd-fill', 'fill'], ['lkd-spp', 'spp'], ['lkd-bounces', 'bounces'], ['lkd-bars', 'bars'],
+    ['lkd-int', 'int'], ['lkd-skyint', 'skyInt'], ['lkd-sunaz', 'sunAz'], ['lkd-sunel', 'sunEl'], ['lkd-sunint', 'sunInt'], ['lkd-skyt', 'skyT'], ['lkd-skyalb', 'skyAlb'],
+    ['lkd-v-lens', 'lens'], ['lkd-v-elev', 'elev'], ['lkd-v-fill', 'fill']]) nv(id, lk[k]);
+  $('lkd-v-ev-r').value = lk.ev; $('lkd-v-ev-n').textContent = (lk.ev >= 0 ? '+' : '') + (+lk.ev).toFixed(1);
+  $('lkd-skycol').value = lk.skyCol; $('lkd-gndcol').value = lk.gndCol; $('lkd-cs').value = lk.cs; $('lkd-px-sp').value = lk.pxSpace;
+  for (const e of ['hdri', 'colors', 'phys']) $('lkd-env-' + e).setAttribute('aria-pressed', String(lk.env === e));
+  $('lkd-envr-hdri').hidden = lk.env !== 'hdri'; $('lkd-envr-sky').hidden = lk.env === 'hdri'; $('lkd-envr-colors').hidden = lk.env !== 'colors'; $('lkd-envr-phys').hidden = lk.env !== 'phys';
+  $('lkd-c-show').lastChild.textContent = lk.env === 'hdri' ? 'HDRI' : 'Sky';
   for (const [id, k] of [['lkd-view', 'view'], ['lkd-up', 'up'], ['lkd-yaw', 'yaw'], ['lkd-units', 'units'], ['lkd-dir', 'dir'], ['lkd-text', 'text'], ['lkd-font', 'font'], ['lkd-align', 'align'], ['lkd-talign', 'talign'], ['lkd-pbsize', 'pbSize'], ['lkd-pbq', 'pbQ']]) $(id).value = String(lk[k]);
   for (const [id, k] of [['lkd-show', 'show'], ['lkd-chrome', 'chrome'], ['lkd-grey', 'grey'], ['lkd-chart', 'chart'], ['lkd-shadow', 'shadow'], ['lkd-dn', 'dn'], ['lkd-burn', 'burn']]) $(id).checked = !!lk[k];
-  for (const k of ['lens', 'elev', 'fill', 'ev']) { if (document.activeElement !== $('lkd-v-' + k)) $('lkd-v-' + k).value = lk[k]; $('lkd-v-' + k + '-r').value = lk[k]; }
   for (const a of ['x', 'y', 'z']) $('lkd-off' + a).value = lk['off' + a.toUpperCase()];
   $('lkd-bgc').value = lk.bg; $('lkd-project').value = lk.project; $('lkd-artist').value = lk.artist;
   for (const [k] of LK_FIELDS) $('lkd-fd-' + k).checked = !!lk.fields[k];
@@ -998,11 +1338,13 @@ function lkUI() {
   $('lkd-c-burn').setAttribute('aria-pressed', String(!!lk.burn)); $('lkd-c-refs').setAttribute('aria-pressed', String(L.refsOn !== false));
   $('lkd-e-raster').setAttribute('aria-pressed', String(lk.engine === 'raster')); $('lkd-e-pt').setAttribute('aria-pressed', String(lk.engine === 'pt'));
   $('lkd-pt-st').textContent = lk.engine === 'pt' ? 'on' : 'off';
+  lkLightsUI();
 }
 // what each setting has to redo
 function lkChanged(kind) {
   lkSave(); lkUI();
-  if (kind === 'env') { lkEnv(); if (lk.engine === 'pt' && L.ptBuilt) { L.tracer.updateEnvironment(); lkGo(); } else lkDirty(); }
+  if (kind === 'env') { lkEnv(); if (lk.engine === 'pt' && L.ptBuilt) { L.tracer.updateEnvironment(); if (L.sun || L.lights.length) L.tracer.updateLights(); lkGo(); } else lkDirty(); }
+  else if (kind === 'envbuild') lkEnvBuild();
   else if (kind === 'place') lkPlace(false);
   else if (kind === 'cam') { lkCam(); if (lk.engine === 'pt' && L.ptBuilt) lkPtMoved(true); else lkDirty(); }
   else if (kind === 'refs') { lkRefsPlace(); lkShadowVis(); if (lk.engine === 'pt' && L.ptBuilt) lkPtRebuild(); else lkDirty(); }
@@ -1014,18 +1356,13 @@ function lkChanged(kind) {
 }
 const bindNum = (id, k, kind, min, max) => $(id).addEventListener('change', () => { const v = +$(id).value; lk[k] = Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : LK_DEF[k]; lkChanged(kind); });
 bindNum('lkd-rot', 'rot', 'env', -360, 360); bindNum('lkd-ev', 'ev', 'view', -10, 10); bindNum('lkd-blur', 'blur', 'env', 0, 1);
-bindNum('lkd-lens', 'lens', 'cam', 12, 300); bindNum('lkd-elev', 'elev', 'cam', -30, 80); bindNum('lkd-fill', 'fill', 'cam', 0.3, 1.2);
+bindNum('lkd-lens', 'lens', 'cam', 12, 300); bindNum('lkd-elev', 'elev', 'cam', -30, 80); bindNum('lkd-fill', 'fill', 'cam', 0.3, 2);
+bindNum('lkd-v-lens', 'lens', 'cam', 12, 300); bindNum('lkd-v-elev', 'elev', 'cam', -30, 80); bindNum('lkd-v-fill', 'fill', 'cam', 0.3, 2);
+bindNum('lkd-int', 'int', 'env', 0, 20); bindNum('lkd-skyint', 'skyInt', 'envbuild', 0, 20); bindNum('lkd-sunaz', 'sunAz', 'envbuild', -360, 360); bindNum('lkd-sunel', 'sunEl', 'envbuild', -10, 90);
+bindNum('lkd-sunint', 'sunInt', 'envbuild', 0, 20); bindNum('lkd-skyt', 'skyT', 'envbuild', 1.7, 10); bindNum('lkd-skyalb', 'skyAlb', 'envbuild', 0, 1);
 bindNum('lkd-spp', 'spp', 'pt', 1, 100000); bindNum('lkd-bounces', 'bounces', 'pt', 1, 30); bindNum('lkd-bars', 'bars', 'burn', 0, 1);
-// on the view: Lens, Height, Framing and Exp, a slider and its number (the same settings as Turntable & camera / Light)
-{
-  const VK = { lens: ['cam', 12, 300, 50], elev: ['cam', -30, 80, 10], fill: ['cam', 0.3, 1.2, 0.8], ev: ['view', -10, 10, 0] };
-  for (const [k, [kind, mn, mx, d]] of Object.entries(VK)) {
-    const set = (v) => { v = +v; lk[k] = Number.isFinite(v) ? Math.min(mx, Math.max(mn, k === 'lens' || k === 'elev' ? Math.round(v) : Math.round(v * 100) / 100)) : LK_DEF[k]; lkChanged(kind); };
-    $('lkd-v-' + k + '-r').addEventListener('input', e => set(e.target.value));
-    $('lkd-v-' + k + '-r').addEventListener('dblclick', () => set(d));
-    $('lkd-v-' + k).addEventListener('change', e => set(e.target.value));
-  }
-}
+// Exposure on the view: a slider (double click: 0, js/panel.js)
+$('lkd-v-ev-r').addEventListener('input', e => { lk.ev = Math.round(+e.target.value * 10) / 10; lkChanged('view'); });
 for (const a of ['x', 'y', 'z']) $('lkd-off' + a).addEventListener('change', e => { const v = +e.target.value; lk['off' + a.toUpperCase()] = Number.isFinite(v) ? Math.max(-1000, Math.min(1000, v)) : 0; lkChanged('place'); });
 $('lkd-off0').onclick = () => { lk.offX = lk.offY = lk.offZ = 0; lkChanged('place'); };
 const bindSel = (id, k, kind) => $(id).addEventListener('change', () => { lk[k] = $(id).value; lkChanged(kind); });
@@ -1036,17 +1373,21 @@ const bindChk = (id, k, kind) => $(id).addEventListener('change', () => { lk[k] 
 bindChk('lkd-show', 'show', 'env'); bindChk('lkd-chrome', 'chrome', 'refs'); bindChk('lkd-grey', 'grey', 'refs'); bindChk('lkd-chart', 'chart', 'refs');
 bindChk('lkd-shadow', 'shadow', 'refs'); bindChk('lkd-dn', 'dn', 'pt'); bindChk('lkd-burn', 'burn', 'burn');
 $('lkd-bgc').addEventListener('input', () => { lk.bg = $('lkd-bgc').value; lkChanged('env'); });
+for (const [id, k] of [['lkd-skycol', 'skyCol'], ['lkd-gndcol', 'gndCol']]) $(id).addEventListener('input', () => { lk[k] = $(id).value; lkChanged('envbuild'); });
+bindSel('lkd-cs', 'cs', 'envbuild');
+for (const e of ['hdri', 'colors', 'phys']) $('lkd-env-' + e).onclick = () => { lk.env = e; lkChanged('envbuild'); };
 for (const [id, k] of [['lkd-project', 'project'], ['lkd-artist', 'artist']]) $(id).addEventListener('input', () => { lk[k] = $(id).value.slice(0, 60); lkSave(); lkDirty(); });
 $('lkd-fields').addEventListener('change', e => { const k = e.target.dataset.k; if (k) { lk.fields[k] = e.target.checked; lkSave(); lkDirty(); } });
-$('lkd-hdri').addEventListener('change', () => { lk.hdri = $('lkd-hdri').value; lkSave(); lkLoadHdri(lk.hdri).catch(e => toast('Could not load the HDRI: ' + e.message, true)); });
+$('lkd-hdri').addEventListener('change', () => { lk.hdri = $('lkd-hdri').value; lk.env = 'hdri'; lkSave(); lkUI(); lkLoadHdri(lk.hdri).catch(e => toast('Could not load the HDRI: ' + e.message, true)); });
 $('lkd-fh').addEventListener('change', async (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
-    const url = URL.createObjectURL(f);
-    const tex = /\.exr$/i.test(f.name) ? await new THREE.EXRLoader().loadAsync(url) : await new THREE.HDRLoader().loadAsync(url);
+    const url = URL.createObjectURL(f), ld = /\.exr$/i.test(f.name) ? new THREE.EXRLoader() : new THREE.HDRLoader();
+    ld.setDataType(THREE.FloatType);
+    const tex = await ld.loadAsync(url);
     URL.revokeObjectURL(url);
-    if (L.userHdri) L.userHdri.tex.dispose();
-    L.userHdri = { tex, name: f.name.replace(/\.[^.]+$/, '') };
+    L.userHdri = { raw: lkF32(tex), name: f.name.replace(/\.[^.]+$/, '') }; tex.dispose();
+    lk.env = 'hdri';
     const o = $('lkd-hdri').querySelector('option[value="user"]'); o.disabled = false; o.textContent = 'Yours: ' + L.userHdri.name;
     $('lkd-hdri-n').textContent = f.name; lk.hdri = 'user'; lkUI(); lkLoadHdri('user');
   } catch (err) { console.error(err); $('lkd-hdri-n').textContent = 'could not read ' + f.name; }
@@ -1057,7 +1398,42 @@ chip('lkd-c-clay', () => { lk.clay = !lk.clay; lkChanged('clay'); });
 chip('lkd-c-refs', () => { L.refsOn = L.refsOn === false; lkChanged('refs'); });
 chip('lkd-c-burn', () => { lk.burn = !lk.burn; lkChanged('burn'); });
 $('lkd-e-raster').onclick = () => lkEngine('raster'); $('lkd-e-pt').onclick = () => lkEngine('pt');
-$('lkd-nav').onclick = () => lkMeasureSet(false); $('lkd-meas').onclick = () => lkMeasureSet();
+$('lkd-nav').onclick = () => lkTool('nav'); $('lkd-meas').onclick = () => lkTool(L.tool === 'measure' ? 'nav' : 'measure');
+$('lkd-light').onclick = () => lkTool(L.tool === 'light' ? 'nav' : 'light'); $('lkd-pix').onclick = () => lkTool(L.tool === 'pixel' ? 'nav' : 'pixel');
+// Reset view: the turntable camera with the default lens, height and framing
+function lkResetView() { for (const k of ['lens', 'elev', 'fill']) lk[k] = LK_DEF[k]; L.free = false; lkBackUI(); lkChanged('cam'); }
+$('lkd-reset-view').onclick = lkResetView;
+// Reset section: the settings of that section back to their defaults
+function lkResetPart(part) {
+  for (const k of LK_RESET[part] || []) lk[k] = lkClone(LK_DEF[k]);
+  if (part === 'lights') L.lsel = -1;
+  lkSave(); lkUI();
+  if (part === 'env') lkEnvBuild();
+  else if (part === 'lights') lkLightsBuild();
+  else if (part === 'model') lkPlace(false);
+  else if (part === 'turn') lkChanged('cam');
+  else if (part === 'refs') { lkClay(); lkChanged('refs'); }
+  else if (part === 'pt') lkChanged('pt');
+  else lkChanged('burn');
+  toast(`${({ model: 'Model', env: 'Environment', lights: 'Lights', turn: 'Turntable & camera', refs: 'References', pt: 'Path trace', burn: 'Burn-in', pb: 'Playblast' })[part]} back to its defaults`);
+}
+document.querySelectorAll('#lkdapp [data-lkreset]').forEach(b => { b.onclick = () => lkResetPart(b.dataset.lkreset); });
+// the lights: add, select, remove, and the settings of the selected one
+document.querySelectorAll('#lkdapp [data-lkadd]').forEach(b => { b.onclick = () => { if (!L.model) { toast('Load a model first'); return; } lkLightAdd(b.dataset.lkadd); }; });
+$('lkd-llist').addEventListener('click', e => {
+  const del = e.target.closest('[data-ldel]');
+  if (del) { lk.lights.splice(+del.dataset.ldel, 1); L.lsel = Math.min(L.lsel, lk.lights.length - 1); lkSave(); lkLightsBuild(); return; }
+  const it = e.target.closest('[data-i]'); if (it) { L.lsel = +it.dataset.i; lkLightsUI(); lkOverlay(); }
+});
+{
+  const cur = () => lk.lights[L.lsel];
+  const num = (id, k, mn, mx, f = (v) => v) => $(id).addEventListener('change', () => { const li = cur(); if (!li) return; const v = +$(id).value; if (Number.isFinite(v)) li[k] = f(Math.min(mx, Math.max(mn, v))); lkLightsMoved(); });
+  num('lkd-l-int', 'int', 0, 1000); num('lkd-l-ev', 'ev', -10, 10); num('lkd-l-az', 'az', -360, 360); num('lkd-l-el', 'el', -90, 90);
+  num('lkd-l-dist', 'd', 0.01, 1000, (v) => v / Math.max(L.r, 0.01)); num('lkd-l-size', 'size', 0, 100); num('lkd-l-ang', 'ang', 1, 170); num('lkd-l-pen', 'pen', 0, 1);
+  $('lkd-l-col').addEventListener('input', () => { const li = cur(); if (li) { li.col = $('lkd-l-col').value; lkLightsMoved(); } });
+  $('lkd-l-sh').addEventListener('change', () => { const li = cur(); if (li) { li.sh = $('lkd-l-sh').checked; lkLightsMoved(); } });
+  $('lkd-l-type').addEventListener('change', () => { const li = cur(); if (li) { li.type = $('lkd-l-type').value; lkSave(); lkLightsBuild(); } });
+}
 $('lkd-back').onclick = lkBack;
 $('lkd-remove').onclick = () => { lkPlay(false); lkClearModel(); };
 for (const id of ['lkd-f', 'lkd-f2']) $(id).addEventListener('change', e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) lkLoadFiles(fs); });
@@ -1088,10 +1464,13 @@ const lkKeys = (e) => {
   if (e.type !== 'keydown' || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
   if (k === ' ') { e.preventDefault(); if (!e.repeat) lkPlay(); }
-  else if (k === 'n' || k === 'N') lkMeasureSet(false);
-  else if (k === 'm' || k === 'M') lkMeasureSet();
+  else if (k === 'n' || k === 'N') lkTool('nav');
+  else if (k === 'm' || k === 'M') lkTool(L.tool === 'measure' ? 'nav' : 'measure');
+  else if (k === 'l' || k === 'L') lkTool(L.tool === 'light' ? 'nav' : 'light');
+  else if (k === 'i' || k === 'I') lkTool(L.tool === 'pixel' ? 'nav' : 'pixel');
+  else if ((k === 'Delete' || k === 'Backspace') && L.tool === 'light' && lk.lights[L.lsel]) { lk.lights.splice(L.lsel, 1); L.lsel = lk.lights.length - 1; lkSave(); lkLightsBuild(); }
   else if (k === 'f' || k === 'F') lkBack();
-  else if (k === 'Escape') { if (L.measure && L.mA) { L.mA = L.mB = null; lkMeasureDraw(); } else if (L.measure) lkMeasureSet(false); }
+  else if (k === 'Escape') { if (L.measure && L.mA) { L.mA = L.mB = null; lkOverlay(); } else if (L.tool === 'pixel' && L.px && L.px.a) $('lkd-px-x').click(); else if (L.tool !== 'nav') lkTool('nav'); }
   else if (k === 'Home') { lkPlay(false); lkSetFrame(1); }
   else if (k === 'ArrowRight' || k === 'ArrowLeft') { e.preventDefault(); lkPlay(false); lkSetFrame(L.frame + (k === 'ArrowRight' ? 1 : -1)); }
 };
@@ -1104,12 +1483,16 @@ function lkShow(on) {
   L.on = on;
   document.querySelector('.app').hidden = on; $('lkdapp').hidden = !on;
   if (on) {
-    if (!lkStarted) { lkStarted = true; lkUI(); lkLoadHdri(lk.hdri === 'user' ? 'studio' : lk.hdri).catch(e => toast('Could not load the HDRI: ' + e.message, true)); }
+    if (!lkStarted) {
+      lkStarted = true; if (lk.hdri === 'user') lk.hdri = 'studio'; lkUI();
+      lkLoadHdri(lk.hdri).catch(e => toast('Could not load the HDRI: ' + e.message, true));
+      lkLightsBuild();
+    }
     if (typeof tlPlay === 'function' && typeof tl !== 'undefined' && tl.playing) tlPlay(false);
     lkFit(); lkDirty();
   } else { lkPlay(false); cancelAnimationFrame(L.raf); L.raf = 0; window.dispatchEvent(new Event('resize')); if (typeof render === 'function') render(); }
 }
 window.cpLkShow = lkShow;
 // for tests
-window.LKD = { lk, L, load: lkLoadFiles, dropFiles: lkDropFiles, frame: lkSetFrame, engine: lkEngine, playblast: lkPlayblast };
+window.LKD = { lk, L, load: lkLoadFiles, dropFiles: lkDropFiles, tool: lkTool, lightAt: lkLightAt, addLight: lkLightAdd, px: lkPxRows, reset: lkResetPart, resetView: lkResetView, frame: lkSetFrame, engine: lkEngine, playblast: lkPlayblast };
 })();

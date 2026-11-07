@@ -3,6 +3,9 @@
 .lkdapp[hidden] { display: none; }
 .lkdapp > aside.props { min-height: 0; }
 .lkd-viewer { display: flex; flex-direction: column; }
+/* the tools on the left of the view, like 3D Camera Pin */
+.lkd-mid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.lkd-mid > .lkd-box { min-width: 0; }
 .lkd-bar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; min-width: 0; }
 .lkd-bar .tool { position: relative; }
 .lkd-bar .sep { width: 1px; align-self: stretch; margin: 0.4rem 0.2rem; background: var(--line); }
@@ -36,11 +39,6 @@
 #lkd-pb-video { width: 100%; max-height: 40vh; background: #000; border-radius: 0.6rem; }
 #lkdapp input[type=color] { width: 4.4rem; height: 2.8rem; padding: 0.1rem 0.2rem; border: 1px solid var(--line); border-radius: 0.6rem; background: var(--field); cursor: pointer; }
 /* the second row of the view: Lens, Height, Framing and Exp, each a slider and its number */
-.lkd-bar2 { padding-top: 0.5rem; gap: 0.5rem; }
-.lkd-vk { gap: 0.5rem; }
-.lkd-vk input[type=range] { width: 8rem; }
-.lkd-vk .lkd-vnum { width: 5.6rem; height: 1.9rem; padding: 0 0.4rem; font: 1.1rem var(--f-num); color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 0.5rem; text-align: right; }
-.lkd-vk .note { font: 1.05rem var(--f-num); }
 .lkd-bar select.lkd-vt { flex: 0 1 auto; width: auto; min-width: 8rem; max-width: 16rem; height: 2.4rem; font-size: 1.15rem; }
 /* free camera: Back to camera stands out and the frame gets the accent, like 3D Render */
 .lkd-bar .r3back { display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--accent-hi, #774dcb) 55%, transparent); }
@@ -49,3 +47,43 @@
 .lkd-off { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: center; gap: 0.5rem; min-width: 0; }
 .lkd-off label { display: flex; align-items: center; gap: 0.3rem; min-width: 0; font: 1.1rem var(--f-ui); color: var(--muted); }
 .lkd-off input { width: 100%; min-width: 0; }
+/* the second row of the view: LENS, HEIGHT, FRAMING (numbers that drag sideways) and Exposure */
+.lkd-bar2 { gap: 0.8rem; }
+.lkd-camrow { display: inline-flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.lkd-camrow label.camh { display: inline-flex; align-items: center; gap: 0.6rem; font: 600 1.05rem var(--f-ui); letter-spacing: .08em; color: var(--muted); white-space: nowrap; }
+.lkd-camrow .num:has(> input.mini) { width: 8.8rem; }
+.lkd-camrow .num:has(> input.mini).has-u > input { padding-right: 3.2rem; padding-left: 0.5rem; }
+.lkd-camrow .num:has(> input.mini) .u { right: 0.7rem; }
+.lkd-bar2 .sep { width: 1px; height: 1.6rem; margin: 0 0.2rem; background: var(--line); }
+.lkd-bar2 .vpchip b { font: 500 1.1rem var(--f-num); color: var(--text); min-width: 3.4rem; text-align: right; }
+/* Reset section */
+.lkd-sreset { justify-content: flex-end; margin-top: 0.4rem; }
+.lkd-envseg { margin-bottom: 0.6rem; }
+/* the lights */
+.lkd-ladd { gap: 0.5rem; flex-wrap: wrap; }
+.lkd-llist { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.6rem 0; }
+.lkd-li { display: grid; grid-template-columns: 1.4rem auto minmax(0, 1fr) auto; align-items: center; gap: 0.7rem; padding: 0.3rem 0.4rem 0.3rem 0.8rem; border-radius: 0.6rem; background: var(--panel-2); cursor: pointer; }
+.lkd-li.on { box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.lkd-li i { width: 1.2rem; height: 1.2rem; border-radius: 50%; box-shadow: 0 0 0 1px var(--line); }
+.lkd-li b { font-weight: 600; font-size: 1.2rem; white-space: nowrap; }
+.lkd-li .note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--f-num); }
+.lkd-ov .lkl circle { fill: rgb(255 214 120 / .25); stroke: #ffd678; stroke-width: 1.5; }
+.lkd-ov .lkl.on circle { fill: #ffd678; }
+.lkd-ov .lkl text { font: 600 10px var(--f-num); fill: #1d1d1d; text-anchor: middle; }
+.lkd-ov .lkl:not(.on) text { fill: #ffd678; }
+.lkd-ov line.lkl { stroke: #ffd678; stroke-width: 1; stroke-dasharray: 4 3; }
+.lkd-ov rect.lkpx { fill: rgb(255 255 255 / .06); stroke: #fff; stroke-width: 1; stroke-dasharray: 4 3; }
+/* the pixel analyzer, like the one of Nuke */
+.lkd-pxa { position: absolute; left: 1rem; bottom: 1rem; z-index: 4; padding: 0.7rem 0.9rem; background: color-mix(in srgb, var(--card) 94%, transparent); border: 1px solid var(--line); border-radius: 0.8rem; box-shadow: 0 0.6rem 2rem rgb(0 0 0 / .45); backdrop-filter: blur(0.6rem); }
+.lkd-pxa[hidden] { display: none; }
+.lkd-pxh { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.lkd-pxh b { font-size: 1.2rem; font-weight: 600; margin-right: auto; }
+.lkd-pxh select { width: auto; height: 2.2rem; font-size: 1.1rem; }
+.lkd-pxa table { border-collapse: collapse; font: 1.15rem var(--f-num); font-variant-numeric: tabular-nums; }
+.lkd-pxa th { text-align: left; font: 500 1.05rem var(--f-ui); color: var(--muted); padding: 0.15rem 0.6rem 0.15rem 0; }
+.lkd-pxa thead th { text-align: right; }
+.lkd-pxa td { text-align: right; padding: 0.15rem 0 0.15rem 1rem; min-width: 6.4rem; color: var(--text); }
+.lkd-pxa td:first-of-type { min-width: 0; padding-left: 0; }
+.lkd-pxa td i { display: inline-block; width: 1.4rem; height: 1.4rem; border-radius: 0.3rem; box-shadow: 0 0 0 1px var(--line); vertical-align: middle; }
+.lkd-pxa .c0 { color: #ff7b72; } .lkd-pxa .c1 { color: #7ee787; } .lkd-pxa .c2 { color: #79c0ff; }
+.lkd-pxa .note { margin: 0.4rem 0 0; font-size: 1.05rem; }

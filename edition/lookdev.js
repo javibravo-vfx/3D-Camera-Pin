@@ -1324,21 +1324,31 @@ const lkPbWH = () => lk.pbSize === '2160' ? [3840, 2160] : lk.pbSize === '720' ?
 // the codec is chosen before rendering, with one test frame: a codec that fails (no H.264 here, an H.264 without its
 // avcC) is known before the first real frame, so the frames are rendered once (a path traced frame is never redone)
 async function lkPbProbe(W, H, bitrate) {
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.getContext('2d').fillRect(0, 0, W, H);
-  for (const [codec, mux] of LK_PB_CANDS) {
-    const sup = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate, framerate: LK_FPS }).catch(() => null);
+  // a few test frames: the codec has to give every frame, in order, from 0 (an H.264 with B-frames gives them out of
+  // order and the MP4 cannot take them; 'realtime' turns them off). H.264 first, in quality and then realtime mode; VP9 after
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d');
+  const N = 6, dur = Math.round(1e6 / LK_FPS);
+  const tries = [];
+  for (const [codec, mux] of LK_PB_CANDS) for (const lat of mux === 'avc' ? ['quality', 'realtime'] : ['quality']) tries.push([codec, mux, lat]);
+  for (const [codec, mux, lat] of tries) {
+    const cfg = Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS, latencyMode: lat }, mux === 'avc' ? { avc: { format: 'avc' } } : {});
+    const sup = await VideoEncoder.isConfigSupported(cfg).catch(() => null);
     if (!sup || !sup.supported) continue;
-    let meta0 = null, err = null, got = false;
-    const enc = new VideoEncoder({ output: (c, m) => { if (!got) { got = true; meta0 = m || {}; } }, error: e => { err = e; } });
+    const ts = []; let meta0 = null, err = null;
+    const enc = new VideoEncoder({ output: (c, m) => { if (!ts.length) meta0 = m || {}; ts.push(c.timestamp); }, error: e => { err = e; } });
     try {
-      enc.configure(Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
-      const fr = new VideoFrame(cv, { timestamp: 0, duration: Math.round(1e6 / LK_FPS) }); enc.encode(fr, { keyFrame: true }); fr.close();
+      enc.configure(cfg);
+      for (let i = 0; i < N; i++) {
+        cx.fillStyle = `rgb(${i * 40},${100 + i * 20},${200 - i * 30})`; cx.fillRect(0, 0, W, H); cx.fillStyle = '#fff'; cx.fillRect(i * W / N, 0, W / N, H);
+        const fr = new VideoFrame(cv, { timestamp: i * dur, duration: dur }); enc.encode(fr, { keyFrame: i === 0 }); fr.close();
+      }
       await enc.flush();
     } catch (e) { err = err || e; }
     try { if (enc.state !== 'closed') enc.close(); } catch (e) { /* closed */ }
-    if (err || !got) { console.warn('lookdev playblast: codec', codec, err || 'no output'); continue; }
-    if (mux === 'avc' && !(meta0.decoderConfig && meta0.decoderConfig.description)) { console.warn('lookdev playblast: H.264 without avcC', codec); continue; }
-    return { codec, mux };
+    const inOrder = ts.length === N && ts.every((t, i) => t === i * dur);
+    if (err || !inOrder) { console.warn('lookdev playblast: codec', codec, lat, err || `frames ${ts.join(', ')}`); continue; }
+    if (mux === 'avc' && !(meta0.decoderConfig && meta0.decoderConfig.description)) { console.warn('lookdev playblast: H.264 without avcC', codec, lat); continue; }
+    return { codec, mux, lat };
   }
   return null;
 }
@@ -1361,9 +1371,9 @@ async function lkPlayblast() {
     const bitrate = Math.min(80e6, Math.max(4e6, W * H * LK_FPS * 0.12));
     const cd = await lkPbProbe(W, H, bitrate);
     if (!cd) throw new Error(`no video encoder for ${W} × ${H} here${W > 1920 ? ': try 1080p' : ''}`);
-    const { codec, mux } = cd;
+    const { codec, mux, lat } = cd;
     const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: LK_FPS }, fastStart: 'in-memory',
-      // some H.264 encoders (hardware, Windows) give the first chunk one frame late: the track starts at 0 anyway
+      // the first frame is at 0 (the probe checks it); offset, in case an encoder starts it a little late
       firstTimestampBehavior: 'offset' });
     let encErr = null, first = true;
     enc = new VideoEncoder({
@@ -1375,12 +1385,16 @@ async function lkPlayblast() {
             const dc = meta.decoderConfig;
             meta = { ...meta, decoderConfig: { codec, codedWidth: W, codedHeight: H, ...(dc || {}), colorSpace: (dc && dc.colorSpace && dc.colorSpace.primaries) ? dc.colorSpace : LK_PB_CS } };
           }
+          if (chunk.timestamp <= lastTs) throw new Error(`the ${mux === 'avc' ? 'H.264' : 'VP9'} encoder gave frames out of order (${lastTs} then ${chunk.timestamp} µs)`);
+          lastTs = chunk.timestamp;
           muxer.addVideoChunk(chunk, meta);
         } catch (e) { encErr = e; }
       },
       error: e => { encErr = encErr || e; },
     });
-    enc.configure(Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
+    enc.configure(Object.assign({ codec, width: W, height: H, bitrate, framerate: LK_FPS, latencyMode: lat }, mux === 'avc' ? { avc: { format: 'avc' } } : {}));
+    // the chunks go in in order of time; one that comes out of order (or late) stops it with a clear message
+    let lastTs = -1;
     renderer.setPixelRatio(1); renderer.setSize(W, H, false);
     L.free = false;
     if (pt) { tr.renderDelay = 0; tr.dynamicLowRes = false; tr.minSamples = 1; tr.bounces = q.bounces; tr.reset(); }

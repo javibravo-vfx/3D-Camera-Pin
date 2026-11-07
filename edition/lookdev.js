@@ -1362,7 +1362,9 @@ async function lkPlayblast() {
     const cd = await lkPbProbe(W, H, bitrate);
     if (!cd) throw new Error(`no video encoder for ${W} × ${H} here${W > 1920 ? ': try 1080p' : ''}`);
     const { codec, mux } = cd;
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: LK_FPS }, fastStart: 'in-memory' });
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: LK_FPS }, fastStart: 'in-memory',
+      // some H.264 encoders (hardware, Windows) give the first chunk one frame late: the track starts at 0 anyway
+      firstTimestampBehavior: 'offset' });
     let encErr = null, first = true;
     enc = new VideoEncoder({
       output: (chunk, meta) => {
